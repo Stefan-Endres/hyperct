@@ -2,6 +2,9 @@ import numpy
 import logging
 import sys
 import copy
+from hyperct._cube import *
+from hyperct._rec import *
+
 
 try:
     from functools import lru_cache  # For Python 3 only
@@ -99,14 +102,16 @@ except ImportError:  # Python 2:
         return (lambda input_func: functools.wraps(input_func)(
             LruCacheClass(input_func, maxsize, timeout)))
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-
-
 class Complex:
-    def __init__(self, dim, func, func_args=(), symmetry=False, bounds=None,
-                 g_cons=None, g_args=()):
+    def __init__(self, dim, func=None, func_args=(), symmetry=False,
+                 bounds=None, g_cons=None, g_args=()):
         self.dim = dim
         self.bounds = bounds
+        if self.bounds is None:
+            self.VertexCache = VertexCacheCube
+        else:
+            self.VertexCache = VertexCacheRec
+
         self.symmetry = symmetry  # TODO: Define the functions to be used
         #      here in init to avoid if checks
         self.gen = 0
@@ -119,51 +124,29 @@ class Complex:
 
         self.H = []  # Storage structure of cells
         # Cache of all vertices
-        self.V = VertexCache(func, func_args, bounds, g_cons, g_args)
+        self.V = self.VertexCache(func, func_args, bounds, g_cons, g_args)
 
-        # Generate n-cube here:
-        self.n_cube(dim, symmetry=symmetry)
 
-        # TODO: Assign functions to a the complex instead
-        if symmetry:
-            pass
-            self.generation_cycle = 1
-            # self.centroid = self.C0()[-1].x
-            # self.C0.centroid = self.centroid
-        else:
-            self.add_centroid()
-
-        self.H.append([])
-        self.H[0].append(self.C0)
-        self.hgr = self.C0.homology_group_rank()
-        self.hgrd = 0  # Complex group rank differential
         # self.hgr = self.C0.hg_n
-
-        # Build initial graph
-        self.graph_map()
-
-        self.performance = []
-        self.performance.append(0)
-        self.performance.append(0)
 
     def __call__(self):
         return self.H
 
-    def n_cube(self, dim, symmetry=False, printout=False):
+    def n_cube(self, printout=False, add_centriod=True, graph_map=True):
         """
         Generate the simplicial triangulation of the n dimensional hypercube
         containing 2**n vertices
         """
         import numpy
-        origin = list(numpy.zeros(dim, dtype=int))
+        origin = list(numpy.zeros(self.dim, dtype=int))
         self.origin = origin
-        supremum = list(numpy.ones(dim, dtype=int))
+        supremum = list(numpy.ones(self.dim, dtype=int))
         self.suprenum = supremum
 
         x_parents = []
         x_parents.append(tuple(self.origin))
 
-        if symmetry:
+        if self.symmetry:
             # self.C0 = Cell(0, 0, 0, self.origin, self.suprenum)
             self.C0 = Simplex(0, 0, 0, 0, self.dim)  # Initial cell object
             self.C0.add_vertex(self.V[tuple(origin)])
@@ -171,6 +154,7 @@ class Complex:
             i_s = 0
             self.perm_symmetry(i_s, x_parents, origin)
             self.C0.add_vertex(self.V[tuple(supremum)])
+            self.generation_cycle = 1
         else:
             self.C0 = Cell(0, 0, 0, self.origin,
                            self.suprenum)  # Initial cell object
@@ -179,6 +163,16 @@ class Complex:
 
             i_parents = []
             self.perm(i_parents, x_parents, origin)
+
+        if add_centriod:
+            self.add_centroid()
+        if graph_map: # Build initial graph
+            self.graph_map()
+
+        self.H.append([])
+        self.H[0].append(self.C0)
+        self.hgr = self.C0.homology_group_rank()
+        self.hgrd = 0  # Complex group rank differential
 
         if printout:
             print("Initial hyper cube:")
@@ -772,148 +766,4 @@ class Simplex:
             print('Order = {}'.format(v.order))
 
 
-class Vertex:
-    def __init__(self, x, bounds=None, func=None, func_args=(), g_cons=None,
-                 g_cons_args=(), nn=None, Ind=None):
-        import numpy
-        self.x = x
-        self.order = sum(x)
-        if bounds is None:
-            x_a = numpy.array(x, dtype=float)
-        else:
-            x_a = numpy.array(x, dtype=float)
-            for i in range(len(bounds)):
-                x_a[i] = (x_a[i] * (bounds[i][1] - bounds[i][0])
-                          + bounds[i][0])
 
-                # print(f'x = {x}; x_a = {x_a}')
-        # TODO: Make saving the array structure optional
-        self.x_a = x_a
-
-        # Note Vertex is only initiate once for all x so only
-        # evaluated once
-        if func is not None:
-            if g_cons is not None:
-                self.feasible = True
-                for ind, g in enumerate(g_cons):
-                    if g(self.x_a, *g_cons_args[ind]) < 0.0:
-                        self.f = numpy.inf
-                        self.feasible = False
-                if self.feasible:
-                    self.f = func(x_a, *func_args)
-
-            else:
-                self.f = func(x_a, *func_args)
-
-        if nn is not None:
-            self.nn = nn
-        else:
-            self.nn = set()
-
-        self.fval = None
-        self.check_min = True
-
-        # Index:
-        if Ind is not None:
-            self.Ind = Ind
-
-    def __hash__(self):
-        # return hash(tuple(self.x))
-        return hash(self.x)
-
-    def connect(self, v):
-        if v is not self and v not in self.nn:
-            self.nn.add(v)
-            v.nn.add(self)
-
-            # self.min = self.minimiser()
-            if self.minimiser():
-                # if self.f > v.f:
-                #    self.min = False
-                # else:
-                v.min = False
-                v.check_min = False
-
-            # TEMPORARY
-            self.check_min = True
-            v.check_min = True
-
-    def disconnect(self, v):
-        if v in self.nn:
-            self.nn.remove(v)
-            v.nn.remove(self)
-            self.check_min = True
-            v.check_min = True
-
-    def minimiser(self):
-        # NOTE: This works pretty well, never call self.min,
-        #       call this function instead
-        if self.check_min:
-            # Check if the current vertex is a minimiser
-            # self.min = all(self.f <= v.f for v in self.nn)
-            self.min = True
-            for v in self.nn:
-                # if self.f <= v.f:
-                # if self.f > v.f: #TODO: LAST STABLE
-                if self.f >= v.f:  # TODO: AttributeError: 'Vertex' object has no attribute 'f'
-                    # if self.f >= v.f:
-                    self.min = False
-                    break
-
-            self.check_min = False
-
-        return self.min
-
-
-class VertexCache:
-    def __init__(self, func, func_args=(), bounds=None, g_cons=None,
-                 g_cons_args=(), indexed=True):
-
-        self.cache = {}
-        # self.cache = set()
-        self.func = func
-        self.g_cons = g_cons
-        self.g_cons_args = g_cons_args
-        self.func_args = func_args
-        self.bounds = bounds
-        self.nfev = 0
-        self.size = 0
-
-        if indexed:
-            self.Index = -1
-
-    def __getitem__(self, x, indexed=True):
-        try:
-            return self.cache[x]
-        except KeyError:
-            if indexed:
-                self.Index += 1
-                xval = Vertex(x, bounds=self.bounds,
-                              func=self.func, func_args=self.func_args,
-                              g_cons=self.g_cons,
-                              g_cons_args=self.g_cons_args,
-                              Ind=self.Index)
-            else:
-                xval = Vertex(x, bounds=self.bounds,
-                              func=self.func, func_args=self.func_args,
-                              g_cons=self.g_cons,
-                              g_cons_args=self.g_cons_args)
-
-            # logging.info("New generated vertex at x = {}".format(x))
-            # NOTE: Surprisingly high performance increase if logging is commented out
-            self.cache[x] = xval
-
-            # TODO: Check
-            if self.func is not None:
-                if self.g_cons is not None:
-                    # print(f'xval.feasible = {xval.feasible}')
-                    if xval.feasible:
-                        self.nfev += 1
-                        self.size += 1
-                    else:
-                        self.size += 1
-                else:
-                    self.nfev += 1
-                    self.size += 1
-
-            return self.cache[x]
