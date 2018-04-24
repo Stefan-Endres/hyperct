@@ -4,8 +4,9 @@ import sys
 import copy
 from hyperct._cube import *
 from hyperct._rec import *
+from hyperct._field import *
 
-
+from numba import jit
 try:
     from functools import lru_cache  # For Python 3 only
 except ImportError:  # Python 2:
@@ -105,6 +106,23 @@ except ImportError:  # Python 2:
 class Complex:
     def __init__(self, dim, func=None, func_args=(), symmetry=False,
                  bounds=None, g_cons=None, g_args=()):
+        """
+        Base class for a simplicial complex structure (a mesh grid of
+        dim-simplices)
+        :param dim: (int) Dimensionality of the space wherein the complex is imbeded
+        :param func: (function) A scalar or vector field associated with the space
+        :param func_args: (tuple) Additional arguments passed to the function
+        :param symmetry: Symmetry constraints on the space (for symmetric fields)
+        :param bounds: Boundaries of a hypercube construct in the space
+        :param g_cons: (tuple of functions) Constraints on the scalar or vector field
+        :param g_args: (tuple) Additional arguments passed to the constraint functions
+        """
+        # scalar_field = {'func': R^n --> R,
+        #                 'func_args': ,
+        #                 'bounds': ,
+        #                 'g_cons': ,
+        #                 'g_args': }
+
         self.dim = dim
         self.bounds = bounds
         if self.bounds is None:
@@ -250,15 +268,6 @@ class Complex:
             (numpy.array(self.origin) + numpy.array(self.suprenum)) / 2.0)
         self.C0.add_vertex(self.V[tuple(self.centroid)])
         self.C0.centroid = self.centroid
-
-        if 0:  # Constrained centroid
-            v_sum = 0
-            for v in self.C0():
-                v_sum += numpy.array(v.x)
-
-            self.centroid = list(v_sum / len(self.C0()))
-            self.C0.add_vertex(self.V[tuple(self.centroid)])
-            self.C0.centroid = self.centroid
 
         # Disconnect origin and suprenum
         self.V[tuple(self.origin)].disconnect(self.V[tuple(self.suprenum)])
@@ -614,6 +623,10 @@ class Complex:
             print("dimension higher than 3 or wrong complex format")
         return
 
+    # Memory management
+    def clear_cells(self, gens=None):
+        pass
+        # Delete the unused cells to clear up memory
 
 class Cell:
     """

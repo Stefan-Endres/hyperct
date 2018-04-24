@@ -114,7 +114,7 @@ class VertexCube:
 
 
 class VertexCacheCube:
-    def __init__(self, func, func_args=(), bounds=None, g_cons=None,
+    def __init__(self, func=None, func_args=(), bounds=None, g_cons=None,
                  g_cons_args=(), indexed=True):
 
         self.cache = {}
