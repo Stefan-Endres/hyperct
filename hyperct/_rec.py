@@ -41,7 +41,7 @@ class VertexRec:
                 # print(f'x = {x}; x_a = {x_a}')
         # TODO: Make saving the array structure optional
         self.x_a = x_a
-
+        print(f"self.x_a = {self.x_a}")
         # Note Vertex is only initiate once for all x so only
         # evaluated once
         if func is not None:
@@ -118,7 +118,7 @@ class VertexRec:
 
 
 class VertexCacheRec:
-    def __init__(self, func, func_args=(), bounds=None, g_cons=None,
+    def __init__(self, func=None, func_args=(), bounds=None, g_cons=None,
                  g_cons_args=(), indexed=True):
 
         self.cache = {}
@@ -130,6 +130,7 @@ class VertexCacheRec:
         self.bounds = bounds
         self.nfev = 0
         self.size = 0
+        print(f"BOUNDS = {bounds}")
 
         if indexed:
             self.Index = -1
