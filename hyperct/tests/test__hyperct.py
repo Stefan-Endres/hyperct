@@ -245,7 +245,7 @@ class TestCube(object):
         for i, v in enumerate(HC.C0()):
             numpy.testing.assert_equal(check[i], v.x)
 
-    def test_4_2_4D_cube_splits(self):
+    def test_4_2_5D_cube_splits(self):
         """Test that the 5D cube subtriangulations has the correct coords"""
         HC = Complex(5, func)
         HC.n_cube()
@@ -618,7 +618,7 @@ class TestRec(object):
         for i, v in enumerate(HC.C0()):
             numpy.testing.assert_equal(check[i], v.x)
 
-    def test_4_2_4D_cube_splits(self):
+    def test_4_2_5D_cube_splits(self):
         """Test that the 5D cube subtriangulations has the correct coords"""
         HC = Complex(5, func)
         HC.n_cube()
