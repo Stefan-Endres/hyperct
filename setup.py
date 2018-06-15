@@ -8,7 +8,7 @@ def readme():
 setup(name='hyperct',
       version='0.3.1',
       description='Hypercube triangulations and sub-triangulations',
-      url='https://github.com/stefan-endres/shgo',
+      url='https://github.com/stefan-endres/hyperct',
       author='Stefan Endres, Carl Sandrock',
       author_email='stefan.c.endres@gmail.com',
       license='MIT',
