@@ -74,11 +74,7 @@ class VertexCube:
             self.nn.add(v)
             v.nn.add(self)
 
-            # self.min = self.minimiser()
             if self.minimiser():
-                # if self.f > v.f:
-                #    self.min = False
-                # else:
                 v.min = False
                 v.check_min = False
 
