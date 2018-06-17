@@ -1205,4 +1205,9 @@ class TestRec(object):
 
 
 class TestField(object):
-    pass
+    def test_1_1_2D_field(self):
+        pass
+        #n = 2
+        #bounds = [-10, 10]
+
+        #HC = Complex(n, func, bounds=bounds)
