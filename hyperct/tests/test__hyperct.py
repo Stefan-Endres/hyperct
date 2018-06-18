@@ -1,4 +1,5 @@
-from hyperct import *
+#from hyperct import *
+from hyperct._complex import *
 
 
 def func(x):
@@ -13,8 +14,9 @@ def g_cons(x):  # (Requires n > 2)
 
 
 def init_triangulation(n, gen, check, bounds=None):
-    HC = Complex(n, func, bounds=bounds)
+    HC = Complex(n, domain=bounds)
     #HC.n_cube(n)
+    HC.triangulate()
     for i in range(gen):
         HC.split_generation()
 
