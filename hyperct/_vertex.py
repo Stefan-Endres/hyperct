@@ -9,7 +9,7 @@ class VertexBase(ABC):
         #self.order = sum(x)  #TODO: Delete if we can't prove the order triangulation conjecture
 
         if nn is not None:
-            self.nn = nn
+            self.nn = set(nn)  # can use .update to add a new list
         else:
             self.nn = set()
 
@@ -163,7 +163,7 @@ class VertexCacheIndex(VertexCacheBase):
         super().__init__()
         self.Vertex = VertexCube
 
-    def __getitem__(self, x):  #TODO: Check if no_index is significant speedup
+    def __getitem__(self, x, nn=None):  #TODO: Check if no_index is significant speedup
         try:
             return self.cache[x]
         except KeyError:
