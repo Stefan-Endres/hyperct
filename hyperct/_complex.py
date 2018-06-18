@@ -11,13 +11,20 @@ Scalar, vector or no fields (Also for example make connect an abstract method to
                              compute field gradients etc)
 Simplices, cells
 etc.
+
+FUTURE: Triangulate arbitrary domains other than n-cubes
+(ex. using delaunay and low disc. sampling subject to constraints, or by adding
+     n-cubes and other geometries)
+
+     Starting point:
+     An algorithm for automatic Delaunay triangulation of arbitrary planar domains
+     https://www.sciencedirect.com/science/article/pii/096599789600004X
 """
-import numpy
 import copy
+from abc import ABC, abstractmethod
+import numpy
 
-from hyperct._vertex import VertexCube
-from hyperct._field import VertexField
-
+from hyperct._vertex import (VertexCacheIndex, VertexCacheField)
 try:
     from functools import lru_cache  # For Python 3 only
 except ImportError:  # Python 2:
@@ -115,134 +122,169 @@ except ImportError:  # Python 2:
             LruCacheClass(input_func, maxsize, timeout)))
 
 
-class VertexCache:
-    def __init__(self, field=None, field_args=(), bounds=None, g_cons=None,
-                 g_cons_args=(), indexed=True):
-
-        self.cache = {}
-        self.field = field
-        self.g_cons = g_cons
-        self.g_cons_args = g_cons_args
-        self.func_args = field_args
-        self.bounds = bounds
-        self.nfev = 0  # Feasible points
-        self.size = 0  # Total size of cache
-
-
-        if field is not None:
-            self.__getitem__ = self.__getitem__field_index
-            self.Vertex = VertexField
-        else:
-            if bounds is not None:
-                Vertex = VertexCube
-            self.__getitem__ = self.__getitem__index
-
-        #TODO: Define a getitem method based on if indexing is on or not so
-        # that we do not have to do an if check every call (does the python
-        # compiler make this irrelevant or not?) and in addition whether or not
-        # we have defined a field function.
-
-    def __getitem__index(self, x):  #TODO: Check if no_index is significant speedup
-        try:
-            return self.cache[x]
-        except KeyError:
-            self.index += 1
-            xval = self.Vertex(x, index=self.index)
-            # logging.info("New generated vertex at x = {}".format(x))
-            # NOTE: Surprisingly high performance increase if logging is commented out
-            self.cache[x] = xval
-            return self.cache[x]
-
-    def __getitem__field_index(self, x):
-        try:
-            return self.cache[x]
-        except KeyError:
-            self.index += 1
-            xval = self.Vertex(x, index=self.index, bounds=self.bounds,
-                          func=self.field, func_args=self.field_args,
-                          g_cons=self.g_cons,
-                          g_cons_args=self.g_cons_args)
-
-        # TODO: Check
-        if self.field is not None:
-            if self.g_cons is not None:
-                if xval.feasible:
-                    self.nfev += 1
-                    self.size += 1
-                else:
-                    self.size += 1
-            else:
-                self.nfev += 1
-                self.size += 1
-
-        return self.cache[x]
-
-
 class Complex:
-    def __init__(self, dim, field, func_args=(), symmetry=False, bounds=None,
-                 g_cons=None, g_args=()):
+    def __init__(self, dim, domain=None, sfield=None, sfield_args=(),
+                 vfield=None, vfield_args=None,
+                 symmetry=False, g_cons=None, g_cons_args=()):
+        """
+        A base class for a simplicial complex described as a cache of vertices
+        together with their connections.
+
+        Important methods:
+            Domain triangulation:
+                    Complex.triangulate, Complex.split_generation
+            Triangulating arbitrary points (must be traingulable,
+                may exist outside domain):
+                    Complex.triangulate(sample_set)  #TODO
+            Converting another simplicial complex structure data type to the
+                structure used in Complex (ex. OBJ wavefront)
+                    Complex.convert(datatype, data)  #TODO
+            Convert the structure in the Complex to other data type:
+                    #TODO
+
+        Important objects:
+            HC.V: The cache of vertices and their connection
+            HC.H: Storage structure of all vertex groups
+
+        :param dim: int, Spatial dimensionality of the complex R^dim
+        :param domain: list of tuples, optional
+                The bounds [x_l, x_u]^dim of the hyperrectangle space
+                ex. The default domain is the hyperrectangle [0, 1]^dim
+                Note: The domain must be convex, non-convex spaces can be cut
+                      away from this domain using the non-linear
+                      g_cons functions to define any arbitrary domain
+                      (these domains may also be disconnected from each other)
+        :param sfield: A scalar function defined in the associated domain
+                           f: R^dim --> R
+        :param sfield_args: tuple, Additional arguments to be passed to sfield
+        :param vfield: A scalar function defined in the associated domain
+                           f: R^dim --> R^m
+                       (for example a gradient function of the scalar field)
+        :param vfield_args: tuple, Additional arguments to be passed to sfield
+        :param symmetry: If all the variables in the field are symmetric this
+                option will reduce complexity of the triangulation by O(n!)
+        :param g_cons: Constraint functions on the domain g: R^dim --> R^m
+        :param g_cons_args: tuple, Additional arguments to be passed to g_cons
+        """
         self.dim = dim
-        self.bounds = bounds
+
+        # Domains
+        self.domain = domain
+        self.bounds = domain
         self.symmetry = symmetry  # TODO: Define the functions to be used
         #      here in init to avoid if checks
+
+        # Field functions
+        self.sfield = sfield
+        self.vfield = vfield
+        self.sfield_args = sfield_args
+        self.vfield_args = vfield_args
+
+        # Constraint functions
+        self.g_cons = g_cons
+        self.g_cons_args = g_cons_args
+
+        # Homology properties
         self.gen = 0
         self.perm_cycle = 0
 
         # Every cell is stored in a list of its generation,
         # ex. the initial cell is stored in self.H[0]
         # 1st get new cells are stored in self.H[1] etc.
-        # When a cell is subgenerated it is removed from this list
+        # When a cell is sub-generated it is removed from this list
 
-        self.H = []  # Storage structure of cells
+        self.H = []  # Storage structure of vertex groups
         # Cache of all vertices
-        self.V = VertexCache(field, func_args, bounds, g_cons, g_args)
+        #self.V = VertexCache(field, func_args, bounds, g_cons, g_args)
+        if (sfield is not None) or (g_cons is not None):
+           self.V = VertexCacheField(field=sfield, field_args=sfield_args,
+                                     g_cons=g_cons, g_cons_args=g_cons_args)
+        else:
+           self.V = VertexCacheIndex()
 
+        if vfield is not None:
+            raise Warning("Vector field applications have not been implemented"
+                          "yet")
+
+    def __call__(self):
+        return self.H
+
+    # Triangulation methods
+    def triangulate(self, domain=None):
+        """
+        Triangulate a domain in [x_l, x_u]^dim \in R^dim specified by bounds and
+        constraints.
+
+        If domain is None the default domain is the hyperrectangle [0, 1]^dim
+
+        FUTURE: Currently only hyperrectangle domains are possible. In the
+                future we'd like to define more complex domains.
+        """
         # Generate n-cube here:
-        self.n_cube(dim, symmetry=symmetry)
-
-        # TODO: If there are bounds create a new function that runs n_cube and
-        #       moves it to a new
-        #         x_a = numpy.array(x, dtype=float)
-        #         if bounds is not None:
-        #             for i, (lb, ub) in enumerate(bounds):
-        #                 x_a[i] = x_a[i] * (ub - lb) + lb
-
-        # TODO: Create a self.n_cube_finite to generate an initial complex for
-        # a finite number of points.
+        self.H.append([])
+        self.n_cube(symmetry=self.symmetry)
+        #
 
         # TODO: Assign functions to a the complex instead
-        if symmetry:
+        if self.symmetry:
             self.generation_cycle = 1
             # self.centroid = self.C0()[-1].x
             # self.C0.centroid = self.centroid
         else:
             self.add_centroid()
 
-        self.H.append([])
-        self.H[0].append(self.C0)
-        self.hgr = self.C0.homology_group_rank()
-        self.hgrd = 0  # Complex group rank differential
-        # self.hgr = self.C0.hg_n
-
         # Build initial graph
         self.graph_map()
 
-        self.performance = []
-        self.performance.append(0)
-        self.performance.append(0)
+        if self.domain is not None:
+            # Delete the vertices generated during n_cube
+            del(self.V)
+            self.V = VertexCacheField(field=self.sfield, field_args=self.sfield_args,
+                                      g_cons=self.g_cons, g_cons_args=self.g_cons_args)
+            #TODO: Find a way not to delete the entire vertex cache in situations
+            # where this method is used to triangulate the domain together with
+            # other in place connections. ex simply move n_cube to if statement
+            # and use a temporary cache
 
-    def __call__(self):
-        return self.H
+            # Construct the initial spatial vector
+            origin = []  # origin of complex domain vector
+            supremum = []  # supremum of complex domain vector
+            for i, (lb, ub) in enumerate(self.domain):
+                origin.append(lb)
+                supremum.append(ub)
+                #x_a[i] = x_a[i] * (ub - lb) + lb
+            #del(self.C0)
+            self.origin = tuple(origin)
+            self.supremum = tuple(supremum)
+            #self.C0 =
+            self.construct_hypercube_graph(self.origin, self.supremum, 0, 0)
 
-    def n_cube(self, dim, symmetry=False, printout=False):
+            #x_a = numpy.array(x, dtype=float)
+            #if self.domain is not None:
+            #    for i, (lb, ub) in enumerate(self.domain):
+            #        x_a[i] = x_a[i] * (ub - lb) + lb
+        else:
+            self.H[0].append(self.C0)
+
+        # TODO: Create a self.n_cube_finite to generate an initial complex for
+        # a finite number of points.
+
+        if (self.sfield is not None) or (self.g_cons is not None):
+            self.hgr = self.C0.homology_group_rank()
+            self.hgrd = 0  # Complex group rank differential
+            self.hgr = self.C0.hg_n
+
+
+    def n_cube(self, symmetry=False, printout=False):
         """
         Generate the simplicial triangulation of the n dimensional hypercube
         containing 2**n vertices
         """
+        #TODO: Check for loaded data and load if available
         import numpy
-        origin = list(numpy.zeros(dim, dtype=int))
+        origin = list(numpy.zeros(self.dim, dtype=int))
         self.origin = origin
-        supremum = list(numpy.ones(dim, dtype=int))
+        supremum = list(numpy.ones(self.dim, dtype=int))
         self.supremum = supremum
 
         # tuple versions for indexing
@@ -270,6 +312,11 @@ class Complex:
             print("Initial hyper cube:")
             for v in self.C0():
                 v.print_out()
+
+    def n_rec(self):
+        raise NotImplementedError("To implement this simply run n_cube then "
+                                  "create a new self.C0 based on the n_cube"
+                                  "results.")
 
     def perm(self, i_parents, x_parents, xi):
         # TODO: Cut out of for if outside linear constraint cutting planes
@@ -430,6 +477,57 @@ class Complex:
         return no_splits  # USED IN SHGO
 
     # @lru_cache(maxsize=None)
+    def construct_hypercube_graph(self, origin, supremum, gen, hgr,
+                            printout=False):
+        """
+        Construct a hypercube from the origin graph
+
+        :param origin:
+        :param supremum:
+        :param gen:
+        :param hgr:
+        :param printout:
+        :return:
+        """
+        # Initiate new cell
+        C_new = Cell(gen, hgr, origin, supremum)
+        C_new.centroid = tuple(
+            (numpy.array(origin) + numpy.array(supremum)) / 2.0)
+
+        # Build new indexed vertex list
+        V_new = []
+
+        # Cached calculation
+        for i, v in enumerate(self.C0()[:-1]):
+            t1 = self.generate_sub_cell_t1(origin, v.x)
+            t2 = self.generate_sub_cell_t2(supremum, v.x)
+
+            vec = t1 + t2
+
+            vec = tuple(vec)
+            C_new.add_vertex(self.V[vec])
+            V_new.append(vec)
+
+        # Add new centroid
+        C_new.add_vertex(self.V[C_new.centroid])
+        V_new.append(C_new.centroid)
+
+        # Connect new vertices #TODO: Thread into other loop; no need for V_new
+        for i, connections in enumerate(self.graph):
+            # Present vertex V_new[i]; connect to all connections:
+            for j in connections:
+                self.V[V_new[i]].connect(self.V[V_new[j]])
+
+        if printout:
+            print("A sub hyper cube with:")
+            print("origin: {}".format(origin))
+            print("supremum: {}".format(supremum))
+            for v in C_new():
+                v.print_out()
+
+        # Append the new cell to the to complex
+        self.H[gen].append(C_new)
+
     def construct_hypercube(self, origin, supremum, gen, hgr,
                             printout=False):
         """
@@ -549,28 +647,6 @@ class Complex:
         return
 
     @lru_cache(maxsize=None)
-    def generate_sub_cell_2(self, origin, supremum, v_x_t):  # No hits
-        """
-        Use the origin and supremum vectors to find a new cell in that
-        subspace direction
-
-        NOTE: NOT CURRENTLY IN USE!
-
-        Parameters
-        ----------
-        origin : tuple vector (hashable)
-        supremum : tuple vector (hashable)
-
-        Returns
-        -------
-
-        """
-        t1 = self.generate_sub_cell_t1(origin, v_x_t)
-        t2 = self.generate_sub_cell_t2(supremum, v_x_t)
-        vec = t1 + t2
-        return tuple(vec)
-
-    @lru_cache(maxsize=None)
     def generate_sub_cell_t1(self, origin, v_x):
         # TODO: Calc these arrays outside
         v_o = numpy.array(origin)
@@ -670,6 +746,21 @@ class Complex:
             print("dimension higher than 3 or wrong complex format")
         return
 
+    # Data persistence
+    def save_complex(self, fn):
+        """
+        TODO: Save the complex to file using pickle
+        https://stackoverflow.com/questions/4529815/saving-an-object-data-persistence
+        :param fn: str, filename
+        :return:
+        """
+
+    def load_complex(self, fn):
+        """
+        TODO: Load the complex from file using pickle
+        :param fn: str, filename
+        :return:
+        """
 
 class VertexGroup(object):
     def __init__(self, p_gen, p_hgr):
@@ -749,3 +840,45 @@ class Simplex(VertexGroup):
 
         self.generation_cycle = (generation_cycle + 1) % (dim - 1)
 
+
+if __name__ == '__main__':
+
+    def func(x):
+        import numpy
+        return numpy.sum((x - 3) ** 2) + 2.0 * (x[0] + 10)
+
+
+    def g_cons(x):  # (Requires n > 2)
+        import numpy
+        # return x[0] - 0.5 * x[2] + 0.5
+        return x[0]  # + x[2] #+ 0.5
+
+    #V = VertexCache()
+    V = VertexCacheField(func)
+    print(V)
+    V[(1,2,3)]
+    V[(1,2,3)]
+    V.__getitem__((1,2,3), None)
+    V.__getitem__((1,2,3), [3,4,7])
+    #TODO: ADD THIS TO COMPLEX:
+
+
+
+    print("====(0, 0), (1, 1) ")
+    H = Complex(2)
+    H.triangulate()
+    print(H.graph)
+    H.construct_hypercube((0, 0), (1, 1), 0, 0, printout=True)
+
+    print("====(-1, -1), (2, 2) ")
+    #H2 = Complex(2, domain=[(-1, -1), (2, 2)])
+    H2 = Complex(2, domain=[(-1, -1), (2, 2)])
+    H2.triangulate()
+    H2.construct_hypercube((-1, -1), (2, 2), 0, 0, printout=True)
+
+    # H = Complex(2, domain=[(-1, 1), (-3, 5)])
+    # H.triangulate()
+
+    print(H)
+    H.plot_complex()
+    H2.plot_complex()
