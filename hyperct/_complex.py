@@ -441,7 +441,7 @@ class Complex:
         for i, v in enumerate(C_i()[:-1]):
             supremum = tuple(v.x)
             H_new.append(
-                self.construct_hypercube(origin_new, supremum, gen, C_i.hg_n))
+                self.construct_hypercube_graph(origin_new, supremum, gen, C_i.hg_n))
 
         for i, connections in enumerate(self.graph):
             # Present vertex V_new[i]; connect to all connections:
@@ -505,18 +505,12 @@ class Complex:
             vec = t1 + t2
 
             vec = tuple(vec)
-            C_new.add_vertex(self.V[vec])
+            C_new.add_vertex(self.V.__getitem__(vec, nn=self.graph[i]))
             V_new.append(vec)
 
         # Add new centroid
         C_new.add_vertex(self.V[C_new.centroid])
         V_new.append(C_new.centroid)
-
-        # Connect new vertices #TODO: Thread into other loop; no need for V_new
-        for i, connections in enumerate(self.graph):
-            # Present vertex V_new[i]; connect to all connections:
-            for j in connections:
-                self.V[V_new[i]].connect(self.V[V_new[j]])
 
         if printout:
             print("A sub hyper cube with:")
