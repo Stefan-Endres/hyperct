@@ -80,7 +80,6 @@ class VertexScalarField(VertexBase):
         # evaluated once
         self.feasible = True
 
-        print(g_cons)
         if g_cons is not None:
             for g, args in zip(g_cons, g_cons_args):
                 if g(self.x_a, *args) < 0.0:
