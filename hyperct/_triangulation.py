@@ -500,6 +500,7 @@ class Complex:
              To plot a single simplex S in a set C, use ex. [C[0]]
         """
         from matplotlib import pyplot
+        from mpl_toolkits.mplot3d import axes3d, Axes3D
         if self.dim == 2:
             pyplot.figure()
             for C in self.H:

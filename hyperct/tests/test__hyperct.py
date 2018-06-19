@@ -12,6 +12,7 @@ def g_cons(x):  # (Requires n > 2)
     # return x[0] - 0.5 * x[2] + 0.5
     return x[0]  # + x[2] #+ 0.5
 
+#TODO: ADD CONNECTIONS TESTS NOT JUST VERTICES
 
 def init_triangulation(n, gen, check, bounds=None):
     HC = Complex(n, domain=bounds)

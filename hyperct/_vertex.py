@@ -46,7 +46,7 @@ class VertexCube(VertexBase):
 
     def connect(self, v):
         if v is not self and v not in self.nn:
-            self.nn.add(v)
+            self.nn.add(v)  #TODO: Use update for adding multiple vectors?
             v.nn.add(self)
 
     def disconnect(self, v):
