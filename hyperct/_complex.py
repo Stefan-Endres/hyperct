@@ -238,7 +238,7 @@ class Complex:
 
         if self.domain is not None:
             # Delete the vertices generated during n_cube
-            del(self.V)
+            #del(self.V)
             self.V = VertexCacheField(field=self.sfield, field_args=self.sfield_args,
                                       g_cons=self.g_cons, g_cons_args=self.g_cons_args)
             #TODO: Find a way not to delete the entire vertex cache in situations
@@ -257,7 +257,10 @@ class Complex:
             self.origin = tuple(origin)
             self.supremum = tuple(supremum)
             #self.C0 =
-            self.construct_hypercube_graph(self.origin, self.supremum, 0, 0)
+            self.construct_hypercube(self.origin, self.supremum, 0, 0)
+
+            #TODO: Find new C0 by looping through C_0 and checking if v in Cnew
+            #      Then delete unused C0 and set Cnew to C_0
 
             #x_a = numpy.array(x, dtype=float)
             #if self.domain is not None:
@@ -441,7 +444,7 @@ class Complex:
         for i, v in enumerate(C_i()[:-1]):
             supremum = tuple(v.x)
             H_new.append(
-                self.construct_hypercube_graph(origin_new, supremum, gen, C_i.hg_n))
+                self.construct_hypercube(origin_new, supremum, gen, C_i.hg_n))
 
         for i, connections in enumerate(self.graph):
             # Present vertex V_new[i]; connect to all connections:
@@ -477,7 +480,7 @@ class Complex:
         return no_splits  # USED IN SHGO
 
     # @lru_cache(maxsize=None)
-    def construct_hypercube_graph(self, origin, supremum, gen, hgr,
+    def construct_hypercube(self, origin, supremum, gen, hgr,
                             printout=False):
         """
         Construct a hypercube from the origin graph
@@ -494,75 +497,48 @@ class Complex:
         C_new.centroid = tuple(
             (numpy.array(origin) + numpy.array(supremum)) / 2.0)
 
-        # Build new indexed vertex list
-        V_new = []
-
         # Cached calculation
-        for i, v in enumerate(self.C0()[:-1]):
-            t1 = self.generate_sub_cell_t1(origin, v.x)
-            t2 = self.generate_sub_cell_t2(supremum, v.x)
+        #print(f'self.C0 = {self.C0()}')
+        #print(f'self.C0 = {self.C0()[self.graph[0]]}')
+        #[self.C0()[index] for index in self.graph[i]]
 
+        self.v_o = numpy.array(origin)
+        self.v_s = numpy.array(supremum)
+        for i, v in enumerate(self.C0()[:-1]):  # Build new vertices
+            print(f'v.x = {v.x}')
+            t1 = self.generate_sub_cell_t1(origin, v.x)
+            print(t1)
+            t2 = self.generate_sub_cell_t2(supremum, v.x)
+            print(t2)
             vec = t1 + t2
+            print(f'vec = {vec}')
 
             vec = tuple(vec)
-            C_new.add_vertex(self.V.__getitem__(vec, nn=self.graph[i]))
-            V_new.append(vec)
-
-        # Add new centroid
-        C_new.add_vertex(self.V[C_new.centroid])
-        V_new.append(C_new.centroid)
-
-        if printout:
-            print("A sub hyper cube with:")
-            print("origin: {}".format(origin))
-            print("supremum: {}".format(supremum))
-            for v in C_new():
-                v.print_out()
-
-        # Append the new cell to the to complex
-        self.H[gen].append(C_new)
-
-    def construct_hypercube(self, origin, supremum, gen, hgr,
-                            printout=False):
-        """
-        Build a hypercube with triangulations symmetric to C0.
-
-        Parameters
-        ----------
-        origin : vec
-        supremum : vec (tuple)
-        gen : generation
-        hgr : parent homology group rank
-        """
-
-        # Initiate new cell
-        C_new = Cell(gen, hgr, origin, supremum)
-        C_new.centroid = tuple(
-            (numpy.array(origin) + numpy.array(supremum)) / 2.0)
-
-        # Build new indexed vertex list
-        V_new = []
-
-        # Cached calculation
-        for i, v in enumerate(self.C0()[:-1]):
-            t1 = self.generate_sub_cell_t1(origin, v.x)
-            t2 = self.generate_sub_cell_t2(supremum, v.x)
-
-            vec = t1 + t2
-
-            vec = tuple(vec)
+            #nn_v = [self.C0()[index] for index in self.graph[i]]
+            #C_new.add_vertex(self.V.__getitem__(vec, nn=nn_v))
             C_new.add_vertex(self.V[vec])
-            V_new.append(vec)
+            print(f'self.V[vec].x = {self.V[vec].x}')
+            print(f'C_new() = {C_new()}')
 
         # Add new centroid
         C_new.add_vertex(self.V[C_new.centroid])
-        V_new.append(C_new.centroid)
 
-        # Connect new vertices #TODO: Thread into other loop; no need for V_new
-        for i, connections in enumerate(self.graph):
-            # Present vertex V_new[i]; connect to all connections:
-            for j in connections:
-                self.V[V_new[i]].connect(self.V[V_new[j]])
+        print(C_new())
+        print(self.C0())
+
+        for i, v in enumerate(C_new()):  # Connect new vertices
+            nn_v = [C_new()[index] for index in self.graph[i]]
+            self.V[v.x].nn.update(nn_v)
+
+
+        #nn_v = [C_new()[index] for index in self.graph[-1]]
+        #C_new.add_vertex(self.V.__getitem__(C_new.centroid, nn_v))
+
+        #C_new.add_vertex(self.V.__getitem__(vec, nn=nn_v))
+        # Add new centroid
+        #C_new.add_vertex(self.V[C_new.centroid])
+
+        #V_new.append(C_new.centroid)
 
         if printout:
             print("A sub hyper cube with:")
@@ -573,7 +549,6 @@ class Complex:
 
         # Append the new cell to the to complex
         self.H[gen].append(C_new)
-
         return C_new
 
     def split_simplex_symmetry(self, S, gen):
@@ -642,14 +617,12 @@ class Complex:
 
     @lru_cache(maxsize=None)
     def generate_sub_cell_t1(self, origin, v_x):
-        # TODO: Calc these arrays outside
-        v_o = numpy.array(origin)
-        return v_o - v_o * numpy.array(v_x)
+        # TODO: Test if looping lists are faster
+        return self.v_o - self.v_o * numpy.array(v_x)
 
     @lru_cache(maxsize=None)
     def generate_sub_cell_t2(self, supremum, v_x):
-        v_s = numpy.array(supremum)
-        return v_s * numpy.array(v_x)
+        return self.v_s * numpy.array(v_x)
 
     # Plots
     def plot_complex(self):
@@ -660,6 +633,7 @@ class Complex:
              To plot a single simplex S in a set C, use ex. [C[0]]
         """
         from matplotlib import pyplot
+        from mpl_toolkits.mplot3d import axes3d, Axes3D
         if self.dim == 2:
             pyplot.figure()
             for C in self.H:
@@ -712,7 +686,8 @@ class Complex:
 
         elif self.dim == 3:
             fig = pyplot.figure()
-            ax = fig.add_subplot(111, projection='3d')
+            ax = Axes3D(fig)
+            #ax = fig.add_subplot(111, projection='3d')
 
             for C in self.H:
                 for c in C:
@@ -835,44 +810,3 @@ class Simplex(VertexGroup):
         self.generation_cycle = (generation_cycle + 1) % (dim - 1)
 
 
-if __name__ == '__main__':
-
-    def func(x):
-        import numpy
-        return numpy.sum((x - 3) ** 2) + 2.0 * (x[0] + 10)
-
-
-    def g_cons(x):  # (Requires n > 2)
-        import numpy
-        # return x[0] - 0.5 * x[2] + 0.5
-        return x[0]  # + x[2] #+ 0.5
-
-    #V = VertexCache()
-    V = VertexCacheField(func)
-    print(V)
-    V[(1,2,3)]
-    V[(1,2,3)]
-    V.__getitem__((1,2,3), None)
-    V.__getitem__((1,2,3), [3,4,7])
-    #TODO: ADD THIS TO COMPLEX:
-
-
-
-    print("====(0, 0), (1, 1) ")
-    H = Complex(2)
-    H.triangulate()
-    print(H.graph)
-    H.construct_hypercube((0, 0), (1, 1), 0, 0, printout=True)
-
-    print("====(-1, -1), (2, 2) ")
-    #H2 = Complex(2, domain=[(-1, -1), (2, 2)])
-    H2 = Complex(2, domain=[(-1, -1), (2, 2)])
-    H2.triangulate()
-    H2.construct_hypercube((-1, -1), (2, 2), 0, 0, printout=True)
-
-    # H = Complex(2, domain=[(-1, 1), (-3, 5)])
-    # H.triangulate()
-
-    print(H)
-    H.plot_complex()
-    H2.plot_complex()
