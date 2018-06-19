@@ -758,12 +758,23 @@ class Complex:
         strpath = None  # Full string path of the file name
         plot_path = 'fig/'   # Name of the relative directory to save
         fig_name = 'complex.pdf'  # Name of the complex file to save
+        arrow_width = None
 
+        if arrow_width is not None:
+            self.arrow_width = arrow_width
+        else:  # hearistic #TODO: See how well rectangle stretching works
+            dx1 = self.bounds[0][1] - self.bounds[0][0]
+            dx2 = self.bounds[1][1] - self.bounds[1][0]
+            numpy.linalg.norm([dx1, dx2])
+            #TODO: Streched recs will look strange
+            self.arrow_width = (numpy.linalg.norm([dx1, dx2]) * 0.13
+                                #* 0.1600781059358212
+                                / (numpy.sqrt(len(self.V.cache))))
+            print(self.arrow_width)
 
         lw = 1  # linewidth
 
         if self.dim == 2:
-            #complex_ax = pyplot.axes()
             try:
                 self.ax_complex
             except:
@@ -794,8 +805,8 @@ class Complex:
                             self.ax_complex.arrow(v2.x[0],
                                                   v2.x[1],
                                                   0.5 * dV[0], 0.5 * dV[1],
-                                                  head_width=0.035,
-                                                  head_length=0.03,
+                                                  head_width=self.arrow_width,
+                                                  head_length=self.arrow_width,
                                                   fc=line_color, ec=line_color,
                                                   color=line_color)
 
