@@ -789,9 +789,6 @@ class Complex:
                     ylines.append(v[1])
 
                     if directed:
-                        self.plot_direct_2d(self.ax_complex, self.V[v], v2,
-                                       arrow_color=line_color)
-
                         if self.V[v].f > v2.f:  # direct V2 --> V1
                             dV = numpy.array(self.V[v].x) - numpy.array(v2.x)
                             self.ax_complex.arrow(v2.x[0],
