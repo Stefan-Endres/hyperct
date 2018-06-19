@@ -895,18 +895,6 @@ class Complex:
         self.fig_complex.show()
         return self.ax_complex
 
-    def plot_direct_2d(self, ax, v1, v2, arrow_color='k'):
-        """Draw a directed graph arrow between two vertices"""
-        if v1.f > v2.f:  # direct V2 --> V1
-            dV = numpy.array(v1.x) - numpy.array(v2.x)
-            ax.arrow(v2.x[0], v2.x[1], 0.5 * dV[0], 0.5 * dV[1],
-                     head_width=0.035,
-                     head_length=0.03,
-                     fc=arrow_color, ec=arrow_color,
-                     color=arrow_color)
-        return
-
-
     def plot_save_figure(self, strpath):
 
         self.fig_complex.savefig(strpath, transparent=True,
