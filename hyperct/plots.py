@@ -162,27 +162,13 @@ def build_complex(points):
         points = points[g1(points.T) >= 0]
         points = points[g2(points.T) >= 0]
 
-    if 1:
-        #points2 = points[g1(points.T) <= 0 or g2(points.T) <= 0]
-        points2 = points[g1(points.T) <= 0 ]
-        #points2 = points[g2(points.T) >= 0]
-
-   # points = points[0]
     tri = Delaunay(points)
-    tri2 = Delaunay(points2)
-
-
-    if 0:
-        points = points[g1(points.T) >= 0]
-        points = points[g2(points.T) >= 0]
-
-
     # Label edges
     edges = numpy.array(tri.simplices)  # numpy.zeros(len(tri.simplices))
     constructed_edges = []
     incidence_array = numpy.zeros(
         [numpy.shape(points)[0], numpy.shape(edges)[0]])
-
+    print(edges)
     # contour
     #build_contour(SHc, surface=False, contour=True)
 
@@ -192,11 +178,6 @@ def build_complex(points):
         plt.triplot(points[:, 0], points[:, 1], tri.simplices.copy(), color=color,
                     linewidth=lw)
         plt.plot(points[:, 0], points[:, 1], '.', color=color, markersize=5)
-
-
-        #plt.triplot(points2[:, 0], points2[:, 1], tri2.simplices.copy(), color='grey',
-        #            linewidth=lw)
-        #plt.plot(points2[:, 0], points2[:, 1], '.', color='grey', markersize=5)
 
         ax = plt.axes()
 
@@ -231,51 +212,6 @@ def build_complex(points):
 
         return ax
 
-
-    def plot_usual_graph_2(color='k'):
-        plt.triplot(points[:, 0], points[:, 1], tri.simplices.copy(), color=color,
-                    linewidth=lw)
-        plt.plot(points[:, 0], points[:, 1], '.', color=color, markersize=5)
-        #plt.plot([0, 10], [9, 9], '-', color=do,  linewidth=3)
-
-        #plt.triplot(points2[:, 0], points2[:, 1], tri2.simplices.copy(), color='grey',
-        #            linewidth=lw)
-        #plt.plot(points2[:, 0], points2[:, 1], '.', color='grey', markersize=5)
-
-        ax = plt.axes()
-
-        if 0:
-            for i in range(points.shape[0]):
-                for i2 in find_neighbors_delaunay(i, tri):
-                    # Check g1 and g1
-                    if g1(tri.points[i, :]) <= 0 or g2(tri.points[i, :]) <= 0:
-                        if g1(tri.points[i2, :]) <= 0 or g2(tri.points[i2, :]) <= 0:
-                            continue
-
-                    # Draw arrow
-                    f_1, f_2 = direct_2d(ax, f, tri.points[i, :],
-                                         tri.points[i2, :], arrow_color=color)
-
-                    # Find incidence on an edge
-                    for edge, e in zip(edges, range(numpy.shape(edges)[0])):
-                        # print(edge)
-                        if e not in constructed_edges:
-                            if i in edge:
-                                if f_1 < f_2:
-                                    incidence_array[i, e] += 1
-                                elif f_1 > f_2:
-                                    incidence_array[i, e] -= 1
-                            if i2 in edge:
-                                if f_2 < f_1:
-                                    incidence_array[i2, e] += 1
-                                elif f_2 > f_1:
-                                    incidence_array[i2, e] -= 1
-
-                            constructed_edges.append(e)
-
-        return ax
-
-
     def draw_lines(p_to, p_from):  # f_higher, f_lower
 
         plt.plot([p_to[0], p_from[0]], [p_to[1], p_from[1]], '-', color=do,
@@ -292,34 +228,12 @@ def build_complex(points):
         strpath = './fig/TEST.pdf'
 
     # Shade most relevant planes
-    ax = plot_usual_graph(color='k')
-    ax = plot_usual_graph_2(color='k')
     strpath = './fig/build_non_linear.pdf'
-
-
-    X = numpy.linspace(points[0][0], points[-1][1])
-    Y = numpy.linspace(points[0][0], points[-1][1])
-   # f1 = -(X - 5)**4 - (Y - 5)**4 + 11
-    f1 = numpy.sqrt(-0.05*(X*Y - 5*Y)**4  + 11) +11
-    f1 = -0.05*(X*Y - 5*Y)**4  + 11
-    f2 = -(X*Y - 6*Y)**4  + 11
-    #f2= numpy.sqrt(-(X - 5)**4 + 11)
-    print(f1)
-    print(X)
-
-    #ax.fill_between(X, 0, f1)
-    #ax.fill_between(X, 0, f2)
-    #ax.fill_between(Y, 0, f1)
-    #ax.fill_between(X, 0, f1)
-
-
-
     ax.set_xticks([])
     ax.set_yticks([])
     ax.axis('off')
     ax.set_xlim(-0.5, bl+0.5)
     ax.set_ylim(-0.5, bl+0.5)
-    #plt.savefig(strpath, transparent=True, bbox_inches='tight', pad_inches=0)
     plt.show()
 
 
@@ -328,16 +242,6 @@ x = numpy.linspace(0, bl, disc)
 y = numpy.linspace(0, bl, disc)
 points = [[x0, y0] for x0 in x for y0 in y]
 points = numpy.array(points)
-#print(points)
-#print('='*20)
-#print(g1(points.T))
-#print(g2(points.T))
-#print(g2(points.T) >= 0)
-
-#points = points[g1(points.T) >= 0]
-#points = points[g2(points.T) >= 0]
-#print(points)
-
 
 
 if 1:
