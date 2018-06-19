@@ -789,8 +789,18 @@ class Complex:
                     ylines.append(v[1])
 
                     if directed:
-                        self.direct_2d(self.ax_complex, self.V[v], v2,
+                        self.plot_direct_2d(self.ax_complex, self.V[v], v2,
                                        arrow_color=line_color)
+
+                        if self.V[v].f > v2.f:  # direct V2 --> V1
+                            dV = numpy.array(self.V[v].x) - numpy.array(v2.x)
+                            self.ax_complex.arrow(v2.x[0],
+                                                  v2.x[1],
+                                                  0.5 * dV[0], 0.5 * dV[1],
+                                                  head_width=0.035,
+                                                  head_length=0.03,
+                                                  fc=line_color, ec=line_color,
+                                                  color=line_color)
 
                 if minimiser_points:
                     if self.V[v].minimiser():
@@ -815,6 +825,24 @@ class Complex:
                                          markersize=1.4*pointsize)
 
             # Clean up figure
+
+            if self.bounds is None:
+                pyplot.ylim([-1e-2, 1 + 1e-2])
+                pyplot.xlim([-1e-2, 1 + 1e-2])
+            else:
+                # - fac * (self.bounds[1][1] - self.bounds[1][0])
+                fac = 1e-2  #TODO: TEST THIS
+                pyplot.ylim(
+                    [self.bounds[1][0] - fac * (self.bounds[1][1]
+                                                - self.bounds[1][0]),
+                     self.bounds[1][1] + fac * (self.bounds[1][1]
+                                                - self.bounds[1][0])])
+                pyplot.xlim(
+                    [self.bounds[0][0] - fac * (self.bounds[1][1]
+                                                - self.bounds[1][0]),
+                     self.bounds[0][1] + fac * (self.bounds[1][1]
+                                                - self.bounds[1][0])])
+
             if no_grids:
                 self.ax_complex.set_xticks([])
                 self.ax_complex.set_yticks([])
@@ -867,44 +895,15 @@ class Complex:
         self.fig_complex.show()
         return self.ax_complex
 
-    def direct_2d(self, ax, v1, v2, vertex_plot_size=0.00, arrow_color='k'):
+    def plot_direct_2d(self, ax, v1, v2, arrow_color='k'):
         """Draw a directed graph arrow between two vertices"""
-
-        # NOTE: Can retrieve from stored class
-        f_1 = v1.f
-        f_2 = v2.f
-        print(f'f_1 = {f_1}, f_2 = {f_2}')
-        def vertex_diff(V_low, V_high, vertex_plot_size):
-            # Note assumes bounds in R+ (0, inf)
-            #TODO: FIX
-            dV = [0, 0]
-            for i in [0, 1]:
-                if V_low[i] < V_high[i]:
-                    dV[i] = -(V_high[i] - V_low[i])  # + vertex_plot_size
-                else:
-                    dV[i] = V_low[i] - V_high[i]  # - vertex_plot_size
-
-                if dV[i] > 0:  #TODO: See if we can remove vertex_plot_size
-                    dV[i] -= vertex_plot_size
-                else:
-                    dV[i] += vertex_plot_size
-
-            return dV
-
-        if f_1 > f_2:  # direct V2 --> V1
-            dV = vertex_diff(v1.x, v2.x, vertex_plot_size)
+        if v1.f > v2.f:  # direct V2 --> V1
+            dV = numpy.array(v1.x) - numpy.array(v2.x)
             ax.arrow(v2.x[0], v2.x[1], 0.5 * dV[0], 0.5 * dV[1],
-                     head_width=0.03,
-                     head_length=0.03, fc=arrow_color, ec=arrow_color,
+                     head_width=0.035,
+                     head_length=0.03,
+                     fc=arrow_color, ec=arrow_color,
                      color=arrow_color)
-
-        elif f_1 < f_2:  # direct V1 --> V2  #TODO: TEST
-            #dV = vertex_diff(v2.x, v1.x, vertex_plot_size)
-            pass
-        elif f_1 == f_2:
-            return
-
-
         return
 
 
