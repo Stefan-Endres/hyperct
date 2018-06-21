@@ -179,7 +179,7 @@ class Complex:
         if domain is None:
             self.bounds = [(0, 1),]*dim
         else:
-            self.bounds = domain
+            self.bounds = domain  #TODO: Assert that len(domain) is dim
         self.symmetry = symmetry  # TODO: Define the functions to be used
         #      here in init to avoid if checks
 
@@ -748,6 +748,8 @@ class Complex:
 
         directed = True
         contour_plot = True
+        surface_plot = True  # A 3 dimensional surface + contour plot
+        surface_field_plot = 0#True  # A 3 dimensional surface + contour plot
         minimiser_points = True
         # TODO: Add dict for visual parameters
         point_color = do  # None will generate
@@ -762,11 +764,10 @@ class Complex:
 
         if arrow_width is not None:
             self.arrow_width = arrow_width
-        else:  # hearistic #TODO: See how well rectangle stretching works
+        else:  # heuristic
             dx1 = self.bounds[0][1] - self.bounds[0][0]
             dx2 = self.bounds[1][1] - self.bounds[1][0]
             numpy.linalg.norm([dx1, dx2])
-            #TODO: Streched recs will look strange
             self.arrow_width = (numpy.linalg.norm([dx1, dx2]) * 0.13
                                 #* 0.1600781059358212
                                 / (numpy.sqrt(len(self.V.cache))))
@@ -774,6 +775,8 @@ class Complex:
 
         lw = 1  # linewidth
 
+        if self.dim == 1:
+            pass #TODO: IMPLEMENT
         if self.dim == 2:
             try:
                 self.ax_complex
@@ -781,15 +784,13 @@ class Complex:
                 self.ax_complex = self.fig_complex.add_subplot(1, 1, 1)
 
             if contour_plot:
-                self.plot_contour(self.fig_complex, self.bounds, self.sfield,
+                self.plot_contour(self.bounds, self.sfield,
                                   self.sfield_args)
 
             min_points = []
             for v in self.V.cache:
                 self.ax_complex.plot(v[0], v[1], '.', color=point_color,
                                      markersize=pointsize)
-
-                #complex_ax = pyplot.axes()
 
                 xlines = []
                 ylines = []
@@ -800,15 +801,39 @@ class Complex:
                     ylines.append(v[1])
 
                     if directed:
+                        #TODO: These arrows look ugly when the domain rectangle
+                        # is too stretched. We need to define our own arrow
+                        # object that draws a triangle object at the desired
+                        # vector and adds it to ax_complex
                         if self.V[v].f > v2.f:  # direct V2 --> V1
                             dV = numpy.array(self.V[v].x) - numpy.array(v2.x)
-                            self.ax_complex.arrow(v2.x[0],
-                                                  v2.x[1],
-                                                  0.5 * dV[0], 0.5 * dV[1],
-                                                  head_width=self.arrow_width,
-                                                  head_length=self.arrow_width,
-                                                  fc=line_color, ec=line_color,
-                                                  color=line_color)
+                            if 1:
+                                self.ax_complex.arrow(v2.x[0],
+                                                      v2.x[1],
+                                                      0.5 * dV[0], 0.5 * dV[1],
+                                                      head_width=self.arrow_width,
+                                                      head_length=self.arrow_width,
+                                                      fc=line_color, ec=line_color,
+                                                      color=line_color)
+
+                            if 0:
+                                self.ax_complex.annotate("",
+                                    #xy=(v2.x[0], v2.x[1]),
+                                    xy=(v2.x[0] + 0.5 * dV[0],
+                                        v2.x[1] + 0.5 * dV[1]),
+
+                                    xytext=(v2.x[0] + 1 * dV[0] ,
+                                            v2.x[1] + 1 * dV[1] ),
+                                    # xytext=(v2.x[0] ,
+                                    #        v2.x[1] ),
+                                    #xytext=(0.5 * dV[0], 0.5 * dV[1]),
+
+                                    arrowprops = dict(#arrowstyle='fancy',
+                                                      headwidth=self.arrow_width,
+                                                      headlength=self.arrow_width,
+                                                      #fc=line_color, ec=line_color,
+                                                      lw=0.0000000001, # TODO make 0
+                                                      color=line_color))
 
                 if minimiser_points:
                     if self.V[v].minimiser():
@@ -856,6 +881,31 @@ class Complex:
                 self.ax_complex.set_yticks([])
                 self.ax_complex.axis('off')
 
+            # Surface plots
+            if surface_plot:
+                try:
+                    self.fig_surface
+                except AttributeError:
+                    self.fig_surface = pyplot.figure()
+                try:
+                    self.ax_surf
+                except:
+                    self.ax_surf = self.fig_surface.gca(projection='3d')
+
+                self.fig_surface, self.ax_surf = self.plot_complex_surface(
+                    self.fig_surface,
+                    self.ax_surf)
+
+                # Add a plot of the field function.
+                if surface_field_plot:
+                    self.fig_surface, self.ax_surf = self.plot_field_surface(
+                        self.fig_surface,
+                        self.ax_surf,
+                        self.bounds,
+                        self.sfield,
+                        self.sfield_args)
+
+
         elif self.dim == 3:
             fig = pyplot.figure()
             ax = Axes3D(fig)
@@ -882,7 +932,8 @@ class Complex:
 
                         ax.plot(x, y, z, label='simplex')
 
-            pyplot.show()
+            #pyplot.show()
+
         else:
             print("dimension higher than 3 or wrong complex format")
 
@@ -901,7 +952,8 @@ class Complex:
             self.plot_save_figure(strpath)
 
         self.fig_complex.show()
-        return self.ax_complex
+        self.fig_surface.show()
+        return #self.ax_complex
 
     def plot_save_figure(self, strpath):
 
@@ -917,39 +969,158 @@ class Complex:
         except AttributeError:
             pass
 
-    def plot_contour(self, fig, bounds, func, func_args,
-                     surface=True, contour=True):
-        #from mpl_toolkits.mplot3d import axes3d
-        #import matplotlib.pyplot as plt
+    def plot_contour(self, bounds, func, func_args=()):
+        """
+        Plots the field functions. Mostly for developmental purposes
+        :param fig:
+        :param bounds:
+        :param func:
+        :param func_args:
+        :param surface:
+        :param contour:
+        :return:
+        """
+        xg, yg, Z = self.plot_field_grids(bounds, func, func_args)
+        cs = pyplot.contour(xg, yg, Z, cmap='binary_r', color='k')
+        pyplot.clabel(cs)
+
+    def plot_complex_surface(self, fig, ax):
+        """
+        fig and ax need to be supplied outside the method
+        :param fig: ex. ```fig = pyplot.figure()```
+        :param ax: ex.  ```ax = fig.gca(projection='3d')```
+        :param bounds:
+        :param func:
+        :param func_args:
+        :return:
+        """
         from matplotlib import cm
+        #xg, yg, Z = #self.plot_field_grids(bounds, func, func_args)
+        # fig = plt.figure()
+        # ax = fig.gca(projection='3d')
+        #TODO: Directed edges
 
-        # X = points[:, 0]
-        X = numpy.linspace(bounds[0][0], bounds[0][1])
-        # Y = points[:, 1]
-        Y = numpy.linspace(bounds[1][0], bounds[1][1])
-        xg, yg = numpy.meshgrid(X, Y)
-        Z = numpy.zeros((xg.shape[0],
-                         yg.shape[0]))
+        if 0:
+            for v in self.V.cache:
+                x.append(v[0])
+                y.append(v[1])
+                z.append(self.V[v].f)
+                for v2 in self.V[v].nn:
+                    #if v2 is not self.V[v]:  #TODO CHECK
+                    print(f'v = {v} is connected to v2 = {v2.x}')
+                    x.append(v2.x[0])
+                    y.append(v2.x[1])
+                    z.append(v2.f)
+                    # go back to starting coord
+                    x.append(v[0])  #TODO: is this needed?
+                    y.append(v[1])
+                    z.append(self.V[v].f)
 
-        for i in range(xg.shape[0]):
-            for j in range(yg.shape[0]):
-                Z[i, j] = func([xg[i, j], yg[i, j]])
+            #x.append(v[0])
+            #y.append(v[1])
+            #z.append(self.V[v].f)
+            #self.ax_complex.plot(v[0], v[1],
+            #                     '.'#,
+                                 #color=point_color,
+                                 #markersize=pointsize
+            #                    )
 
-        if 0:#surface:
-            # fig = plt.figure()
-            ax = fig.gca(projection='3d')
-            ax.plot_surface(xg, yg, Z, rstride=1, cstride=1,
-                            cmap=cm.coolwarm, linewidth=0,
-                            antialiased=True, alpha=1.0, shade=True)
+            ax.plot(x, y, z, label='simplex')
 
-            ax.set_xlabel('$x_1$')
-            ax.set_ylabel('$x_2$')
-            ax.set_zlabel('$f$')
+        if 1:
+            x = []
+            y = []
+            z = []
+            for v in self.V.cache:
 
-        if contour:
-            #plt.figure()
-            cs = pyplot.contour(xg, yg, Z, cmap='binary_r', color='k')
-            pyplot.clabel(cs)
+                x.append(v[0])
+                y.append(v[1])
+                z.append(self.V[v].f)
+                for v2 in self.V[v].nn:
+                    #if v2 is not self.V[v]:  #TODO CHECK
+                    print(f'v = {v} is connected to v2 = {v2.x}')
+                    x.append(v2.x[0])
+                    y.append(v2.x[1])
+                    z.append(v2.f)
+                    # go back to starting coord
+                    #x.append(v[0])  #TODO: is this needed?
+                    #y.append(v[1])
+                    #z.append(self.V[v].f)
+                    #ax.plot(x, y, z, label='simplex')
+                    ax.plot([v[0], v2.x[0]],
+                            [v[1], v2.x[1]],
+                            [self.V[v].f, v2.f],
+                            label='simplex')
+
+        # Add trisurf plot
+        ax.plot_trisurf(x, y, z,
+                        #TODO: Select colour scheme
+                        alpha=0.4,
+                        linewidth=0.2,
+                        antialiased=True)
+        #ax.plot_surface(xg, yg, Z, rstride=1, cstride=1,
+                        #cmap=cm.coolwarm,
+                        #cmap=cm.magma,
+        #                cmap=cm.plasma,
+                        #cmap=cm.inferno,
+                        #cmap=cm.pink,
+                        #cmap=cm.viridis,
+        #                linewidth=0,
+        #                antialiased=True, alpha=1.0, shade=True)
+
+        ax.set_xlabel('$x_1$')
+        ax.set_ylabel('$x_2$')
+        ax.set_zlabel('$f$')
+        #fig.show()
+        return fig, ax
+
+    def plot_field_surface(self, fig, ax, bounds, func, func_args=()):
+        """
+        fig and ax need to be supplied outside the method
+        :param fig: ex. ```fig = pyplot.figure()```
+        :param ax: ex.  ```ax = fig.gca(projection='3d')```
+        :param bounds:
+        :param func:
+        :param func_args:
+        :return:
+        """
+        from matplotlib import cm
+        xg, yg, Z = self.plot_field_grids(bounds, func, func_args)
+        # fig = plt.figure()
+        # ax = fig.gca(projection='3d')
+        ax.plot_surface(xg, yg, Z, rstride=1, cstride=1,
+                        #cmap=cm.coolwarm,
+                        #cmap=cm.magma,
+                        cmap=cm.plasma,
+                        #cmap=cm.inferno,
+                        #cmap=cm.pink,
+                        #cmap=cm.viridis,
+                        linewidth=0,
+                        antialiased=True, alpha=1.0, shade=True)
+
+        ax.set_xlabel('$x_1$')
+        ax.set_ylabel('$x_2$')
+        ax.set_zlabel('$f$')
+        #fig.show()
+        return fig, ax
+
+    def plot_field_grids(self, bounds, func, func_args):
+        try:
+            return self.plot_xg, self.plot_yg, self.plot_Z
+        except AttributeError:
+            X = numpy.linspace(bounds[0][0], bounds[0][1])
+            Y = numpy.linspace(bounds[1][0], bounds[1][1])
+            xg, yg = numpy.meshgrid(X, Y)
+            Z = numpy.zeros((xg.shape[0],
+                             yg.shape[0]))
+
+            for i in range(xg.shape[0]):
+                for j in range(yg.shape[0]):
+                    Z[i, j] = func([xg[i, j], yg[i, j]], *func_args)
+
+            self.plot_xg, self.plot_yg, self.plot_Z = xg, yg, Z
+            return self.plot_xg, self.plot_yg, self.plot_Z
+
 
     # Data persistence
     def save_complex(self, fn):
