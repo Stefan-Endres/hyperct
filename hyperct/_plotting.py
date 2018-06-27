@@ -63,11 +63,10 @@ class ComplexPlotter:
         else:  # heuristic
             dx1 = self.bounds[0][1] - self.bounds[0][0]
             dx2 = self.bounds[1][1] - self.bounds[1][0]
-            numpy.linalg.norm([dx1, dx2])
-            self.arrow_width = (numpy.linalg.norm([dx1, dx2]) * 0.13
-                                # * 0.1600781059358212
+
+            self.arrow_width = (min(dx1, dx2) * 0.13
                                 / (numpy.sqrt(len(self.V.cache))))
-            print(self.arrow_width)
+            self.mutation_scale = 58.83484054145521 * self.arrow_width * 1.5
 
         lw = 1  # linewidth
 
@@ -97,42 +96,19 @@ class ComplexPlotter:
                     ylines.append(v[1])
 
                     if directed:
-                        # TODO: These arrows look ugly when the domain rectangle
-                        # is too stretched. We need to define our own arrow
-                        # object that draws a triangle object at the desired
-                        # vector and adds it to ax_complex
                         if self.V[v].f > v2.f:  # direct V2 --> V1
                             dV = numpy.array(self.V[v].x) - numpy.array(v2.x)
-                            if 1:
-                                self.ax_complex.arrow(v2.x[0],
-                                                      v2.x[1],
-                                                      0.5 * dV[0], 0.5 * dV[1],
-                                                      head_width=self.arrow_width,
-                                                      head_length=self.arrow_width,
-                                                      fc=line_color, ec=line_color,
-                                                      color=line_color)
-
-                            if 0:
-                                self.ax_complex.annotate("",
-                                                         # xy=(v2.x[0], v2.x[1]),
-                                                         xy=(v2.x[0] + 0.5 * dV[0],
-                                                             v2.x[1] + 0.5 * dV[1]),
-
-                                                         xytext=(
-                                                         v2.x[0] + 1 * dV[0],
-                                                         v2.x[1] + 1 * dV[1]),
-                                                         # xytext=(v2.x[0] ,
-                                                         #        v2.x[1] ),
-                                                         # xytext=(0.5 * dV[0], 0.5 * dV[1]),
-
-                                                         arrowprops=dict(
-                                                             # arrowstyle='fancy',
-                                                             headwidth=self.arrow_width,
-                                                             headlength=self.arrow_width,
-                                                             # fc=line_color, ec=line_color,
-                                                             lw=0.0000000001,
-                                                             # TODO make 0
-                                                             color=line_color))
+                            import matplotlib
+                            ap = matplotlib.patches.FancyArrowPatch(
+                                numpy.array(v2.x) + 0.5*dV,  # tail
+                                numpy.array(v2.x) + 0.6*dV,  # head
+                                mutation_scale=self.mutation_scale,
+                                arrowstyle='-|>',
+                                fc=line_color, ec=line_color,
+                                color=line_color,
+                            )
+                            pass
+                            self.ax_complex.add_patch(ap)
 
                 if minimiser_points:
                     if self.V[v].minimiser():
@@ -262,6 +238,7 @@ class ComplexPlotter:
                     self.ax_complex.scatter(v[0], v[1], v[2], color=min_col,
                                             s=1.4 * pointsize)
 
+            self.fig_surface = None  # Current default
 
         else:
             print("dimension higher than 3 or wrong complex format")
