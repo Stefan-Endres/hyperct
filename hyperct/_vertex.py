@@ -1,3 +1,4 @@
+import collections
 import numpy
 from abc import ABC, abstractmethod
 
@@ -9,7 +10,7 @@ class VertexBase(ABC):
         #self.order = sum(x)  #TODO: Delete if we can't prove the order triangulation conjecture
 
         if nn is not None:
-            self.nn = set(nn)  # can use .update to add a new list
+            self.nn = set(nn)  # can use .indexupdate to add a new list
         else:
             self.nn = set()
 
@@ -147,7 +148,7 @@ Cache objects
 class VertexCacheBase(object):
     def __init__(self):
 
-        self.cache = {}
+        self.cache = collections.OrderedDict()
         self.nfev = 0  # Feasible points
         self.size = 0  # Total size of cache
         self.index = -1
