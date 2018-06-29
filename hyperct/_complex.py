@@ -34,6 +34,7 @@ from abc import ABC, abstractmethod
 import numpy
 # Optional modules:
 try:
+    import matplotlib
     from matplotlib import pyplot
     from matplotlib.patches import FancyArrowPatch
     from matplotlib.tri import Triangulation
@@ -701,7 +702,7 @@ class Complex:
                 dx = self.bounds[0][1] - self.bounds[0][0]
                 self.arrow_width = (dx * 0.13
                                     / (numpy.sqrt(len(self.V.cache))))
-                self.mutation_scale = 58.83484054145521 * self.arrow_width * 1.5
+                self.mutation_scale = 58.83484054145521 * self.arrow_width * 1.3
 
             try:
                 self.ax_complex
@@ -710,50 +711,43 @@ class Complex:
 
             min_points = []
             for v in self.V.cache:
-                self.ax_complex.plot(v, 1, '.',
+                self.ax_complex.plot(v, 0, '.',
                                      color=point_color,
                                      markersize=pointsize)
                 xlines = []
                 ylines = []
                 for v2 in self.V[v].nn:
                     xlines.append(v2.x)
-                    ylines.append(1)
+                    ylines.append(0)
 
                     if directed:
                         if self.V[v].f > v2.f:  # direct V2 --> V1
-                            dV = numpy.array(self.V[v].x) - numpy.array(v2.x)
-                            import matplotlib
-                            ap = matplotlib.patches.FancyArrowPatch(
-                                numpy.array(v2.x) + 0.5 * dV,  # tail
-                                numpy.array(v2.x) + 0.6 * dV,  # head
-                                mutation_scale=self.mutation_scale,
-                                arrowstyle='-|>',
-                                fc=line_color, ec=line_color,
-                                color=line_color,
-                            )
+                            x1_vec = list(self.V[v].x)
+                            x2_vec = list(v2.x)
+                            x1_vec.append(0)
+                            x2_vec.append(0)
+                            ap = self.plot_directed_edge(self.V[v].f, v2.f,
+                                                  x1_vec, x2_vec,
+                                              mut_scale=0.5*self.mutation_scale,
+                                                  proj_dim=2,
+                                                  color=line_color)
+
                             self.ax_complex.add_patch(ap)
 
                 if minimiser_points:
                     if self.V[v].minimiser():
-                        min_points.append(v)
+                        v_min = list(v)
+                        v_min.append(0)
+                        min_points.append(v_min)
 
                 self.ax_complex.plot(xlines, ylines, color=line_color)
 
             if minimiser_points:
-                for v in min_points:
-                    if point_color is 'r':
-                        min_col = 'k'
-                    else:
-                        min_col = 'r'
-
-                    self.ax_complex.plot(v[0], v[1], '.', color=point_color,
-                                         markersize=2.5 * pointsize)
-
-                    self.ax_complex.plot(v[0], v[1], '.', color='k',
-                                         markersize=1.5 * pointsize)
-
-                    self.ax_complex.plot(v[0], v[1], '.', color=min_col,
-                                         markersize=1.4 * pointsize)
+                self.ax_complex = self.plot_min_points(self.ax_complex,
+                                                       min_points,
+                                                       proj_dim=2,
+                                                       point_color=point_color,
+                                                       pointsize=pointsize)
 
             # Clean up figure
             if self.bounds is None:
@@ -761,7 +755,7 @@ class Complex:
                 pyplot.xlim([-1e-2, 1 + 1e-2])
             else:
                 fac = 1e-2  # TODO: TEST THIS
-                pyplot.ylim([1 - fac, 1 + fac])
+                pyplot.ylim([0 - fac, 0 + fac])
                 pyplot.xlim(
                     [self.bounds[0][0] - fac * (self.bounds[0][1]
                                                 - self.bounds[0][0]),
@@ -790,7 +784,7 @@ class Complex:
                     color_f=complex_color_f)
 
                 # Add a plot of the field function.
-                if surface_field_plot:
+                if 0:#surface_field_plot:
                     self.fig_surface, self.ax_surf = self.plot_field_surface(
                         self.fig_surface,
                         self.ax_surf,
@@ -833,16 +827,12 @@ class Complex:
 
                     if directed:
                         if self.V[v].f > v2.f:  # direct V2 --> V1
-                            dV = numpy.array(self.V[v].x) - numpy.array(v2.x)
-                            import matplotlib
-                            ap = matplotlib.patches.FancyArrowPatch(
-                                numpy.array(v2.x) + 0.5 * dV,  # tail
-                                numpy.array(v2.x) + 0.6 * dV,  # head
-                                mutation_scale=self.mutation_scale,
-                                arrowstyle='-|>',
-                                fc=line_color, ec=line_color,
-                                color=line_color,
-                            )
+                            ap = self.plot_directed_edge(self.V[v].f, v2.f,
+                                                         self.V[v].x, v2.x,
+                                                  mut_scale=self.mutation_scale,
+                                                         proj_dim=2,
+                                                         color=line_color)
+
                             self.ax_complex.add_patch(ap)
 
                 if minimiser_points:
@@ -852,20 +842,11 @@ class Complex:
                 self.ax_complex.plot(xlines, ylines, color=line_color)
 
             if minimiser_points:
-                for v in min_points:
-                    if point_color is 'r':
-                        min_col = 'k'
-                    else:
-                        min_col = 'r'
-
-                    self.ax_complex.plot(v[0], v[1], '.', color=point_color,
-                                         markersize=2.5 * pointsize)
-
-                    self.ax_complex.plot(v[0], v[1], '.', color='k',
-                                         markersize=1.5 * pointsize)
-
-                    self.ax_complex.plot(v[0], v[1], '.', color=min_col,
-                                         markersize=1.4 * pointsize)
+                self.ax_complex = self.plot_min_points(self.ax_complex,
+                                                       min_points,
+                                                       proj_dim=2,
+                                                       point_color=point_color,
+                                                       pointsize=pointsize)
 
             # Clean up figure
             if self.bounds is None:
@@ -941,11 +922,11 @@ class Complex:
                     z.append(self.V[v].x[2])
                     if directed:
                         if self.V[v].f > v2.f:  # direct V2 --> V1
-                            a2 = self.plot_directed_edge(self.V[v].f, v2.f,
+                            ap = self.plot_directed_edge(self.V[v].f, v2.f,
                                                          self.V[v].x, v2.x,
                                                          proj_dim=3,
                                                          color=line_color)
-                            self.ax_complex.add_artist(a2)
+                            self.ax_complex.add_artist(ap)
 
                 self.ax_complex.plot(x, y, z,
                                      color=line_color)
@@ -955,21 +936,11 @@ class Complex:
                         min_points.append(v)
 
             if minimiser_points:
-                for v in min_points:
-                    if point_color is 'r':
-                        min_col = 'k'
-                    else:
-                        min_col = 'r'
-
-                    self.ax_complex.scatter(v[0], v[1], v[2],
-                                            color=point_color,
-                                            s=2.5 * pointsize)
-
-                    self.ax_complex.scatter(v[0], v[1], v[2], color='k',
-                                            s=1.5 * pointsize)
-
-                    self.ax_complex.scatter(v[0], v[1], v[2], color=min_col,
-                                            s=1.4 * pointsize)
+                self.ax_complex = self.plot_min_points(self.ax_complex,
+                                                       min_points,
+                                                       proj_dim=3,
+                                                       point_color=point_color,
+                                                       pointsize=pointsize)
 
             self.fig_surface = None  # Current default
 
@@ -1064,7 +1035,7 @@ class Complex:
                                                         x1_vec, x2_vec,
                                                         proj_dim=3,
                                                         color=color_e)
-                            #self.ax_complex.add_artist(a)
+
                             ax.add_artist(a)
 
                     #TODO: add minimiser
@@ -1102,8 +1073,6 @@ class Complex:
         """
         from matplotlib import cm
         xg, yg, Z = self.plot_field_grids(bounds, func, func_args)
-        # fig = plt.figure()
-        # ax = fig.gca(projection='3d')
         ax.plot_surface(xg, yg, Z, rstride=1, cstride=1,
                         # cmap=cm.coolwarm,
                         # cmap=cm.magma,
@@ -1117,7 +1086,6 @@ class Complex:
         ax.set_xlabel('$x_1$')
         ax.set_ylabel('$x_2$')
         ax.set_zlabel('$f$')
-        # fig.show()
         return fig, ax
 
     def plot_field_grids(self, bounds, func, func_args):
@@ -1137,11 +1105,12 @@ class Complex:
             self.plot_xg, self.plot_yg, self.plot_Z = xg, yg, Z
             return self.plot_xg, self.plot_yg, self.plot_Z
 
-    def plot_directed_edge(self, f_v1, f_v2, x_v1, x_v2, proj_dim=2,
+    def plot_directed_edge(self, f_v1, f_v2, x_v1, x_v2, mut_scale=20, proj_dim=2,
                            color=None):
         """
         Draw a directed edge embeded in 2 or 3 dimensional space between two
         vertices v1 and v2.
+
         :param f_v1: field value at f(v1)
         :param f_v2: field value at f(v2)
         :param x_v1: coordinate vector 1
@@ -1150,17 +1119,78 @@ class Complex:
         :param color: edge color
         :return: a, artist arrow object (add with ex. Axes.add_artist(a)
         """
+        if proj_dim == 2:
+            if f_v1 > f_v2:  # direct V2 --> V1
+                #print
+                dV = numpy.array(x_v1) - numpy.array(x_v2)
+                ap = matplotlib.patches.FancyArrowPatch(
+                    numpy.array(x_v2) + 0.5 * dV,  # tail
+                    numpy.array(x_v2) + 0.6 * dV,  # head
+                    mutation_scale=mut_scale,
+                    arrowstyle='-|>',
+                    fc=color, ec=color,
+                    color=color,
+                )
+
         if proj_dim == 3:
             if f_v1 > f_v2:  # direct V2 --> V1
                 dV = numpy.array(x_v1) - numpy.array(x_v2)
                 # TODO: Might not be correct (unvalidated)
-                a = Arrow3D([x_v2[0], x_v2[0] + 0.5 * dV[0]],
-                            [x_v2[1], x_v2[1] + 0.5 * dV[1]],
-                            [x_v2[2], x_v2[2] + 0.5 * dV[2]],
+                ap = Arrow3D([x_v2[0], x_v2[0] + 0.5 * dV[0]],
+                             [x_v2[1], x_v2[1] + 0.5 * dV[1]],
+                             [x_v2[2], x_v2[2] + 0.5 * dV[2]],
                             mutation_scale=20,
                             lw=1, arrowstyle="-|>",
                             color=color)
-            return a
+
+        return ap
+
+    def plot_min_points(self, axes, min_points, proj_dim=2, point_color=None,
+                        pointsize=5):
+        """
+        Add a given list of highlighted minimiser points to axes
+
+        :param ax: An initiated matplotlib Axes class
+        :param min_points: list of minimsier points
+        :param proj_dim: projection dimension, must be either 2 or 3
+        :param point_color: optional
+        :param point_size: optional
+        :return:
+        """
+        if proj_dim == 2:
+            for v in min_points:
+                if point_color is 'r':
+                    min_col = 'k'
+                else:
+                    min_col = 'r'
+
+                axes.plot(v[0], v[1], '.', color=point_color,
+                                     markersize=2.5 * pointsize)
+
+                axes.plot(v[0], v[1], '.', color='k',
+                                     markersize=1.5 * pointsize)
+
+                axes.plot(v[0], v[1], '.', color=min_col,
+                                     markersize=1.4 * pointsize)
+
+        if proj_dim == 3:
+            for v in min_points:
+                if point_color is 'r':
+                    min_col = 'k'
+                else:
+                    min_col = 'r'
+
+                self.ax_complex.scatter(v[0], v[1], v[2],
+                                        color=point_color,
+                                        s=2.5 * pointsize)
+
+                self.ax_complex.scatter(v[0], v[1], v[2], color='k',
+                                        s=1.5 * pointsize)
+
+                self.ax_complex.scatter(v[0], v[1], v[2], color=min_col,
+                                        s=1.4 * pointsize)
+
+        return axes
 
     # Conversions
     def vertex_face_mesh(self, field_conversions=True):
