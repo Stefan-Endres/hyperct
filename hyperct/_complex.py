@@ -22,6 +22,7 @@ import os
 from abc import ABC, abstractmethod
 # Required modules:
 import numpy
+
 # Optional modules:
 try:
     import matplotlib
@@ -43,6 +44,7 @@ except ImportError:  # Python 2:
     import time
     import functools
     import collections
+
 
     # Note to avoid using external packages such as functools32 we use this code
     # only using the standard library
@@ -136,6 +138,7 @@ except ImportError:  # Python 2:
 # Module specific imports
 from hyperct._vertex import (VertexCacheIndex, VertexCacheField)
 
+
 # Main complex class:
 class Complex:
     def __init__(self, dim, domain=None, sfield=None, sfield_args=(),
@@ -186,9 +189,9 @@ class Complex:
         # Domains
         self.domain = domain
         if domain is None:
-            self.bounds = [(0, 1),]*dim
+            self.bounds = [(0, 1), ] * dim
         else:
-            self.bounds = domain  #TODO: Assert that len(domain) is dim
+            self.bounds = domain  # TODO: Assert that len(domain) is dim
         self.symmetry = symmetry  # TODO: Define the functions to be used
         #      here in init to avoid if checks
 
@@ -213,16 +216,15 @@ class Complex:
 
         self.H = []  # Storage structure of vertex groups
         # Cache of all vertices
-        #self.V = VertexCache(field, func_args, bounds, g_cons, g_args)
         if (sfield is not None) or (g_cons is not None):
-           self.V = VertexCacheField(field=sfield, field_args=sfield_args,
-                                     g_cons=g_cons, g_cons_args=g_cons_args)
+            self.V = VertexCacheField(field=sfield, field_args=sfield_args,
+                                      g_cons=g_cons, g_cons_args=g_cons_args)
         else:
-           self.V = VertexCacheIndex()
+            self.V = VertexCacheIndex()
 
         if vfield is not None:
-            raise Warning("Vector field applications have not been implemented"
-                          "yet")
+            logging.warning("Vector field applications have not been "
+                            "implemented yet.")
 
     def __call__(self):
         return self.H
@@ -256,10 +258,12 @@ class Complex:
 
         if self.domain is not None:
             # Delete the vertices generated during n_cube
-            #del(self.V)
-            self.V = VertexCacheField(field=self.sfield, field_args=self.sfield_args,
-                                      g_cons=self.g_cons, g_cons_args=self.g_cons_args)
-            #TODO: Find a way not to delete the entire vertex cache in situations
+            # del(self.V)
+            self.V = VertexCacheField(field=self.sfield,
+                                      field_args=self.sfield_args,
+                                      g_cons=self.g_cons,
+                                      g_cons_args=self.g_cons_args)
+            # TODO: Find a way not to delete the entire vertex cache in situations
             # where this method is used to triangulate the domain together with
             # other in place connections. ex simply move n_cube to if statement
             # and use a temporary cache
@@ -270,18 +274,18 @@ class Complex:
             for i, (lb, ub) in enumerate(self.domain):
                 origin.append(lb)
                 supremum.append(ub)
-                #x_a[i] = x_a[i] * (ub - lb) + lb
-            #del(self.C0)
+                # x_a[i] = x_a[i] * (ub - lb) + lb
+            # del(self.C0)
             self.origin = tuple(origin)
             self.supremum = tuple(supremum)
-            #self.C0 =
+            # self.C0 =
             self.construct_hypercube(self.origin, self.supremum, 0, 0)
 
-            #TODO: Find new C0 by looping through C_0 and checking if v in Cnew
+            # TODO: Find new C0 by looping through C_0 and checking if v in Cnew
             #      Then delete unused C0 and set Cnew to C_0
 
-            #x_a = numpy.array(x, dtype=float)
-            #if self.domain is not None:
+            # x_a = numpy.array(x, dtype=float)
+            # if self.domain is not None:
             #    for i, (lb, ub) in enumerate(self.domain):
             #        x_a[i] = x_a[i] * (ub - lb) + lb
         else:
@@ -295,13 +299,12 @@ class Complex:
             self.hgrd = 0  # Complex group rank differential
             self.hgr = self.C0.hg_n
 
-
     def n_cube(self, symmetry=False, printout=False):
         """
         Generate the simplicial triangulation of the n dimensional hypercube
         containing 2**n vertices
         """
-        #TODO: Check for loaded data and load if available
+        # TODO: Check for loaded data and load if available
         import numpy
         origin = list(numpy.zeros(self.dim, dtype=int))
         self.origin = origin
@@ -520,47 +523,46 @@ class Complex:
             (numpy.array(origin) + numpy.array(supremum)) / 2.0)
 
         # Cached calculation
-        #print(f'self.C0 = {self.C0()}')
-        #print(f'self.C0 = {self.C0()[self.graph[0]]}')
-        #[self.C0()[index] for index in self.graph[i]]
+        # print(f'self.C0 = {self.C0()}')
+        # print(f'self.C0 = {self.C0()[self.graph[0]]}')
+        # [self.C0()[index] for index in self.graph[i]]
 
         self.v_o = numpy.array(origin)
         self.v_s = numpy.array(supremum)
         for i, v in enumerate(self.C0()[:-1]):  # Build new vertices
-            #print(f'v.x = {v.x}')
+            # print(f'v.x = {v.x}')
             t1 = self.generate_sub_cell_t1(origin, v.x)
-            #print(t1)
+            # print(t1)
             t2 = self.generate_sub_cell_t2(supremum, v.x)
-            #print(t2)
+            # print(t2)
             vec = t1 + t2
-            #print(f'vec = {vec}')
+            # print(f'vec = {vec}')
 
             vec = tuple(vec)
-            #nn_v = [self.C0()[index] for index in self.graph[i]]
-            #C_new.add_vertex(self.V.__getitem__(vec, nn=nn_v))
+            # nn_v = [self.C0()[index] for index in self.graph[i]]
+            # C_new.add_vertex(self.V.__getitem__(vec, nn=nn_v))
             C_new.add_vertex(self.V[vec])
-            #print(f'self.V[vec].x = {self.V[vec].x}')
-            #print(f'C_new() = {C_new()}')
+            # print(f'self.V[vec].x = {self.V[vec].x}')
+            # print(f'C_new() = {C_new()}')
 
         # Add new centroid
         C_new.add_vertex(self.V[C_new.centroid])
 
-        #print(C_new())
-        #print(self.C0())
+        # print(C_new())
+        # print(self.C0())
 
         for i, v in enumerate(C_new()):  # Connect new vertices
             nn_v = [C_new()[index] for index in self.graph[i]]
             self.V[v.x].nn.update(nn_v)
 
+        # nn_v = [C_new()[index] for index in self.graph[-1]]
+        # C_new.add_vertex(self.V.__getitem__(C_new.centroid, nn_v))
 
-        #nn_v = [C_new()[index] for index in self.graph[-1]]
-        #C_new.add_vertex(self.V.__getitem__(C_new.centroid, nn_v))
-
-        #C_new.add_vertex(self.V.__getitem__(vec, nn=nn_v))
+        # C_new.add_vertex(self.V.__getitem__(vec, nn=nn_v))
         # Add new centroid
-        #C_new.add_vertex(self.V[C_new.centroid])
+        # C_new.add_vertex(self.V[C_new.centroid])
 
-        #V_new.append(C_new.centroid)
+        # V_new.append(C_new.centroid)
 
         if printout:
             print("A sub hyper cube with:")
@@ -647,9 +649,60 @@ class Complex:
         return self.v_s * numpy.array(v_x)
 
     # Plots
-    def plot_complex(self):
+    def plot_complex(self, show=True, directed=True, contour_plot=True,
+                     surface_plot=True, surface_field_plot=1,
+                     minimiser_points=True, point_color='do', line_color='do',
+                     complex_color_f='lo', complex_color_e='do', pointsize=7,
+                     no_grids=False, save_fig=True, strpath=None,
+                     plot_path='fig/', fig_name='complex.pdf', arrow_width=None
+                     ):
         """
-        TODO: Finish API and document
+        Plots the current simplicial complex contained in the class. It requires
+        at least one vector in the self.V to have been defined.
+
+
+        :param directed: boolean, optional, adds directed arrows to edges
+        :param contour_plot: boolean, optional, contour plots of the field functions
+        :param surface_plot: boolean, optional, a 3 simplicial complex + sfield plot
+        :param surface_field_plot: boolean, optional, 3 dimensional surface + contour plot
+        :param minimiser_points: boolean, optional, adds minimiser points
+        :param point_color: str or vec, optional, colour of complex points
+        :param line_color: str or vec, optional, colour of complex edges
+        :param complex_color_f: str or vec, optional, colour of surface complex faces
+        :param complex_color_e: str or vec, optional, colour of surface complex edges
+        :param pointsize: float, optional, size of vectices on plots
+        :param no_grids: boolean, optional, removes gridlines and axes
+        :param save_fig: boolean, optional, save the output figure to file
+        :param strpath: str, optional, string path of the file name
+        :param plot_path: str, optional, relative path to file outputs
+        :param fig_name: str, optional, name of the complex file to save
+        :param arrow_width: float, optional, fixed size for arrows
+        :return: self.ax_complex, a matplotlib Axes class containing the complex and field contour
+        :return: self.fig_surface, a matplotlib Axes class containing the complex surface and field surface
+
+        Examples
+        --------
+        # Initiate a complex class
+        >>> import pylab
+        >>> H = Complex(2, sfield=func,domain=[(0, 10)])
+
+        # As an example we'll use the built in triangulation to generate vertices
+        >>> H.triangulate()
+        >>> H.split_generation()
+
+        # Plot the complex
+        >>> H.plot_complex()
+
+        # You can add any sort of custom drawings to the Axes classes of the
+        plots
+        >>> H.ax_complex.plot(0.25, 0.25, '.', color='k', markersize=10)
+        >>> H.ax_surface.scatter(0.25, 0.25, 0.25, '.', color='k', s=10)
+
+        # Show the final plot
+        >>> pylab.show()
+
+        # Clear current plot instances
+        >>> H.plot_clean()
         """
         if not matplotlib_available:
             logging.warning("Plotting functions are unavailable. To "
@@ -663,27 +716,37 @@ class Complex:
         except AttributeError:
             self.fig_complex = pyplot.figure()
 
-        # Define colours:
-        lo = numpy.array([242, 189, 138]) / 255  # light orange
-        do = numpy.array([235, 129, 27]) / 255  # Dark alert orange
+        # Consistency
+        if self.sfield is None:
+            if contour_plot:
+                contour_plot = False
+                logging.warning("Warning, no associated scalar field found. "
+                                "Not plotting contour_plot.")
+            if surface_plot:
+                surface_plot = False
+                logging.warning("Warning, no associated scalar field found. "
+                                "Not plotting complex surface field.")
+            if surface_field_plot:
+                surface_field_plot = False
+                logging.warning("Warning, no associated scalar field found. "
+                                "Not plotting surface field.")
 
-        directed = True
-        contour_plot = True
-        surface_plot = True  # A 3 dimensional surface + contour plot
-        surface_field_plot = 1  # True  # A 3 dimensional surface + contour plot
-        minimiser_points = True
-        # TODO: Add dict for visual parameters
-        point_color = do  # None will generate
-        line_color = do
-        complex_color_f = lo  # face color in simplicial complex
-        complex_color_e = do  # edge color in simplicial complex
-        pointsize = 5
-        no_grids = False
-        save_fig = True
-        strpath = None  # Full string path of the file name
-        plot_path = 'fig/'  # Name of the relative directory to save
-        fig_name = 'complex.pdf'  # Name of the complex file to save
-        arrow_width = None
+        # Define colours:
+        coldict = {'lo': numpy.array([242, 189, 138]) / 255,  # light orange
+                   'do': numpy.array([235, 129, 27]) / 255  # Dark alert orange
+                   }
+
+        def define_cols(col):
+            if (col is 'lo') or (col is 'do'):
+                col = coldict[col]
+            elif col is None:
+                col = None
+            return col
+
+        point_color = define_cols(point_color)  # None will generate
+        line_color = define_cols(line_color)
+        complex_color_f = define_cols(complex_color_f)
+        complex_color_e = define_cols(complex_color_e)
 
         if self.dim == 1:
             if arrow_width is not None:
@@ -717,10 +780,10 @@ class Complex:
                             x1_vec.append(0)
                             x2_vec.append(0)
                             ap = self.plot_directed_edge(self.V[v].f, v2.f,
-                                                  x1_vec, x2_vec,
-                                              mut_scale=0.5*self.mutation_scale,
-                                                  proj_dim=2,
-                                                  color=line_color)
+                                                         x1_vec, x2_vec,
+                                                         mut_scale=0.5 * self.mutation_scale,
+                                                         proj_dim=2,
+                                                         color=line_color)
 
                             self.ax_complex.add_patch(ap)
 
@@ -763,24 +826,24 @@ class Complex:
                 except AttributeError:
                     self.fig_surface = pyplot.figure()
                 try:
-                    self.ax_surf
+                    self.ax_surface
                 except:
-                    self.ax_surf = self.fig_surface.add_subplot(1, 1, 1)
+                    self.ax_surface = self.fig_surface.add_subplot(1, 1, 1)
 
                 # Add a plot of the field function.
                 if surface_field_plot:
-                    self.fig_surface, self.ax_surf = self.plot_field_surface(
+                    self.fig_surface, self.ax_surface = self.plot_field_surface(
                         self.fig_surface,
-                        self.ax_surf,
+                        self.ax_surface,
                         self.bounds,
                         self.sfield,
                         self.sfield_args,
                         proj_dim=2,
-                        color=lo)  #TODO: Custom field colour
+                        color=complex_color_f)  # TODO: Custom field colour
 
-                self.fig_surface, self.ax_surf = self.plot_complex_surface(
+                self.fig_surface, self.ax_surface = self.plot_complex_surface(
                     self.fig_surface,
-                    self.ax_surf,
+                    self.ax_surface,
                     directed=directed,
                     pointsize=pointsize,
                     color_e=complex_color_e,
@@ -788,9 +851,9 @@ class Complex:
                     min_points=min_points)
 
                 if no_grids:
-                    self.ax_surf.set_xticks([])
-                    self.ax_surf.set_yticks([])
-                    self.ax_surf.axis('off')
+                    self.ax_surface.set_xticks([])
+                    self.ax_surface.set_yticks([])
+                    self.ax_surface.axis('off')
 
         elif self.dim == 2:
             if arrow_width is not None:
@@ -829,7 +892,7 @@ class Complex:
                         if self.V[v].f > v2.f:  # direct V2 --> V1
                             ap = self.plot_directed_edge(self.V[v].f, v2.f,
                                                          self.V[v].x, v2.x,
-                                                  mut_scale=self.mutation_scale,
+                                                         mut_scale=self.mutation_scale,
                                                          proj_dim=2,
                                                          color=line_color)
 
@@ -879,23 +942,23 @@ class Complex:
                 except AttributeError:
                     self.fig_surface = pyplot.figure()
                 try:
-                    self.ax_surf
+                    self.ax_surface
                 except:
-                    self.ax_surf = self.fig_surface.gca(projection='3d')
+                    self.ax_surface = self.fig_surface.gca(projection='3d')
 
                 # Add a plot of the field function.
                 if surface_field_plot:
-                    self.fig_surface, self.ax_surf = self.plot_field_surface(
+                    self.fig_surface, self.ax_surface = self.plot_field_surface(
                         self.fig_surface,
-                        self.ax_surf,
+                        self.ax_surface,
                         self.bounds,
                         self.sfield,
                         self.sfield_args,
-                        proj_dim=2)
+                        proj_dim=3)
 
-                self.fig_surface, self.ax_surf = self.plot_complex_surface(
+                self.fig_surface, self.ax_surface = self.plot_complex_surface(
                     self.fig_surface,
-                    self.ax_surf,
+                    self.ax_surface,
                     directed=directed,
                     pointsize=pointsize,
                     color_e=complex_color_e,
@@ -903,9 +966,9 @@ class Complex:
                     min_points=min_points)
 
                 if no_grids:
-                    self.ax_surf.set_xticks([])
-                    self.ax_surf.set_yticks([])
-                    self.ax_surf.axis('off')
+                    self.ax_surface.set_xticks([])
+                    self.ax_surface.set_yticks([])
+                    self.ax_surface.axis('off')
 
 
         elif self.dim == 3:
@@ -954,6 +1017,7 @@ class Complex:
                                                        pointsize=pointsize)
 
             self.fig_surface = None  # Current default
+            self.ax_surface = None  # Current default
 
         else:
             logging.warning("dimension higher than 3 or wrong complex format")
@@ -972,12 +1036,19 @@ class Complex:
 
             self.plot_save_figure(strpath)
 
-        self.fig_complex.show()
+
+        if show:
+            self.fig_complex.show()
         try:
-            self.fig_surface.show()
+            self.fig_surface
+            self.ax_surface
+            if show:
+                self.fig_surface.show()
         except AttributeError:
-            pass
-        return self.fig_surface, self.ax_complex
+            self.fig_surface = None  # Set to None for return reference
+            self.ax_surface = None
+
+        return self.fig_complex, self.ax_complex, self.fig_surface, self.ax_surface
 
     def plot_save_figure(self, strpath):
 
@@ -1081,8 +1152,7 @@ class Complex:
 
                             ax.add_artist(a)
 
-
-            #TODO: For some reason adding the scatterplots for minimiser spheres
+            # TODO: For some reason adding the scatterplots for minimiser spheres
             #      makes the directed edges disappear behind the field surface
             if len(min_points) > 0:
                 iter_min = min_points.copy()
@@ -1091,13 +1161,11 @@ class Complex:
                     min_points[ind].append(self.V[v].f)
 
                 ax = self.plot_min_points(ax,
-                                           min_points,
-                                           proj_dim=3,
-                                           point_color=color_e,
-                                           pointsize=pointsize
-                                           )
-
-
+                                          min_points,
+                                          proj_dim=3,
+                                          point_color=color_e,
+                                          pointsize=pointsize
+                                          )
 
             # Triangulation to plot faces
             # Compute a triangulation #NOTE: can eat memory
@@ -1113,11 +1181,9 @@ class Complex:
                             linewidth=0.2,
                             antialiased=True)
 
-
             ax.set_xlabel('$x_1$')
             ax.set_ylabel('$x_2$')
             ax.set_zlabel('$f$')
-
 
         return fig, ax
 
@@ -1179,7 +1245,8 @@ class Complex:
             self.plot_xg, self.plot_yg, self.plot_Z = xg, yg, Z
             return self.plot_xg, self.plot_yg, self.plot_Z
 
-    def plot_directed_edge(self, f_v1, f_v2, x_v1, x_v2, mut_scale=20, proj_dim=2,
+    def plot_directed_edge(self, f_v1, f_v2, x_v1, x_v2, mut_scale=20,
+                           proj_dim=2,
                            color=None):
         """
         Draw a directed edge embeded in 2 or 3 dimensional space between two
@@ -1195,7 +1262,6 @@ class Complex:
         """
         if proj_dim == 2:
             if f_v1 > f_v2:  # direct V2 --> V1
-                #print
                 dV = numpy.array(x_v1) - numpy.array(x_v2)
                 ap = matplotlib.patches.FancyArrowPatch(
                     numpy.array(x_v2) + 0.5 * dV,  # tail
@@ -1213,9 +1279,9 @@ class Complex:
                 ap = Arrow3D([x_v2[0], x_v2[0] + 0.5 * dV[0]],
                              [x_v2[1], x_v2[1] + 0.5 * dV[1]],
                              [x_v2[2], x_v2[2] + 0.5 * dV[2]],
-                            mutation_scale=20,
-                            lw=1, arrowstyle="-|>",
-                            color=color)
+                             mutation_scale=20,
+                             lw=1, arrowstyle="-|>",
+                             color=color)
 
         return ap
 
@@ -1239,13 +1305,13 @@ class Complex:
                     min_col = 'r'
 
                 axes.plot(v[0], v[1], '.', color=point_color,
-                                     markersize=2.5 * pointsize)
+                          markersize=2.5 * pointsize)
 
                 axes.plot(v[0], v[1], '.', color='k',
-                                     markersize=1.5 * pointsize)
+                          markersize=1.5 * pointsize)
 
                 axes.plot(v[0], v[1], '.', color=min_col,
-                                     markersize=1.4 * pointsize)
+                          markersize=1.4 * pointsize)
 
         if proj_dim == 3:
             for v in min_points:
@@ -1293,7 +1359,7 @@ class Complex:
         self.simplices_fm = []  # Faces
         self.simplices_fm_i = []
 
-        #TODO: Add in field
+        # TODO: Add in field
 
         for v in self.V.cache:  # Note that cache is an OrderedDict
             self.vertices_fm.append(v)
@@ -1337,18 +1403,18 @@ class Complex:
                                 and (v3 is not self.V[v])):
                             try:  # Fill simplex with v's neighbours until it is full
                                 ind += 1
-                                #(if v2.index not in build_simpl_i) and v2.index in v2.nn
+                                # (if v2.index not in build_simpl_i) and v2.index in v2.nn
                                 build_simpl_i[ind] = v3.index
 
                             except IndexError:  # When the simplex is full
-                                #ind = 1 #TODO: Check
+                                # ind = 1 #TODO: Check
                                 # Append full simplex and create a new one
                                 s_b_s_i = sorted(
                                     build_simpl_i)  # Sorted simplex indices
                                 if s_b_s_i not in self.simplices_fm_i:
                                     self.simplices_fm_i.append(s_b_s_i)
-                                    #TODO: Build simplices_fm
-                                    #self.simplices_fm.append(s_b_s_i)
+                                    # TODO: Build simplices_fm
+                                    # self.simplices_fm.append(s_b_s_i)
 
                                 build_simpl_i = simplex_i.copy()
                                 # Start the new simplex with current neighbour as second
@@ -1360,7 +1426,7 @@ class Complex:
                                     ind = 2
 
                                 if self.dim == 2:  # Special case, for dim > 2
-                                                   # it will not be full
+                                    # it will not be full
                                     if s_b_s_i not in self.simplices_fm_i:
                                         self.simplices_fm_i.append(s_b_s_i)
 
@@ -1375,14 +1441,14 @@ class Complex:
                     # completed then there were not enough vertices to form a
                     # simplex with.
 
-        #TODO: BUILD self.vertices_fm from  self.simplices_fm_i and
+        # TODO: BUILD self.vertices_fm from  self.simplices_fm_i and
         # self.vertices_fm
         for s in self.simplices_fm_i:
             sl = []
             for i in s:
                 sl.append(self.vertices_fm[i])
 
-            #print(sl)
+            # print(sl)
 
             # Append the newly built simple
 
@@ -1403,6 +1469,7 @@ class Complex:
         :param fn: str, filename
         :return:
         """
+
 
 class VertexGroup(object):
     def __init__(self, p_gen, p_hgr):
@@ -1481,5 +1548,3 @@ class Simplex(VertexGroup):
         super(Simplex, self).__init__(p_gen, p_hgr)
 
         self.generation_cycle = (generation_cycle + 1) % (dim - 1)
-
-
