@@ -1214,3 +1214,42 @@ class TestField(object):
         #bounds = [-10, 10]
 
         #HC = Complex(n, func, bounds=bounds)
+
+
+class TestPlotting(object):
+    def test_1_1_1D_complex(self):
+        H = Complex(1, domain=[(0, 10)])
+        H.triangulate()
+        H.plot_complex(show=False, save_fig=False)
+
+    def test_1_2_2D_complex(self):
+        H = Complex(2, domain=[(0, 10), (0, 10)])
+        H.triangulate()
+        H.plot_complex(show=False, save_fig=False)
+
+    def test_1_3_3D_complex(self):
+        H = Complex(3, domain=[(0, 10), (0, 10), (0, 10)])
+        H.triangulate()
+        H.plot_complex(show=False, save_fig=False)
+
+    def test_2_1_1D_complex_suface(self):
+        def f(x):
+            return numpy.sin(x)
+        H = Complex(1, sfield=f, domain=[(0, 10)])
+        H.triangulate()
+        H.plot_complex(show=False, save_fig=False)
+
+    def test_2_2_2D_complex(self):
+        def f(x):  # Ursem01
+            return -numpy.sin(2 * x[0] - 0.5 * numpy.pi) - 3 * numpy.cos(
+                x[1]) - 0.5 * x[0]
+        H = Complex(2, sfield=f, domain=[(0, 10), (0, 10)])
+        H.triangulate()
+        H.plot_complex(show=False, save_fig=False)
+
+    def test_2_3_3D_complex(self):
+        def f(x):
+            return x[0] + x[1] + x[2]
+        H = Complex(3, sfield=f, domain=[(0, 10), (0, 10), (0, 10)])
+        H.triangulate()
+        H.plot_complex(show=False, save_fig=False)
