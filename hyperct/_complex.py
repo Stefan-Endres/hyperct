@@ -1,21 +1,11 @@
 """
-Base classes for low memory simplicial complex structures
+Base classes for low memory simplicial complex structures.
 
-Restructuring overview.
+TODO: -Allow for sub-triangulations to track arbitrary points. Detect which
+      simplex it is in and then connect the new points to it
+      -Turn the triangulation into a generator that yields a specified number
+      of finite points.
 
-We'll use factory method pattern
-(https://en.wikipedia.org/wiki/Factory_method_pattern)
-to inherit the properties of different complexes depending on whether we'll use
-Arrays or pure tuples
-Scalar, vector or no fields (Also for example make connect an abstract method to
-                             compute field gradients etc)
-Simplices, cells
-etc.
-
-
-TODO: Turn plotting methods into its own class that inherits a complex class
-    with its attributes. Using this we can make matplotlib an optional
-    dependency.
 
 FUTURE: Triangulate arbitrary domains other than n-cubes
 (ex. using delaunay and low disc. sampling subject to constraints, or by adding
@@ -41,9 +31,8 @@ try:
     from mpl_toolkits.mplot3d import axes3d, Axes3D, proj3d
     from hyperct._plotting import Arrow3D
 except ImportError:
-    logging.warning("Plotting functions are unavailable. To "
-                        "install matplotlib install using ex. `pip install "
-                        "matplotlib` ")
+    logging.warning("Plotting functions are unavailable. To use install "
+                    "matplotlib, install using ex. `pip install matplotlib` ")
     matplotlib_available = False
 else:
     matplotlib_available = True
@@ -666,6 +655,7 @@ class Complex:
             logging.warning("Plotting functions are unavailable. To "
                             "install matplotlib install using ex. `pip install "
                             "matplotlib` ")
+            return
 
         # Create pyplot.figure instance if none exists yet
         try:
@@ -775,24 +765,34 @@ class Complex:
                 try:
                     self.ax_surf
                 except:
-                    self.ax_surf = self.fig_complex.add_subplot(1, 1, 1)
-
-                self.fig_surface, self.ax_surf = self.plot_complex_surface(
-                    self.fig_surface,
-                    self.ax_surf,
-                    color_e=complex_color_e,
-                    color_f=complex_color_f)
+                    self.ax_surf = self.fig_surface.add_subplot(1, 1, 1)
 
                 # Add a plot of the field function.
-                if 0:#surface_field_plot:
+                if surface_field_plot:
                     self.fig_surface, self.ax_surf = self.plot_field_surface(
                         self.fig_surface,
                         self.ax_surf,
                         self.bounds,
                         self.sfield,
-                        self.sfield_args)
+                        self.sfield_args,
+                        proj_dim=2,
+                        color=lo)  #TODO: Custom field colour
 
-        if self.dim == 2:
+                self.fig_surface, self.ax_surf = self.plot_complex_surface(
+                    self.fig_surface,
+                    self.ax_surf,
+                    directed=directed,
+                    pointsize=pointsize,
+                    color_e=complex_color_e,
+                    color_f=complex_color_f,
+                    min_points=min_points)
+
+                if no_grids:
+                    self.ax_surf.set_xticks([])
+                    self.ax_surf.set_yticks([])
+                    self.ax_surf.axis('off')
+
+        elif self.dim == 2:
             if arrow_width is not None:
                 self.arrow_width = arrow_width
             else:  # heuristic
@@ -847,6 +847,8 @@ class Complex:
                                                        proj_dim=2,
                                                        point_color=point_color,
                                                        pointsize=pointsize)
+            else:
+                min_points = []
 
             # Clean up figure
             if self.bounds is None:
@@ -881,12 +883,6 @@ class Complex:
                 except:
                     self.ax_surf = self.fig_surface.gca(projection='3d')
 
-                self.fig_surface, self.ax_surf = self.plot_complex_surface(
-                    self.fig_surface,
-                    self.ax_surf,
-                    color_e=complex_color_e,
-                    color_f=complex_color_f)
-
                 # Add a plot of the field function.
                 if surface_field_plot:
                     self.fig_surface, self.ax_surf = self.plot_field_surface(
@@ -894,7 +890,22 @@ class Complex:
                         self.ax_surf,
                         self.bounds,
                         self.sfield,
-                        self.sfield_args)
+                        self.sfield_args,
+                        proj_dim=2)
+
+                self.fig_surface, self.ax_surf = self.plot_complex_surface(
+                    self.fig_surface,
+                    self.ax_surf,
+                    directed=directed,
+                    pointsize=pointsize,
+                    color_e=complex_color_e,
+                    color_f=complex_color_f,
+                    min_points=min_points)
+
+                if no_grids:
+                    self.ax_surf.set_xticks([])
+                    self.ax_surf.set_yticks([])
+                    self.ax_surf.axis('off')
 
 
         elif self.dim == 3:
@@ -945,7 +956,7 @@ class Complex:
             self.fig_surface = None  # Current default
 
         else:
-            print("dimension higher than 3 or wrong complex format")
+            logging.warning("dimension higher than 3 or wrong complex format")
 
         # Save figure to file
         if save_fig:
@@ -997,8 +1008,8 @@ class Complex:
         cs = pyplot.contour(xg, yg, Z, cmap='binary_r', color='k')
         pyplot.clabel(cs)
 
-    def plot_complex_surface(self, fig, ax, directed=True,
-                             color_e=None, color_f=None, minimiser_points=[]):
+    def plot_complex_surface(self, fig, ax, directed=True, pointsize=5,
+                             color_e=None, color_f=None, min_points=[]):
         """
         fig and ax need to be supplied outside the method
         :param fig: ex. ```fig = pyplot.figure()```
@@ -1009,12 +1020,44 @@ class Complex:
         :return:
         """
         if self.dim == 1:
-            pass
+            # Plot edges
+            z = []
+            for v in self.V.cache:
+                ax.plot(v, self.V[v].f, '.', color=color_e,
+                        markersize=pointsize)
+                z.append(self.V[v].f)
+                for v2 in self.V[v].nn:
+                    ax.plot([v, v2.x],
+                            [self.V[v].f, v2.f],
+                            color=color_e)
+
+                    if directed:
+                        if self.V[v].f > v2.f:  # direct V2 --> V1
+                            x1_vec = [float(self.V[v].x[0]), self.V[v].f]
+                            x2_vec = [float(v2.x[0]), v2.f]
+
+                            a = self.plot_directed_edge(self.V[v].f, v2.f,
+                                                        x1_vec, x2_vec,
+                                                        proj_dim=2,
+                                                        color=color_e)
+                            ax.add_artist(a)
 
             ax.set_xlabel('$x$')
             ax.set_ylabel('$f$')
+
+            if len(min_points) > 0:
+                iter_min = min_points.copy()
+                for ind, v in enumerate(iter_min):
+                    min_points[ind][1] = float(self.V[v[0]].f)
+
+                ax = self.plot_min_points(ax,
+                                          min_points,
+                                          proj_dim=2,
+                                          point_color=color_e,
+                                          pointsize=pointsize
+                                          )
+
         elif self.dim == 2:
-            #TODO: Add directed arrows
             # Plot edges
             z = []
             for v in self.V.cache:
@@ -1038,9 +1081,24 @@ class Complex:
 
                             ax.add_artist(a)
 
-                    #TODO: add minimiser
-                    for min_point in minimiser_points:
-                        pass
+
+            #TODO: For some reason adding the scatterplots for minimiser spheres
+            #      makes the directed edges disappear behind the field surface
+            if len(min_points) > 0:
+                iter_min = min_points.copy()
+                for ind, v in enumerate(iter_min):
+                    min_points[ind] = list(min_points[ind])
+                    min_points[ind].append(self.V[v].f)
+
+                ax = self.plot_min_points(ax,
+                                           min_points,
+                                           proj_dim=3,
+                                           point_color=color_e,
+                                           pointsize=pointsize
+                                           )
+
+
+
             # Triangulation to plot faces
             # Compute a triangulation #NOTE: can eat memory
             self.vertex_face_mesh()
@@ -1059,9 +1117,12 @@ class Complex:
             ax.set_xlabel('$x_1$')
             ax.set_ylabel('$x_2$')
             ax.set_zlabel('$f$')
+
+
         return fig, ax
 
-    def plot_field_surface(self, fig, ax, bounds, func, func_args=()):
+    def plot_field_surface(self, fig, ax, bounds, func, func_args=(),
+                           proj_dim=2, color=None):
         """
         fig and ax need to be supplied outside the method
         :param fig: ex. ```fig = pyplot.figure()```
@@ -1071,21 +1132,34 @@ class Complex:
         :param func_args:
         :return:
         """
-        from matplotlib import cm
-        xg, yg, Z = self.plot_field_grids(bounds, func, func_args)
-        ax.plot_surface(xg, yg, Z, rstride=1, cstride=1,
-                        # cmap=cm.coolwarm,
-                        # cmap=cm.magma,
-                        cmap=cm.plasma,
-                        # cmap=cm.inferno,
-                        # cmap=cm.pink,
-                        # cmap=cm.viridis,
-                        linewidth=0,
-                        antialiased=True, alpha=1.0, shade=True)
+        if proj_dim == 2:
+            from matplotlib import cm
+            xr = numpy.linspace(self.bounds[0][0], self.bounds[0][1], num=100)
+            fr = numpy.zeros_like(xr)
+            for i in range(xr.shape[0]):
+                fr[i] = func(xr[i], *func_args)
 
-        ax.set_xlabel('$x_1$')
-        ax.set_ylabel('$x_2$')
-        ax.set_zlabel('$f$')
+            ax.plot(xr, fr, alpha=0.6, color=color)
+
+            ax.set_xlabel('$x$')
+            ax.set_ylabel('$f$')
+
+        if proj_dim == 3:
+            from matplotlib import cm
+            xg, yg, Z = self.plot_field_grids(bounds, func, func_args)
+            ax.plot_surface(xg, yg, Z, rstride=1, cstride=1,
+                            # cmap=cm.coolwarm,
+                            # cmap=cm.magma,
+                            cmap=cm.plasma,
+                            # cmap=cm.inferno,
+                            # cmap=cm.pink,
+                            # cmap=cm.viridis,
+                            linewidth=0,
+                            antialiased=True, alpha=0.6, shade=True)
+
+            ax.set_xlabel('$x_1$')
+            ax.set_ylabel('$x_2$')
+            ax.set_zlabel('$f$')
         return fig, ax
 
     def plot_field_grids(self, bounds, func, func_args):
@@ -1180,15 +1254,14 @@ class Complex:
                 else:
                     min_col = 'r'
 
-                self.ax_complex.scatter(v[0], v[1], v[2],
-                                        color=point_color,
-                                        s=2.5 * pointsize)
+                axes.scatter(v[0], v[1], v[2], color=point_color,
+                             s=2.5 * pointsize)
 
-                self.ax_complex.scatter(v[0], v[1], v[2], color='k',
-                                        s=1.5 * pointsize)
+                axes.scatter(v[0], v[1], v[2], color='k',
+                             s=1.5 * pointsize)
 
-                self.ax_complex.scatter(v[0], v[1], v[2], color=min_col,
-                                        s=1.4 * pointsize)
+                axes.scatter(v[0], v[1], v[2], color=min_col,
+                             s=1.4 * pointsize)
 
         return axes
 
