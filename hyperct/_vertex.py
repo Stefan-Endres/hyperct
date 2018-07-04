@@ -1,8 +1,7 @@
 import collections
-import numpy
 from abc import ABC, abstractmethod
-
-
+import logging
+import numpy
 """Vertex objects"""
 class VertexBase(ABC):
     def __init__(self, x, nn=None, index=None):
@@ -38,6 +37,16 @@ class VertexBase(ABC):
         print(constr)
         #print('Order = {}'.format(self.order))
 
+    def star(self):
+        """
+        Returns the star domain st(v) of the vertex.
+
+        :param v: The vertex v in st(v)
+        :return: st, a set containing all the vertices in st(v)
+        """
+        self.st = self.nn
+        self.st.add(self)
+        return self.st
 
 class VertexCube(VertexBase):
     """Vertex class to be used for a pure simplicial complex with no associated
@@ -94,7 +103,7 @@ class VertexScalarField(VertexBase):
             try: #TODO: Remove exception handling?
                 self.f = field(self.x_a, *field_args)
             except TypeError:
-                print(f"WARNING: field function not found at x = {self.x_a}")
+                #logging.warning(f"Field function not found at x = {self.x_a}")
                 self.f = numpy.inf
 
         self.fval = None
@@ -150,13 +159,20 @@ class VertexCacheBase(object):
 
         self.cache = collections.OrderedDict()
         self.nfev = 0  # Feasible points
-        self.size = 0  # Total size of cache
         self.index = -1
 
         #TODO: Define a getitem method based on if indexing is on or not so
         # that we do not have to do an if check every call (does the python
         # compiler make this irrelevant or not?) and in addition whether or not
         # we have defined a field function.
+
+    def size(self):
+        """
+        Returns the size of the vertex cache
+
+        :return:
+        """
+        return self.index + 1
 
 class VertexCacheIndex(VertexCacheBase):
     def __init__(self):
@@ -202,12 +218,8 @@ class VertexCacheField(VertexCacheBase):
             if self.g_cons is not None:
                 if xval.feasible:
                     self.nfev += 1
-                    self.size += 1
-                else:
-                    self.size += 1
             else:
                 self.nfev += 1
-                self.size += 1
 
         return self.cache[x]
 
