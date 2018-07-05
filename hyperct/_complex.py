@@ -226,9 +226,12 @@ class Complex:
         else:
             self.V = VertexCacheIndex()
 
+        self.V_non_symm = []  # Lost of non-symmetric vertices
+
         if vfield is not None:
             logging.warning("Vector field applications have not been "
                             "implemented yet.")
+
 
     def __call__(self):
         return self.H
@@ -456,6 +459,25 @@ class Complex:
     # 3. Connected based on the indices of the previous graph structure
     # 4. Disconnect the edges in the original cell
 
+    # Split symmetric generations
+    def split_generation(self):
+        """
+        Run sub_generate_cell for every cell in the current complex self.gen
+        """
+        no_splits = False  # USED IN SHGO
+        try:
+            for c in self.H[self.gen]:
+                if self.symmetry:
+                    # self.sub_generate_cell_symmetry(c, self.gen + 1)
+                    self.split_simplex_symmetry(c, self.gen + 1)
+                else:
+                    self.sub_generate_cell(c, self.gen + 1)
+        except IndexError:
+            no_splits = True  # USED IN SHGO
+
+        self.gen += 1
+        return no_splits  # USED IN SHGO
+
     def sub_generate_cell(self, C_i, gen):
         """Subgenerate a cell `C_i` of generation `gen` and
         homology group rank `hgr`."""
@@ -490,24 +512,6 @@ class Complex:
 
         # TODO: Recalculate all the homology group ranks of each cell
         return H_new
-
-    def split_generation(self):
-        """
-        Run sub_generate_cell for every cell in the current complex self.gen
-        """
-        no_splits = False  # USED IN SHGO
-        try:
-            for c in self.H[self.gen]:
-                if self.symmetry:
-                    # self.sub_generate_cell_symmetry(c, self.gen + 1)
-                    self.split_simplex_symmetry(c, self.gen + 1)
-                else:
-                    self.sub_generate_cell(c, self.gen + 1)
-        except IndexError:
-            no_splits = True  # USED IN SHGO
-
-        self.gen += 1
-        return no_splits  # USED IN SHGO
 
     # @lru_cache(maxsize=None)
     def construct_hypercube(self, origin, supremum, gen, hgr,
@@ -653,6 +657,56 @@ class Complex:
     def generate_sub_cell_t2(self, supremum, v_x):
         return self.v_s * numpy.array(v_x)
 
+
+    def split_generation_non_symm(self):
+        """
+        Disconnect the non-symmetric vertices and reconnect them to a smaller
+        simplex after splitting the generation.
+        :return:
+        """
+        print(self.V_non_symm)
+        non_sym_current = self.V_non_symm.copy()
+
+        # Find the candidate star set by finding all neighbours of the previous
+        # connections of every vertex v in the non-symmetric set and add those
+        # connections to a set containing all their new connections.
+        # This allows us to connect all the new connections that should be
+        # inside new the simplex containing each v (but also connections far
+        # away from the new simplex).
+        for v in non_sym_current:
+            vnn = v.nn.copy()  # The set of the new candidate star domain
+            vnn_i = vnn.copy()  # The initial simplex containing v
+            # Add all the neighbours' connections to vnn set
+            for v2 in vnn_i:
+                # Set union all neighbours with potential star domain
+                vnn = vnn.union(v2.nn)
+                # Disconnect the former edge
+                v.disconnect(v2)
+
+            # Build simplex from initial simplex containing v
+            S = self.v_array(vset=vnn_i)
+
+            # Now filter out the connections that are not contained in the vnn_i
+            # simplex. This vastly reduces the number of combinatorial
+            # operations that will be required in connect_vertex_non_symm
+            # Filter the star domain:
+            vnn_f = set()
+            for v2 in vnn:
+                print(f'filter test for v2.x = {v2.x}')
+                print(f'self.in_simplex(S, v2.x) = {self.in_simplex(S, v2.x)}')
+                #TODO: Fix in_simplex when vertex is on edge of simplex it does
+                #      not work
+                if self.in_simplex(S, v2.x):
+                    vnn_f.add(v)
+
+            print(f'vnn_f = {vnn_f}')
+
+            vnn_f = vnn  #TODO: REMOVE AFTER FIXING FILTER
+            print(f'vnn_f = {vnn_f}')
+            self.connect_vertex_non_symm(v.x, near=vnn_f)
+
+        return
+
     def connect_vertex_non_symm(self, v_x, near=None):
         """
         Adds a vertex at coords v_x to the complex that is not symmetric to the
@@ -665,8 +719,8 @@ class Complex:
         If near is not specified this method will search the entire simplicial
         complex structure.
 
-        :param v:
-        :param near: list of vertices, these are points near v to check for
+        :param v_x: tuple, coordinates of non-symmetric vertex
+        :param near: set or list of vertices, these are points near v to check for
         :return:
         """
         #TODO: if near is None assign all vertices in cache to star
@@ -675,35 +729,28 @@ class Complex:
         # Create the vertex origin
 
         #TODO: TEST if v_x is not already a vertex (then return if in cache)
+        if tuple(v_x) in self.V.cache:
+            if self.V[v_x] in self.V_non_symm:
+                pass
+            else:
+                return
+
+
+
         self.V[v_x]
         found_nn = False
-        print(self.V[v_x].x)
         S_rows = []
         for v in star:
             S_rows.append(v.x)
 
         S_rows = numpy.array(S_rows)
-        #print(f'S_rows = {S_rows}'')
-        print(f'S_rows = {numpy.array(S_rows)}')
-        #print(numpy.array(S_rows) - numpy.array(v_x))
-
         A = numpy.array(S_rows) - numpy.array(v_x)
-
-        print(f'A = {A}')
-        print(A.shape)
-        print(A.shape[0])
-
-        print(itertools.combinations(range(S_rows.shape[0]), r=2))
         #Iterate through all the possible simplices of S_rows
         for s_i in itertools.combinations(range(S_rows.shape[0]),
                                           r=self.dim + 1):
-            print('=' * 30)
             # Check if connected, else s_i is not a simplex
-            print(f's_i = {s_i}')
             valid_simplex = True
-            print("Search for candidate simplices:")
             for i in itertools.combinations(s_i, r=2):
-                print(f'i = {i}')
                 # Every combination of vertices must be connected, we check of
                 # the current iteration of all combinations of s_i are connected
                 # we break the loop if it is not.
@@ -712,59 +759,24 @@ class Complex:
                     and (not (self.V[tuple(S_rows[i[0]])] in
                         self.V[tuple(S_rows[i[1]])].nn))):
                     valid_simplex = False
-                    print((not self.V[tuple(S_rows[i[1]])] in
-                        self.V[tuple(S_rows[i[0]])].nn))
-                    print((not (self.V[tuple(S_rows[i[0]])] in
-                        self.V[tuple(S_rows[i[1]])].nn)))
                     break  #TODO: Review this
 
             S = S_rows[[s_i]]
-            print(f'valid_simplex = {valid_simplex}')
-            print(f'S = {S}')
-            print(f'self.deg_simplex(S) = {self.deg_simplex(S, proj=None)}')
-
-            #TODO: FIND A WAY TO CHECK IS SIMPLEX IS DEGENERATE (ex. LINE)
             if valid_simplex:
                 if self.deg_simplex(S, proj=None):
                     valid_simplex = False
 
-            print(f'valid_simplex = {valid_simplex}')
             # If s_i is a valid simplex we can test if v_x is inside si
             if valid_simplex:
                 # Find the A_j0 value from the precalculated values
                 A_j0 = A[[s_i]]
-                print(f'A_j0 = {A_j0}')
-
-                print(f'S  = {S }')
-                print(f'Test for in simplex')
-                print(
-                    f'self.in_simplex(S, v_x, A_j0) '
-                    f'= {self.in_simplex(S, v_x, A_j0)}')
-
                 if self.in_simplex(S, v_x, A_j0):
                     found_nn = True
-
                     break  # breaks the main for loop, s_i is the target simplex
-            print('=' * 30)
 
-        print(f'found_nn = {found_nn}')
-        print(f'valid_simplex = {valid_simplex}')
-                #for j in
-                #    self.V[tuple(S_rows[i])].nn
-
-                #print(f'i = {i}')
-                #print(f'S_rows[{i}] = {S_rows[i]}')
-                #print(f'self.V[tuple(S_rows[i])] ='
-                #      f' {self.V[tuple(S_rows[i])]}')
-
-        # Connect the simplex to
-        print(f'found_nn = {found_nn}')
-        print(f'Connecting s_i = {s_i} to v_x')
-        print(f'self.V[v_x] = {self.V[v_x]}')
-        print(f'self.V[v_x].nn = {self.V[v_x].nn }')
+        # Connect the simplex to point
         if found_nn:
             for i in s_i:
-
                 self.V[v_x].connect(self.V[tuple(S_rows[i])])
         """
         gen = itertools.product(range(2), repeat=3)
@@ -772,161 +784,10 @@ class Complex:
                 print(g)
         """
 
-        # Build simplices
-
-        if 0:
-            simplex = (self.dim + 1) * [None]
-            simplex_i = (self.dim + 1) * [None]
-            for v1 in star:
-                simplex_i[0] = v1.index
-                print(f'simplex_i = {simplex_i}')
-                for v2 in v1.nn:
-                    if v2 in star:
-                        simplex_i[1] = v2.index
-                        build_simpl_i = simplex_i.copy()
-                        ind = 1
-                        for v3 in v2.nn:
-                            if v3 in star:
-                                # if v3 has a connection to v1, not in current simplex
-                                # and not v1 itself:
-                                if ((v3 in self.V[v].nn) and (v3 not in build_simpl_i)
-                                        and (v3 is not self.V[v])):
-                                    try:  # Fill simplex with v's neighbours until it is full
-                                        ind += 1
-                                        build_simpl_i[ind] = v3.index
-
-                                    except IndexError:  # When the simplex is full
-                                        # ind = 1 #TODO: Check
-                                        # Append full simplex and create a new one
-                                        s_b_s_i = sorted(
-                                            build_simpl_i)  # Sorted simplex indices
-                                        if s_b_s_i not in self.simplices_fm_i:
-                                            self.simplices_fm_i.append(s_b_s_i)
-                                            # TODO: Build simplices_fm
-                                            # self.simplices_fm.append(s_b_s_i)
-
-                                        build_simpl_i = simplex_i.copy()
-                                        # Start the new simplex with current neighbour as second
-                                        #  entry
-                                        if ((v3 in self.V[v].nn) and (
-                                                v3 not in build_simpl_i)
-                                                and (v3 is not self.V[v])):
-                                            build_simpl_i[2] = v3.index
-                                            ind = 2
-
-                                        if self.dim == 2:  # Special case, for dim > 2
-                                            # it will not be full
-                                            if s_b_s_i not in self.simplices_fm_i:
-                                                self.simplices_fm_i.append(s_b_s_i)
-        if 0:
-            print(f'A = {A}')
-            print(f'A[:, 0] = {A[:, 0]}')
-            print(f'A[:, 0] = {A[:, 1]}')
-
-            print(f'S_rows[A[:, 0] >= 0] = {S_rows[A[:, 0] >= 0]}')
-            print(f'S_rows[A[:, 0] <= 0] = {S_rows[A[:, 0] <= 0]}')
-
-            print(f'numpy.argmax(S_rows[A[:, 0] <= 0]) = '
-                  f'{numpy.argmax(S_rows[A[:, 0] <= 0])}')
-
-            print(f'numpy.argmax(S_rows[A[:, 0] <= 0]) = '
-                  f'{numpy.argmin(S_rows[A[:, 0] >= 0])}')
-
-        #cands = []  # Candidates for simplex
-
-
-        if 0:
-            i = 0
-            #print(f'i_dim = {i}')
-            #print(f'S_rows[A[:, i] >= 0] = {S_rows[A[:, i] >= 0]}')
-            G = S_rows[A[:, i] >= 0]
-            #print(f'G = {G}')
-            mind = numpy.where(G[:, i] == G[:, i].min())
-            #mind = numpy.array(m)
-            #print(f'mind = {mind}')
-            GL = G[mind]
-            print(f'G[mind] = {G[mind]}')
-            #print(f'G[:, m] = {G[:, m]}')
-            #print(f'G[:, m][0] = {G[:, m][0]}')
-            #print(f'G == G.min() = {G == G.min()}')
-            #print(f'G= {G.min()}')
-            #ind = numpy.where(A[:, 0].min() == A[:, 0])
-            #print(S_rows[G])
-            L = S_rows[A[:, i] <= 0]
-            lind = numpy.where(L[:, i] == L[:, i].min())
-            LL = L[lind]
-
-        if 0:
-            cands = set()
-            G_list = []
-            L_list = []
-            GL_list = []
-            for i in range(self.dim):
-                print("GL")
-                #G_list.append([])
-                G = S_rows[A[:, i] >= 0]
-                mind = numpy.where(G[:, i] == G[:, i].min())
-                GL = G[mind]
-                for v in GL:
-                    cands.add(tuple(v))
-                    print(f'v = {v}')
-                    #GL_list.append(v)
-
-                G_list.append(GL)
-                print("LL")
-                #L_list.append([])
-                L = S_rows[A[:, i] <= 0]
-                lind = numpy.where(L[:, i] == L[:, i].max())
-                LL = L[lind]
-                for v in LL:
-                    cands.add(tuple(v))
-                    print(f'v = {v}')
-                    #GL_list.append(v)
-
-                L_list.append(LL)
-
-            GL_list = []
-            for v in cands:
-                GL_list.append(v)
-            GL = numpy.array(GL_list)
-
-
-            print(G_list)
-            print(L_list)
-            #print(GL_list)
-            #print(GL)
-
-        if 0:
-            for i in range(self.dim):
-                print('='*5)
-                print(f'i_dim = {i}')
-                print('='*5)
-                print(f'S_rows[A[:, i] >= 0] = {S_rows[A[:, i] >= 0]}')
-                print(f'numpy.argmin(S_rows[A[:, i] >= 0]) = '
-                      f'{numpy.argmin(S_rows[A[:, i] >= 0])}')
-
-                G = S_rows[A[:, i] >= 0]
-                print(f'G = {G}')
-                print(f'A[:, i] >= 0 = {A[:, i] >= 0}')
-                numpy.where(G == G.min())
-                #print(f'numpy.where(G == G.min()) = {numpy.where(G == G.min())}')
-                m = numpy.where(G == G.min())
-                #print(f'S_rows[m, :] = {S_rows[m, :]}')
-
-                cands.append([])
-                l = numpy.argmax(S_rows[A[:, i] <= 0])
-                m = numpy.argmin(S_rows[A[:, i] >= 0])
-                cands[i].append(l)
-                cands[i].append(m)
-
-        #print(f'cands = {cands}')
-        #for cl in cands:
-        #    for i in cl:
-        #        print(S_rows[i])
-        #print(A[:, 0])
-
+        # Attached the simplex to storage for all non-symmetric vertices
+        self.V_non_symm.append(self.V[v_x])
         #TODO: Disconnections? Not needed?
-        return
+        return found_nn  # this bool value indicates a successful connection if True
 
     def in_simplex(self, S, v_x, A_j0=None):
         """
@@ -939,19 +800,15 @@ class Complex:
         Notes:
         https://stackoverflow.com/questions/21819132/how-do-i-check-if-a-simplex-contains-the-origin
         """
-        #print(f'A_11 = {A_11}')
         A_11 = numpy.delete(S, 0, 0) - S[0]
-        print(f'A_11 = {A_11}')
 
         sign_det_A_11 = numpy.sign(numpy.linalg.det(A_11))
-        print(f'sign_det_A_11= {sign_det_A_11}')
         if sign_det_A_11 == 0:
             #NOTE: We keep the variable A_11, but we loop through A_jj
             #ind=
             #while sign_det_A_11 == 0:
-            #    A_11 = numpy.delete(S, 1, 0) - S[2]
+            #    A_11 = numpy.delete(S, ind, 0) - S[ind]
             #    sign_det_A_11 = numpy.sign(numpy.linalg.det(A_11))
-            #    print(f'sign_det_A_11= {sign_det_A_11}')
 
             sign_det_A_11 = -1  #TODO: Choose another det of j instead?
             #TODO: Unlikely to work in many cases
@@ -973,57 +830,26 @@ class Complex:
 
     def deg_simplex(self, S, proj=None):
         """
-        Test a simplex S for degeneracy (linear dependece)
+        Test a simplex S for degeneracy (linear dependence in R^dim)
         :param S: Numpy array of simplex with rows as vertex vectors
         :param proj: array, optional, if the projection S[1:] - S[0] is already
                      computed it can be added as an optional argument.
         :return:
         """
-        #print(f'Testing for S = {S}')
         # Strategy: we test all combination of faces, if any of the determinants
-        # are zero then
+        # are zero then the vectors lie on the same face and is therefore
+        # linearly dependent in the space of R^dim
         if proj is None:
             proj = S[1:] - S[0]
 
         #TODO: Is checking the projection of one vertex against faces of other
         #       vertices sufficient? Or do we need to check more vertices in
         #       dimensions higher than 2?
-        if 0:
-            print(f'proj = {proj}')
-            print(f'numpy.linalg.eig(proj.T) = {numpy.linalg.eig(proj.T)}')
-            print(f'numpy.linalg.eig(proj) = {numpy.linalg.eig(proj)}')
-            print('='*30)
-            print(f'numpy.linalg.det(proj.T) = {numpy.linalg.det(proj.T)}')
-            print(f'numpy.linalg.det(proj) = {numpy.linalg.det(proj)}')
-            print('=' * 30)
         #TODO: Literature seems to suggest using proj.T, but why is this needed?
         if numpy.linalg.det(proj) == 0.0: #TODO: Repalace with tolerance?
-            return True
+            return True  # Simplex is degenerate
         else:
-            return False
-
-        if 0:
-            for s_i in itertools.combinations(range(S.shape[0]),
-                                              r=self.dim):
-                print(f' S[[s_i]] = {S[[s_i]]}')
-                print(f'numpy.linalg.det(S[[s_i]].T) = {numpy.linalg.det(S[[s_i]].T)}')
-                print(f'numpy.linalg.det(S[[s_i]]) = {numpy.linalg.det(S[[s_i]])}')
-                if numpy.linalg.det(S[[s_i]].T) == 0:
-                    return True  # Simplex is degenerate
-
-        return False  # Simplex is not degenerate
-        #print(f'numpy.linalg.det(S.T) = {numpy.linalg.det(S.T)}')
-
-        #lambdas, V = numpy.linalg.eig(S.T)
-        # The linearly dependent row vectors
-        #print(f'S[lambdas == 0, :] = {S[lambdas == 0, :]}')
-
-        #if numpy.linalg.det(S.T) == 0:
-        #    print(f'Simplex is degen')
-        #    return True
-        #else:
-        #    print(f'Simplex is not degen')
-        #    return False
+            return False  # Simplex is not degenerate
 
     def st(self, v_x):
         """
@@ -1742,10 +1568,11 @@ class Complex:
 
         return self.incidence_structure
 
-    def v_array(self, cache):
+    def v_array(self, cache=None, vset=None):
         """
-        Build a numpy array from a cache of vertices
-        :param cache: A cache of vertices, must be iterable
+        Build a numpy array from a cache of vertices or a set of vertex objects
+        :param cache: A cache of vertices (tuples), must be iterable
+        :param cache: A set of vertices (vertex objects), must be iterable
         :return: VA, numpy array consisting of vertices for every row
 
         example
@@ -1753,8 +1580,12 @@ class Complex:
         >>> H.VA = H.v_array(H.V.cache)
         """
         vl = []
-        for v in cache:
-            vl.append(v)
+        if cache is not None:
+            for v in cache:
+                vl.append(v)
+        if vset is not None:
+            for v in vset:
+                vl.append(v.x)
 
         return numpy.array(vl)
 
