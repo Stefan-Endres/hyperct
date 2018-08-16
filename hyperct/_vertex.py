@@ -105,9 +105,12 @@ class VertexScalarField(VertexBase):
             except TypeError:
                 #logging.warning(f"Field function not found at x = {self.x_a}")
                 self.f = numpy.inf
+            if numpy.isnan(self.f):
+                self.f = numpy.inf
 
         self.fval = None
         self.check_min = True
+        self.check_max = True
 
     def __hash__(self):
         return hash(self.x)
@@ -120,17 +123,23 @@ class VertexScalarField(VertexBase):
             if self.minimiser():
                 v._min = False
                 v.check_min = False
-
+            if self.maximiser():
+                v._max = False
+                v.check_max = False
             # TEMPORARY
-            self.check_min = True
-            v.check_min = True
+                self.check_min = True
+                self.check_max = True
+                v.check_min = True
+                v.check_max = True
 
     def disconnect(self, v):
         if v in self.nn:
             self.nn.remove(v)
             v.nn.remove(self)
             self.check_min = True
+            self.check_max = True
             v.check_min = True
+            v.check_max = True
 
     def minimiser(self):
         """Check whether this vertex is strictly less than all its neighbours"""
@@ -139,6 +148,15 @@ class VertexScalarField(VertexBase):
             self.check_min = False
 
         return self._min
+
+    def maximiser(self):
+        """Check whether this vertex is strictly greater than all its
+        neighbours"""
+        if self.check_max:
+            self._max = all(self.f > v.f for v in self.nn)
+            self.check_max = False
+
+        return self._max
 
 class VertexVectorField(VertexBase):
     """Add homology properties of a scalar field f: R^n --> R^m associated with
