@@ -8,7 +8,12 @@ TODO: -Allow for sub-triangulations to track arbitrary points. Detect which
        https://docs.python.org/2/library/itertools.html#itertools.product
 
 
+TODO: -Approximate vector field if no vfield is field. Construct by finding the
+      - average vector field at a vertex???  Note that we can compute vector
+      field approximations by solving a LP that fits the scalar appromixations
+      (dotted with unit vectors)
 
+TODO: -The ugliness of H.V[(0,)] for 1-dimensional complexes
 
 FUTURE: Triangulate arbitrary domains other than n-cubes
 (ex. using delaunay and low disc. sampling subject to constraints, or by adding
@@ -17,6 +22,8 @@ FUTURE: Triangulate arbitrary domains other than n-cubes
      Starting point:
      An algorithm for automatic Delaunay triangulation of arbitrary planar domains
      https://www.sciencedirect.com/science/article/pii/096599789600004X
+
+
 """
 # Std. Library
 import copy
@@ -27,14 +34,14 @@ from abc import ABC, abstractmethod
 # Required modules:
 import numpy
 
-# Optional modules:
+# Optional modules for plotting:
 try:
     import matplotlib
     from matplotlib import pyplot
     from matplotlib.patches import FancyArrowPatch
     from matplotlib.tri import Triangulation
     from mpl_toolkits.mplot3d import axes3d, Axes3D, proj3d
-    from hyperct._plotting import Arrow3D
+    from hyperct._misc import Arrow3D
 except ImportError:
     logging.warning("Plotting functions are unavailable. To use install "
                     "matplotlib, install using ex. `pip install matplotlib` ")
@@ -42,102 +49,24 @@ except ImportError:
 else:
     matplotlib_available = True
 
+# Optional modules for plotting:
+try:
+    import clifford as cf
+except ImportError:
+    logging.warning("Discrete exterior calculus functionality will be "
+                    "unavailable, To use install the clifford package with "
+                    "`pip install clifford`")
+    dec = False
+else:
+    dec = True
+
 try:
     from functools import lru_cache  # For Python 3 only
 except ImportError:  # Python 2:
     import time
     import functools
     import collections
-
-
-    # Note to avoid using external packages such as functools32 we use this code
-    # only using the standard library
-    def lru_cache(maxsize=255, timeout=None):
-        """
-        Thanks to ilialuk @ https://stackoverflow.com/users/2121105/ilialuk for
-        this code snippet. Modifications by S. Endres
-        """
-
-        class LruCacheClass(object):
-            def __init__(self, input_func, max_size, timeout):
-                self._input_func = input_func
-                self._max_size = max_size
-                self._timeout = timeout
-
-                # This will store the cache for this function,
-                # format - {caller1 : [OrderedDict1, last_refresh_time1],
-                #  caller2 : [OrderedDict2, last_refresh_time2]}.
-                #   In case of an instance method - the caller is the instance,
-                # in case called from a regular function - the caller is None.
-                self._caches_dict = {}
-
-            def cache_clear(self, caller=None):
-                # Remove the cache for the caller, only if exists:
-                if caller in self._caches_dict:
-                    del self._caches_dict[caller]
-                    self._caches_dict[caller] = [collections.OrderedDict(),
-                                                 time.time()]
-
-            def __get__(self, obj, objtype):
-                """ Called for instance methods """
-                return_func = functools.partial(self._cache_wrapper, obj)
-                return_func.cache_clear = functools.partial(self.cache_clear,
-                                                            obj)
-                # Return the wrapped function and wraps it to maintain the
-                # docstring and the name of the original function:
-                return functools.wraps(self._input_func)(return_func)
-
-            def __call__(self, *args, **kwargs):
-                """ Called for regular functions """
-                return self._cache_wrapper(None, *args, **kwargs)
-
-            # Set the cache_clear function in the __call__ operator:
-            __call__.cache_clear = cache_clear
-
-            def _cache_wrapper(self, caller, *args, **kwargs):
-                # Create a unique key including the types (in order to
-                # differentiate between 1 and '1'):
-                kwargs_key = "".join(map(
-                    lambda x: str(x) + str(type(kwargs[x])) + str(kwargs[x]),
-                    sorted(kwargs)))
-                key = "".join(
-                    map(lambda x: str(type(x)) + str(x), args)) + kwargs_key
-
-                # Check if caller exists, if not create one:
-                if caller not in self._caches_dict:
-                    self._caches_dict[caller] = [collections.OrderedDict(),
-                                                 time.time()]
-                else:
-                    # Validate in case the refresh time has passed:
-                    if self._timeout is not None:
-                        if (time.time() - self._caches_dict[caller][1]
-                                > self._timeout):
-                            self.cache_clear(caller)
-
-                # Check if the key exists, if so - return it:
-                cur_caller_cache_dict = self._caches_dict[caller][0]
-                if key in cur_caller_cache_dict:
-                    return cur_caller_cache_dict[key]
-
-                # Validate we didn't exceed the max_size:
-                if len(cur_caller_cache_dict) >= self._max_size:
-                    # Delete the first item in the dict:
-                    try:
-                        cur_caller_cache_dict.popitem(False)
-                    except KeyError:
-                        pass
-                # Call the function and store the data in the cache (call it
-                # with the caller in case it's an instance function)
-                if caller is not None:
-                    args = (caller,) + args
-                cur_caller_cache_dict[key] = self._input_func(*args, **kwargs)
-
-                return cur_caller_cache_dict[key]
-
-        # Return the decorator wrapping the class (also wraps the instance to
-        # maintain the docstring and the name of the original function):
-        return (lambda input_func: functools.wraps(input_func)(
-            LruCacheClass(input_func, maxsize, timeout)))
+    from hyperct._misc import lru_cache
 
 # Module specific imports
 from hyperct._vertex import (VertexCacheIndex, VertexCacheField)
@@ -232,6 +161,11 @@ class Complex:
             logging.warning("Vector field applications have not been "
                             "implemented yet.")
 
+        if dec:
+            self.dec = True
+            self.calgebras = {}
+        else:
+            self.dec = False
 
     def __call__(self):
         return self.H
@@ -546,7 +480,6 @@ class Complex:
             # print(t2)
             vec = t1 + t2
             # print(f'vec = {vec}')
-
             vec = tuple(vec)
             # nn_v = [self.C0()[index] for index in self.graph[i]]
             # C_new.add_vertex(self.V.__getitem__(vec, nn=nn_v))
@@ -859,6 +792,65 @@ class Complex:
         """
         return self.V[v_x].star()
 
+    # Discrete differential geometry
+    def clifford(self, dim, q=''):
+        """
+        Memoize a specified clifford algebra so that it is only needed to
+        initialise once, default is euclidean Cl(dim)
+        :param dim:
+        :param q:
+        :return:
+        """
+        if not self.dec:
+            logging.warning("Discrete exterior calculus functionality will be "
+                            "unavailable, To use install the clifford package"
+                            " with `pip install clifford`")
+        try:
+            return self.calgebras[str(dim) + q]
+        except (AttributeError, KeyError):
+            layout, blades = cf.Cl(dim)
+            i = 0
+            one_forms = []
+            for n in blades:
+                i += 1
+                one_forms.append(1 * blades[n])
+                if i == dim:
+                    break
+
+            self.calgebras[str(dim) + q] = layout, blades, one_forms
+            return self.calgebras[str(dim) + q]
+
+    def sharp(self, v_x):
+        """
+        Convert a vector to a 1-form
+        :param v_x:  vector, dimension may differ for class self.dim
+        :return:
+        """
+        dim = len(v_x)
+        # Call memoized Clifford algebra
+        layout, blades, one_forms = self.clifford(dim)
+        #NOTE: Using numpy.dot(v_x, one_forms) converts one_forms
+        form = 0
+        for i, of in enumerate(one_forms):
+            form += v_x[i] * of
+        return form
+
+    def flat(self, form):
+        """
+        Convert a 1-form to a vector
+
+        TODO: Find a way to exlcude non_oneforms (possibly use one_forms list
+               supplied as a argument)
+
+        :param form:
+        :return: v_x, list
+        """
+        v_x = []
+        for f in form:
+            v_x.append(f)
+
+        return v_x
+
     # Plots
     def plot_complex(self, show=True, directed=True, contour_plot=True,
                      surface_plot=True, surface_field_plot=True,
@@ -890,8 +882,8 @@ class Complex:
         :param fig_name: str, optional, name of the complex file to save
         :param arrow_width: float, optional, fixed size for arrows
         :return: self.ax_complex, a matplotlib Axes class containing the complex and field contour
-        :return: self.fig_surface, a matplotlib Axes class containing the complex surface and field surface
-
+        :return: self.ax_surface, a matplotlib Axes class containing the complex surface and field surface
+        TODO: self.fig_* missing
         Examples
         --------
         # Initiate a complex class
@@ -1416,7 +1408,7 @@ class Complex:
         """
         if proj_dim == 2:
             from matplotlib import cm
-            xr = numpy.linspace(self.bounds[0][0], self.bounds[0][1], num=100)
+            xr = numpy.linspace(self.bounds[0][0], self.bounds[0][1], num=1000)
             fr = numpy.zeros_like(xr)
             for i in range(xr.shape[0]):
                 fr[i] = func(xr[i], *func_args)
@@ -1432,12 +1424,14 @@ class Complex:
             ax.plot_surface(xg, yg, Z, rstride=1, cstride=1,
                             # cmap=cm.coolwarm,
                             # cmap=cm.magma,
-                            cmap=cm.plasma,
+                        #    cmap=cm.plasma,  #TODO: Restore
                             # cmap=cm.inferno,
                             # cmap=cm.pink,
                             # cmap=cm.viridis,
+                            #facecolors="do it differently, ok?",
+                            color = [0.94901961, 0.74117647, 0.54117647],
                             linewidth=0,
-                            antialiased=True, alpha=0.6, shade=True)
+                            antialiased=True, alpha=0.8, shade=True)
 
             ax.set_xlabel('$x_1$')
             ax.set_ylabel('$x_2$')
