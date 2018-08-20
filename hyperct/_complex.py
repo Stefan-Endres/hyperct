@@ -170,7 +170,7 @@ class Complex:
     def __call__(self):
         return self.H
 
-    # Triangulation methods
+    # %% Triangulation methods
     def triangulate(self, domain=None):
         """
         Triangulate a domain in [x_l, x_u]^dim \in R^dim specified by bounds and
@@ -358,7 +358,7 @@ class Complex:
         self.centroid_added = True
         return
 
-    # Construct incidence array:
+    # %% Construct incidence array:
     def incidence(self):
         """
         TODO: Find directed (if sfield is not none) array over whole complex
@@ -377,7 +377,7 @@ class Complex:
 
         return
 
-    # A more sparse incidence generator:
+    # %% A more sparse incidence generator:
     def graph_map(self):
         """ Make a list of size 2**n + 1 where an entry is a vertex
         incidence, each list element contains a list of indexes
@@ -393,7 +393,7 @@ class Complex:
     # 3. Connected based on the indices of the previous graph structure
     # 4. Disconnect the edges in the original cell
 
-    # Split symmetric generations
+    # %% Split symmetric generations
     def split_generation(self):
         """
         Run sub_generate_cell for every cell in the current complex self.gen
@@ -792,7 +792,7 @@ class Complex:
         """
         return self.V[v_x].star()
 
-    # Discrete differential geometry
+    # %% Discrete differential geometry
     def clifford(self, dim, q=''):
         """
         Memoize a specified clifford algebra so that it is only needed to
@@ -835,26 +835,30 @@ class Complex:
             form += v_x[i] * of
         return form
 
-    def flat(self, form):
+    def flat(self, form, dim):
         """
         Convert a 1-form to a vector
 
-        TODO: Find a way to exlcude non_oneforms (possibly use one_forms list
-               supplied as a argument)
+        Note that dim can by computed by evaluating len(v_x) after iterating
+        form, but this is probably expensive.
 
         :param form:
-        :return: v_x, list
+        :return: v_x, numpy array
         """
+        # Find 1 form grade projection
+        oneform = form(1) # Not reducing struction
         v_x = []
         for f in form:
             v_x.append(f)
-
+        v_x = numpy.array(v_x)
+        v_x = v_x[1:dim+1]
         return v_x
 
-    # Plots
-    def plot_complex(self, show=True, directed=True, contour_plot=True,
-                     surface_plot=True, surface_field_plot=True,
-                     minimiser_points=True, point_color='do', line_color='do',
+    # %% Plots
+    def plot_complex(self, show=True, directed=True, complex_plot=True,
+                     contour_plot=True, surface_plot=True,
+                     surface_field_plot=True, minimiser_points=True,
+                     point_color='do', line_color='do',
                      complex_color_f='lo', complex_color_e='do', pointsize=7,
                      no_grids=False, save_fig=True, strpath=None,
                      plot_path='fig/', fig_name='complex.pdf', arrow_width=None
@@ -926,10 +930,7 @@ class Complex:
                 contour_plot = False
                 logging.warning("Warning, no associated scalar field found. "
                                 "Not plotting contour_plot.")
-            if surface_plot:
-                surface_plot = False
-                logging.warning("Warning, no associated scalar field found. "
-                                "Not plotting complex surface field.")
+
             if surface_field_plot:
                 surface_field_plot = False
                 logging.warning("Warning, no associated scalar field found. "
@@ -1024,7 +1025,7 @@ class Complex:
                 self.ax_complex.axis('off')
 
             # Surface plots
-            if surface_plot:
+            if surface_plot or surface_field_plot:
                 try:
                     self.fig_surface
                 except AttributeError:
@@ -1045,14 +1046,15 @@ class Complex:
                         proj_dim=2,
                         color=complex_color_f)  # TODO: Custom field colour
 
-                self.fig_surface, self.ax_surface = self.plot_complex_surface(
-                    self.fig_surface,
-                    self.ax_surface,
-                    directed=directed,
-                    pointsize=pointsize,
-                    color_e=complex_color_e,
-                    color_f=complex_color_f,
-                    min_points=min_points)
+                if surface_plot:
+                    self.fig_surface, self.ax_surface = self.plot_complex_surface(
+                        self.fig_surface,
+                        self.ax_surface,
+                        directed=directed,
+                        pointsize=pointsize,
+                        color_e=complex_color_e,
+                        color_f=complex_color_f,
+                        min_points=min_points)
 
                 if no_grids:
                     self.ax_surface.set_xticks([])
@@ -1079,43 +1081,44 @@ class Complex:
                 self.plot_contour(self.bounds, self.sfield,
                                   self.sfield_args)
 
-            min_points = []
-            for v in self.V.cache:
-                self.ax_complex.plot(v[0], v[1], '.', color=point_color,
-                                     markersize=pointsize)
+            if complex_plot:
+                min_points = []
+                for v in self.V.cache:
+                    self.ax_complex.plot(v[0], v[1], '.', color=point_color,
+                                         markersize=pointsize)
 
-                xlines = []
-                ylines = []
-                for v2 in self.V[v].nn:
-                    xlines.append(v2.x[0])
-                    ylines.append(v2.x[1])
-                    xlines.append(v[0])
-                    ylines.append(v[1])
+                    xlines = []
+                    ylines = []
+                    for v2 in self.V[v].nn:
+                        xlines.append(v2.x[0])
+                        ylines.append(v2.x[1])
+                        xlines.append(v[0])
+                        ylines.append(v[1])
 
-                    if directed:
-                        if self.V[v].f > v2.f:  # direct V2 --> V1
-                            ap = self.plot_directed_edge(self.V[v].f, v2.f,
-                                                         self.V[v].x, v2.x,
-                                                         mut_scale=self.mutation_scale,
-                                                         proj_dim=2,
-                                                         color=line_color)
+                        if directed:
+                            if self.V[v].f > v2.f:  # direct V2 --> V1
+                                ap = self.plot_directed_edge(self.V[v].f, v2.f,
+                                                             self.V[v].x, v2.x,
+                                                             mut_scale=self.mutation_scale,
+                                                             proj_dim=2,
+                                                             color=line_color)
 
-                            self.ax_complex.add_patch(ap)
+                                self.ax_complex.add_patch(ap)
+
+                    if minimiser_points:
+                        if self.V[v].minimiser():
+                            min_points.append(v)
+
+                    self.ax_complex.plot(xlines, ylines, color=line_color)
 
                 if minimiser_points:
-                    if self.V[v].minimiser():
-                        min_points.append(v)
-
-                self.ax_complex.plot(xlines, ylines, color=line_color)
-
-            if minimiser_points:
-                self.ax_complex = self.plot_min_points(self.ax_complex,
-                                                       min_points,
-                                                       proj_dim=2,
-                                                       point_color=point_color,
-                                                       pointsize=pointsize)
-            else:
-                min_points = []
+                    self.ax_complex = self.plot_min_points(self.ax_complex,
+                                                           min_points,
+                                                           proj_dim=2,
+                                                           point_color=point_color,
+                                                           pointsize=pointsize)
+                else:
+                    min_points = []
 
             # Clean up figure
             if self.bounds is None:
@@ -1140,7 +1143,7 @@ class Complex:
                 self.ax_complex.axis('off')
 
             # Surface plots
-            if surface_plot:
+            if surface_plot or surface_field_plot:
                 try:
                     self.fig_surface
                 except AttributeError:
@@ -1160,14 +1163,15 @@ class Complex:
                         self.sfield_args,
                         proj_dim=3)
 
-                self.fig_surface, self.ax_surface = self.plot_complex_surface(
-                    self.fig_surface,
-                    self.ax_surface,
-                    directed=directed,
-                    pointsize=pointsize,
-                    color_e=complex_color_e,
-                    color_f=complex_color_f,
-                    min_points=min_points)
+                if surface_plot:
+                    self.fig_surface, self.ax_surface = self.plot_complex_surface(
+                        self.fig_surface,
+                        self.ax_surface,
+                        directed=directed,
+                        pointsize=pointsize,
+                        color_e=complex_color_e,
+                        color_f=complex_color_f,
+                        min_points=min_points)
 
                 if no_grids:
                     self.ax_surface.set_xticks([])
@@ -1541,7 +1545,7 @@ class Complex:
 
         return axes
 
-    # Conversions
+    # %% Conversions
     def incidence_array(self):
         """
         Construct v-v incidence array
@@ -1711,7 +1715,7 @@ class Complex:
 
     #TODO: face_vertex_mesh
 
-    # Data persistence
+    # %% Data persistence
     def save_complex(self, fn):
         """
         TODO: Save the complex to file using pickle
@@ -1727,7 +1731,7 @@ class Complex:
         :return:
         """
 
-
+# %% Vertex group classes
 class VertexGroup(object):
     def __init__(self, p_gen, p_hgr):
         self.p_gen = p_gen  # parent generation
