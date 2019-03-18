@@ -1724,4 +1724,4 @@ class TestPlotting(object):
             return x[0] + x[1] + x[2]
         H = Complex(3, sfield=f, domain=[(0, 10), (0, 10), (0, 10)])
         H.triangulate()
-        H.plot_complex(show=False, save_fig=False)
+        H.plot_complex(show=1, save_fig=False)
