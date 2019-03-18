@@ -6,14 +6,20 @@ TODO: -Allow for sub-triangulations to track arbitrary points. Detect which
       -Turn the triangulation into a generator that yields a specified number
       of finite points. Ideas:
        https://docs.python.org/2/library/itertools.html#itertools.product
+      -Track only origin-suprenum vectors instead of using vertex group struct-
+       tures for mesh refinement
 
 
 TODO: -Approximate vector field if no vfield is field. Construct by finding the
       - average vector field at a vertex???  Note that we can compute vector
-      field approximations by solving a LP that fits the scalar appromixations
+      field approximations by solving a LP that fits the scalar approximations
       (dotted with unit vectors)
 
 TODO: -The ugliness of H.V[(0,)] for 1-dimensional complexes
+
+TODO: -Replace split_generation with refine (for limited points)
+
+TODO: -Get rid of Complex.H (vertex group) structures
 
 FUTURE: Triangulate arbitrary domains other than n-cubes
 (ex. using delaunay and low disc. sampling subject to constraints, or by adding
@@ -23,7 +29,8 @@ FUTURE: Triangulate arbitrary domains other than n-cubes
      An algorithm for automatic Delaunay triangulation of arbitrary planar domains
      https://www.sciencedirect.com/science/article/pii/096599789600004X
 
-
+    Also note that you can solve a linear system of constraints to find all the
+    initial vertices (NP-hard operation)
 """
 # Std. Library
 import copy
@@ -171,8 +178,340 @@ class Complex:
         return self.H
 
     # %% Triangulation methods
-    def triangulate(self, domain=None):
+    def cyclic_product(self, bounds, origin, supremum):
+
+        # self.V[tuple(origin)].connect(self.V[vg])
+        # self.V[tuple(supremum)].connect(self.V[vg])
+        vo = list(origin)
+        #print(f'vo = {vo}')
+        a = copy.copy(vo)
+        vu = tuple(supremum)
+        #self.C2x = [self.V[tuple(origin)]]
+        self.C2x = Subgroup(VertexGroup)
+        self.C2x + self.V[tuple(origin)]
+
+        C2xp = [[vo]]  #Store connection pairs
+        if 0:
+            for vn in self.V[tuple(origin)].nn:
+                print(f'vn = {vn.x}')
+            print(f'self.C2x')
+            print(f'self.C2x.C = {self.C2x.C}')
+            for vn in self.C2x.C:
+                print(f'vc2x = {vn.x}')
+
+        # Every i, x is a C2 group added to C2 x C2 ...
+        for i, x in enumerate(bounds):
+            #print("=" * 40)
+            #print("Bounds iteration:")
+            #print("="*20)
+            #print(f'C2 dimension = {i + 1}')
+            #print("=" * 20)
+            #print(f'i = {i}')
+            #print(f'x = {x}')
+            #vl = copy.copy(vl)
+            #vu = copy.copy(vl)
+            yield 1
+
+            # try  (NOTE: if exception fails, different subroutine
+            a = copy.copy(vo)
+            #print(f'vo = {vo}')
+            a[i] = vu[1]  # Build operator (TODO: delete unused)
+            #print(f'a = {a}')
+            C2xp_current = copy.copy(C2xp)
+            for vp in C2xp_current:
+                # for vertex in every connection pair v1-v2 of group N
+                #print('-'*3)
+
+                # Act a operator on first vertex in pair
+                vp1 = copy.copy(vp[0])
+                vp1_new = copy.copy(vp1)
+                vp1_new[i] = vu[1]  # isomorphic vertex in aN
+                # Connect v1 in N with v1_new in aN
+                self.V[tuple(vp1)].connect(self.V[tuple(vp1_new)])
+                C2xp.append([vp1, vp1_new])  # Add pair to aN
+
+                # Always connect the new vertices to origin and supremum
+                self.V[tuple(origin)].connect(self.V[tuple(vp1_new)])
+                self.V[tuple(supremum)].connect(self.V[tuple(vp1_new)])
+                try:
+                    # Connect the second vertex in N v1-v2
+                    vp2 = copy.copy(vp[1])
+                    vp2_new = copy.copy(vp2)
+                    vp2_new[i] = vu[1]  # isomorphic vertex in aN
+                    if 0:
+                        print(f'vp1 = {vp1}')
+                        print(f'vp2 = {vp2}')
+                        print(f'vp1_new = {vp1_new}')
+                        print(f'vp2_new = {vp2_new}')
+                    # Connect v2 in N with v2_new in aN
+                    self.V[tuple(vp2)].connect(self.V[tuple(vp2_new)])
+                    C2xp.append([vp1, vp1_new])  # Add pair to aN
+                    # Finally connect v1_new with v2_new
+                    self.V[tuple(vp1_new)].connect(self.V[tuple(vp2_new)])
+                    C2xp.append([vp1_new, vp2_new])  # Add pair to aN
+
+                    # Always connect the new vertices to origin and supremum
+                    self.V[tuple(origin)].connect(self.V[tuple(vp2_new)])
+                    self.V[tuple(supremum)].connect(self.V[tuple(vp2_new)])
+                except IndexError:
+                    pass #TODO: Study implications of symmetry on expansions
+
+                #print(f'C2xp = {C2xp}')
+
+
+                if 0:
+                    for v in vp:
+                        # Equivalent to v + a (adding operator to move
+                        # to next C2 group):
+                        v_new = copy.copy(v)
+                        v_new[i] = vu[1]  # TODO: try
+
+                        # Connect new pair
+                        self.V[tuple(v)].connect(self.V[tuple(v_new)])
+
+                        C2xp.append([v, v_new])
+                        print(f'C2xp = {C2xp}')
+
+
+            if 0:
+                for v in self.C2x.C:
+                        # Add operator to move subgroup and connect to next dimension
+                        vc = list(v.x)
+                        #vn.x[i] = vu[1]
+                        print(f'vc = {vc}')
+
+            #print(f'vl = {vl}')
+            #print(f'vu = {vu}')
+
+            # Connect to C2 partner
+            #self.V[tuple(vu)].connect(self.V[tuple(vl)])
+
+
+            # Add to C2xC2... group
+            #self.C2x.append(vl)
+           # self.C2x.append(vu)
+            #print(f'self.Cx {self.C2x}')
+            if 0:
+                for vi in self.C2x:
+                    vl = v
+                    vu = vl
+                    vl[i] = x[1]
+                    # Connect to origin + sup
+                    #self.V[tuple(origin)].connect(self.V[tuple(vl)])
+                    #self.V[tuple(origin)].connect(self.V[tuple(vu)])
+                    #self.V[tuple(supremum)].connect(self.V[tuple(vl)])
+                    #self.V[tuple(supremum)].connect(self.V[tuple(vu)])
+                    # Connect to C2 partner
+                    self.V[tuple(vu)].connect(self.V[tuple(vl)])
+
+            #x[0]
+            #try:
+            #    x[1]
+            #for xi in x:
+            #    pass
+
+            #yield 1
+
+    def triangulate_c(self, n=None, symmetry=None, printout=False):
         """
+        Triangulate the initial domain, if n is not None then a limited number
+        of points will be generated
+
+        :param n:
+        :param symmetry:
+        :param printout:
+        :return:
+
+        NOTES:
+        ------
+        Rather than using the combinatorial algorithm to connect vertices we
+        make the following observation:
+
+        The bound pairs are similar a C2 cyclic group and the structure is
+        formed using the cartesian product:
+
+        H = C2 x C2 x C2 ... x C2 (dim times)
+
+        So construct any normal subgroup N and consider H/N first, we connect
+        all vertices within N (ex. N is C2 (the first dimension), then we move
+        to a left coset aN (an operation moving around the defined H/N group by
+        for example moving from the lower bound in C2 (dimension 2) to the
+        higher bound in C2. During this operation connection all the vertices.
+        Now repeat the N connections. Note that these elements can be connected
+        in parrallel.
+        """
+        # Build origin and supremum vectors
+        origin = [i[0] for i in self.bounds]
+        self.origin = origin
+        #TODO: Use symmetric build (try i[1])
+        supremum = [i[1] for i in self.bounds]
+        self.supremum = supremum
+        if symmetry is None:
+            p_args = self.bounds
+        else:
+            pass  # pop second entry on second symmetry vars
+            # Possibly add check for if second var bounds is not similar
+
+        # Connect origin and suprenum (Uses 2 points)
+        # TODO: Should do after generation?
+        # self.V[tuple(origin)].connect(self.V[tuple(supremum)])
+
+        # Build generator
+
+        #TODO: Yield a generator
+        try:
+            self.Hx
+        except (AttributeError, KeyError):
+            self.Hx = []
+
+
+        # Replace with limited iterator and next()
+        self.cp = self.cyclic_product(self.bounds, origin, supremum) # try
+        for i in self.cp:
+            i#print(f'Big outside gen i = {i}')
+
+
+        #for vg in self.vgen:
+
+            #self.V[tuple(origin)].connect(self.V[vg])
+            #self.V[tuple(supremum)].connect(self.V[vg])
+
+
+        if printout:
+            print("=" * 19)
+            print("Initial hyper cube:")
+            print("=" * 19)
+            # for v in self.C0():
+            #   v.print_out()
+            for v in self.V.cache:
+                self.V[v].print_out()
+
+            print("=" * 19)
+
+
+    def triangulate_s(self, n=None, symmetry=None, printout=False):
+        """
+        Triangulate the initial domain, if n is not None then a limited number
+        of points will be generated
+
+        :param n:
+        :param symmetry:
+        :param printout:
+        :return:
+
+        NOTES:
+        ------
+        Rather than using the combinatorial algorithm to connect vertices we
+        make the following observation:
+
+        The bound pairs are similar a C2 cyclic group and the structure is
+        formed using the cartesian product:
+
+        H = C2 x C2 x C2 ... x C2 (dim times)
+
+        So construct any normal subgroup N and consider H/N first, we connect
+        all vertices within N (ex. N is C2 (the first dimension), then we move
+        to a left coset aN (an operation moving around the defined H/N group by
+        for example moving from the lower bound in C2 (dimension 2) to the
+        higher bound in C2. During this operation connection all the vertices.
+        Now repeat the N connections. Note that these elements can be connected
+        in parrallel.
+        """
+        if 0:
+            # Determine how many points to build
+            ftn = 2**self.dim + 1  # Final number of vertices
+            try:
+                self.stn = self.tn
+                # Update if self
+                self.tn = n
+            except (AttributeError, KeyError):
+                if n == None:
+                    self.tn = ftn
+                    self.stn = 0
+                else:
+                    self.tn = self.n
+                    self.stn = 0
+
+            if self.tn > ftn:
+                self.tn = ftn
+
+            print(self.tn)
+
+        # Build origin and supremum vectors
+        origin = [i[0] for i in self.bounds]
+        supremum = [i[1] for i in self.bounds]
+        self.supremum = supremum
+        if symmetry is None:
+            p_args = self.bounds
+        else:
+            pass  # pop second entry on second symmetry vars
+                  # Possibly add check for if second var bounds is not similar
+
+        # Connect origin and suprenum (Uses 2 points)
+        self.V[tuple(origin)].connect(self.V[tuple(supremum)])
+
+        # Build generator
+        self.vgen = self.vgen_m(p_args)
+        print(self.vgen)
+        i = 0
+        for vg in self.vgen:
+            #print(f"starting vg = {vg} at i = {i}")
+            if vg == tuple(origin) or vg == tuple(supremum):
+                #print("Skipping origin or supremum")
+                continue
+
+            if n is not None:
+                #print(f'i = {i}')
+                #print(f'n = {n}')
+                if i >= n:
+                    #print("Breaking")
+                    break
+                i += 1
+
+            self.V[tuple(origin)].connect(self.V[vg])
+            self.V[tuple(supremum)].connect(self.V[vg])
+
+
+
+
+        # tuple versions for indexing
+        #  origintuple = tuple(origin)
+        #  supremumtuple = tuple(supremum)
+
+        #  x_parents = [origintuple]
+
+        # TODO: Replace this with vector tacking:
+        #self.C0 = Cell(0, 0, origin, supremum)
+
+        if printout:
+            print("="*19)
+            print("Initial hyper cube:")
+            print("="*19)
+            #for v in self.C0():
+            #   v.print_out()
+            for v in self.V.cache:
+                self.V[v].print_out()
+
+            print("="*19)
+
+
+    def vgen_m(self, p_args):
+        """
+        Memoize a generator for the initial triangulation
+        """
+        try:  #TODO: Test if working
+            return self.vgen
+        except (AttributeError, KeyError):
+            self.vgen = itertools.product(*p_args)
+            return self.vgen
+
+    def triangulate(self, domain=None, n=None, symm=None):
+        """
+
+        :param n: Limited number of points to generate
+
+        :
+
         Triangulate a domain in [x_l, x_u]^dim \in R^dim specified by bounds and
         constraints.
 
@@ -183,8 +522,7 @@ class Complex:
         """
         # Generate n-cube here:
         self.H.append([])
-        self.n_cube(symmetry=self.symmetry)
-        #
+        self.n_cube(symmetry=self.symmetry, printout=1)
 
         # TODO: Assign functions to a the complex instead
         if self.symmetry:
@@ -823,6 +1161,9 @@ class Complex:
     def sharp(self, v_x):
         """
         Convert a vector to a 1-form
+
+        TODO: Should be able to convert k-forms
+
         :param v_x:  vector, dimension may differ for class self.dim
         :return:
         """
@@ -846,7 +1187,7 @@ class Complex:
         :return: v_x, numpy array
         """
         # Find 1 form grade projection
-        oneform = form(1) # Not reducing struction
+        oneform = form(1)  # Not reducing struction
         v_x = []
         for f in form:
             v_x.append(f)
@@ -861,7 +1202,9 @@ class Complex:
                      point_color='do', line_color='do',
                      complex_color_f='lo', complex_color_e='do', pointsize=7,
                      no_grids=False, save_fig=True, strpath=None,
-                     plot_path='fig/', fig_name='complex.pdf', arrow_width=None
+                     plot_path='fig/', fig_name='complex.pdf', arrow_width=None,
+                     fig_surface=None, ax_surface=None, fig_complex=None,
+                     ax_complex=None
                      ):
         """
         Plots the current simplicial complex contained in the class. It requires
@@ -911,12 +1254,37 @@ class Complex:
 
         # Clear current plot instances
         >>> H.plot_clean()
+
+        Example 2: Subplots  #TODO: Test
+        >>> import matplotlib.pyplot as plt
+        >>> fig, axes = plt.subplots(ncols=2)
+        >>> H = Complex(2, domain=[(0, 10)], sfield=func)
+        >>> H.triangulate()
+        >>> H.split_generation()
+
+        # Plot the complex on the same subplot
+        >>> H.plot_complex(fig_surface=fig, ax_surface=axes[0],
+        ...                fig_complex=fig, ax_complex=axes[1])
+
+        # Note you can also plot several complex objects on larger subplots
+        #  using this method.
+
         """
         if not matplotlib_available:
             logging.warning("Plotting functions are unavailable. To "
                             "install matplotlib install using ex. `pip install "
                             "matplotlib` ")
             return
+
+        # Check if fix or ax arguments are passed
+        if fig_complex is not None:
+            self.fig_complex = fig_complex
+        if ax_complex is not None:
+            self.ax_complex = ax_complex
+        if fig_surface is not None:
+            self.fig_surface = fig_surface
+        if ax_surface is not None:
+            self.ax_surface = ax_surface
 
         # Create pyplot.figure instance if none exists yet
         try:
@@ -1744,6 +2112,9 @@ class VertexGroup(object):
         # cumulatively throughout its entire history
         self.C = []
 
+    def __add__(self, v):
+        self.C.append(v)
+
     def __call__(self):
         return self.C
 
@@ -1783,6 +2154,13 @@ class VertexGroup(object):
         """
         for v in self():
             v.print_out()
+
+class Subgroup(VertexGroup):
+    """
+    Contains a subgroup of vertices
+    """
+    def __init__(self, p_gen=0, p_hgr=0):
+        super(Subgroup, self).__init__(p_gen, p_hgr)
 
 
 class Cell(VertexGroup):
