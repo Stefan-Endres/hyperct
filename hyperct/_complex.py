@@ -183,9 +183,10 @@ class Complex:
         # self.V[tuple(origin)].connect(self.V[vg])
         # self.V[tuple(supremum)].connect(self.V[vg])
         vo = list(origin)
+        vot = tuple(origin)
         #print(f'vo = {vo}')
-        a = copy.copy(vo)
-        vu = tuple(supremum)
+      #  a = copy.copy(vo)
+        vu = tuple(supremum)  # Hyperrectangle supremum
         #self.C2x = [self.V[tuple(origin)]]
         self.C2x = Subgroup(VertexGroup)
         self.C2x + self.V[tuple(origin)]
@@ -200,77 +201,177 @@ class Complex:
                 print(f'vc2x = {vn.x}')
 
         # Every i, x is a C2 group added to C2 x C2 ...
-        for i, x in enumerate(bounds):
-            #print("=" * 40)
-            #print("Bounds iteration:")
-            #print("="*20)
-            #print(f'C2 dimension = {i + 1}')
-            #print("=" * 20)
-            #print(f'i = {i}')
-            #print(f'x = {x}')
-            #vl = copy.copy(vl)
-            #vu = copy.copy(vl)
-            yield 1
+        ## o-s connection approach
+        vs = list(copy.copy(vo))  # Current supremum
+        if 1:
+            for i, x in enumerate(bounds):
+                print('='*60)
+                print(f'bound iteration: i = {i}')
+                print(f'bound iteration: dim = {i + 1}')
+                print('='*60)
+                yield 1
+                #self.V[tuple(origin)].nn
 
-            # try  (NOTE: if exception fails, different subroutine
-            a = copy.copy(vo)
-            #print(f'vo = {vo}')
-            a[i] = vu[1]  # Build operator (TODO: delete unused)
-            #print(f'a = {a}')
-            C2xp_current = copy.copy(C2xp)
-            for vp in C2xp_current:
-                # for vertex in every connection pair v1-v2 of group N
-                #print('-'*3)
+                # REPLACE WITH ONLY CONNECTING NEW ORIGIN AND SUP
 
-                # Act a operator on first vertex in pair
-                vp1 = copy.copy(vp[0])
-                vp1_new = copy.copy(vp1)
-                vp1_new[i] = vu[1]  # isomorphic vertex in aN
-                # Connect v1 in N with v1_new in aN
-                self.V[tuple(vp1)].connect(self.V[tuple(vp1_new)])
-                C2xp.append([vp1, vp1_new])  # Add pair to aN
-
-                # Always connect the new vertices to origin and supremum
-                self.V[tuple(origin)].connect(self.V[tuple(vp1_new)])
-                self.V[tuple(supremum)].connect(self.V[tuple(vp1_new)])
+                # try to access a second bound (if not, C1 is symmetric)
                 try:
+                    # Note that the group with the set {v, vs} forms is the new
+                    # C2 group to operate on old Cn = C2 x C2 x ...
+                    print(f'self.V[vot].nn = {self.V[vot].nn}')
+                    #v = copy.copy(vo)
+                    #v[i] = vu[i]  # Current operator a
+                    vs[i] = vu[i]  # Update Supremum
+
+                    #print(f'vu = {vu}')
+                    print(f'vs = {vs}')
+                    #print(f'v = {v}')
+
+                    # Needed to avoid infinite loop adding to origin neighbours:
+                    # Save current lower symmetry set
+                    Cnx_l = copy.copy(self.V[vot].nn)
+                    #print(f'Cnx_l = {Cnx_l}')
+                    Cnx_l.add(self.V[vot])  # Add origin itself to C2xC2x...
+                    #print(f'Cnx_l = {Cnx_l}')
+
                     # Connect the second vertex in N v1-v2
-                    vp2 = copy.copy(vp[1])
-                    vp2_new = copy.copy(vp2)
-                    vp2_new[i] = vu[1]  # isomorphic vertex in aN
-                    if 0:
-                        print(f'vp1 = {vp1}')
-                        print(f'vp2 = {vp2}')
-                        print(f'vp1_new = {vp1_new}')
-                        print(f'vp2_new = {vp2_new}')
-                    # Connect v2 in N with v2_new in aN
-                    self.V[tuple(vp2)].connect(self.V[tuple(vp2_new)])
+                    #vnew = copy.copy(v)
+
+                    # Connect origin to new vector
+                    #self.V[vot].connect(self.V[tuple(v)])
+                    #print(f'Connected {vot} to {tuple(v)}')
+
+                    # Connect origin to new supremum
+                    #self.V[vot].connect(self.V[tuple(vs)])
+                    #print(f'Connected {vot} to {vn.x}')
+                    # Connect every old neighbour of vo (The C2xC2x... group)
+                    # to the new supremum
+                    for vn in Cnx_l:
+                        print('-'*30)
+                        #print(f'vn = {vn}')
+                        print(f'vn.x = {vn.x}')
+
+                        # aN operation
+                        vn_new = list(vn.x)
+                        vn_new[i] = vu[i]
+                        # connect the N to corresponding vertex in aN
+                        self.V[vn.x].connect(self.V[tuple(vn_new)])
+                        print(f'vn_new = {vn_new}')
+                        #print(f'vn.x = {vn.x}')
+                        print(f'N---aN operation: Connected {vn.x} to {vn_new}')
+                        # Connect to origin #TODO: NOT NEEDED
+                      #  self.V[vot].connect(self.V[tuple(vn_new)])
+                        # Connect to current origin
+                        self.V[vot].connect(self.V[tuple(vn_new)])
+                        print(f'vo---aN Connected {vot} to {tuple(vn_new)}')
+
+                        # Connect to current supremum
+                        self.V[tuple(vs)].connect(self.V[tuple(vn_new)])
+                        print(f'aN---vs Connected {vn_new} to {tuple(vs)}')
+                        self.V[tuple(vs)].connect(self.V[vn.x])
+                        print(f'N---vs Connected {vn.x} to {tuple(vs)}')
+
+                        # Connect new vertex to new C2 origin TODO: Needed??
+                        #self.V[tuple(vn_new)].connect(self.V[tuple(v)])
+
+                except IndexError:
+                    #TODO: Study implications of symmetry on expansions on group
+                    #      expansion model. Note that we could use (0, 1) instead
+                    #      of (1, 0) for example.
+                    j = i - 1  # First symmetry encounter, use previous var
+                    vs[i] = vu[i]  # Update Supremum (connects to everything
+                    #TODO: connect
+                    pass
+
+                if 1:
+                    print("=" * 19)
+                    print("Current symmetry group:")
+                    print("=" * 19)
+                    # for v in self.C0():
+                    #   v.print_out()
+                    for v in self.V.cache:
+                        self.V[v].print_out()
+
+                    print("=" * 19)
+
+        # Every i, x is a C2 group added to C2 x C2 ...
+        if 0:
+            for i, x in enumerate(bounds):
+                #print("=" * 40)
+                #print("Bounds iteration:")
+                #print("="*20)
+                #print(f'C2 dimension = {i + 1}')
+                #print("=" * 20)
+                #print(f'i = {i}')
+                #print(f'x = {x}')
+                #vl = copy.copy(vl)
+                #vu = copy.copy(vl)
+                yield 1
+
+                # try  (NOTE: if exception fails, different subroutine
+                a = copy.copy(vo)
+                #print(f'vo = {vo}')
+                a[i] = vu[1]  # Build operator (TODO: delete unused)
+                #print(f'a = {a}')
+                C2xp_current = copy.copy(C2xp)
+                from sys import getsizeof
+                print(f'getsizeof(self.V.cache) = {getsizeof(self.V.cache)} bytes')
+                print(f'getsizeof(C2xp_current) = {getsizeof(C2xp_current)} bytes')
+                for vp in C2xp_current:
+                    # for vertex in every connection pair v1-v2 of group N
+                    #print('-'*3)
+
+                    # Act a operator on first vertex in pair
+                    vp1 = copy.copy(vp[0])
+                    vp1_new = copy.copy(vp1)
+
+                    vp1_new[i] = vu[i]  # isomorphic vertex in aN
+                    #TODO: FIXED: vu[1] to vu[i] is this correct?
+                    # Connect v1 in N with v1_new in aN
+                    self.V[tuple(vp1)].connect(self.V[tuple(vp1_new)])
                     C2xp.append([vp1, vp1_new])  # Add pair to aN
-                    # Finally connect v1_new with v2_new
-                    self.V[tuple(vp1_new)].connect(self.V[tuple(vp2_new)])
-                    C2xp.append([vp1_new, vp2_new])  # Add pair to aN
 
                     # Always connect the new vertices to origin and supremum
-                    self.V[tuple(origin)].connect(self.V[tuple(vp2_new)])
-                    self.V[tuple(supremum)].connect(self.V[tuple(vp2_new)])
-                except IndexError:
-                    pass #TODO: Study implications of symmetry on expansions
+                    self.V[tuple(origin)].connect(self.V[tuple(vp1_new)])
+                    self.V[tuple(supremum)].connect(self.V[tuple(vp1_new)])
+                    try:
+                        # Connect the second vertex in N v1-v2
+                        vp2 = copy.copy(vp[1])
+                        vp2_new = copy.copy(vp2)
+                        vp2_new[i] = vu[1]  # isomorphic vertex in aN
+                        if 0:
+                            print(f'vp1 = {vp1}')
+                            print(f'vp2 = {vp2}')
+                            print(f'vp1_new = {vp1_new}')
+                            print(f'vp2_new = {vp2_new}')
+                        # Connect v2 in N with v2_new in aN
+                        self.V[tuple(vp2)].connect(self.V[tuple(vp2_new)])
+                        C2xp.append([vp1, vp1_new])  # Add pair to aN
+                        # Finally connect v1_new with v2_new
+                        self.V[tuple(vp1_new)].connect(self.V[tuple(vp2_new)])
+                        C2xp.append([vp1_new, vp2_new])  # Add pair to aN
 
-                #print(f'C2xp = {C2xp}')
+                        # Always connect the new vertices to origin and supremum
+                        self.V[tuple(origin)].connect(self.V[tuple(vp2_new)])
+                        self.V[tuple(supremum)].connect(self.V[tuple(vp2_new)])
+                    except IndexError:
+                        pass #TODO: Study implications of symmetry on expansions
+
+                    #print(f'C2xp = {C2xp}')
 
 
-                if 0:
-                    for v in vp:
-                        # Equivalent to v + a (adding operator to move
-                        # to next C2 group):
-                        v_new = copy.copy(v)
-                        v_new[i] = vu[1]  # TODO: try
+                    if 0:
+                        for v in vp:
+                            # Equivalent to v + a (adding operator to move
+                            # to next C2 group):
+                            v_new = copy.copy(v)
+                            v_new[i] = vu[1]  # TODO: try
 
-                        # Connect new pair
-                        self.V[tuple(v)].connect(self.V[tuple(v_new)])
+                            # Connect new pair
+                            self.V[tuple(v)].connect(self.V[tuple(v_new)])
 
-                        C2xp.append([v, v_new])
-                        print(f'C2xp = {C2xp}')
+                            C2xp.append([v, v_new])
+                            print(f'C2xp = {C2xp}')
 
 
             if 0:
@@ -2101,7 +2202,7 @@ class Complex:
 
 # %% Vertex group classes
 class VertexGroup(object):
-    def __init__(self, p_gen, p_hgr):
+    def __init__(self, p_gen=0, p_hgr=0):
         self.p_gen = p_gen  # parent generation
         self.p_hgr = p_hgr  # parent homology group rank
         self.hg_n = None
@@ -2113,7 +2214,8 @@ class VertexGroup(object):
         self.C = []
 
     def __add__(self, v):
-        self.C.append(v)
+        #self.C.append(v)
+        self.add_vertex(v)
 
     def __call__(self):
         return self.C
@@ -2159,7 +2261,7 @@ class Subgroup(VertexGroup):
     """
     Contains a subgroup of vertices
     """
-    def __init__(self, p_gen=0, p_hgr=0):
+    def __init__(self, p_gen=0, p_hgr=0, origin=None, supremum=None):
         super(Subgroup, self).__init__(p_gen, p_hgr)
 
 
