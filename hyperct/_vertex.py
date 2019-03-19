@@ -175,9 +175,9 @@ Cache objects
 class VertexCacheBase(object):
     def __init__(self):
 
-        self.cache = collections.OrderedDict()
+        self.cache = collections.OrderedDict()  #TODO: Perhaps unneeded?
         self.nfev = 0  # Feasible points
-        self.index = -1
+        self.index = -1  #TODO: Is this needed?
 
         #TODO: Define a getitem method based on if indexing is on or not so
         # that we do not have to do an if check every call (does the python
