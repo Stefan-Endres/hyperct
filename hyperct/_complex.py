@@ -178,6 +178,9 @@ class Complex:
         return self.H
 
     # %% Triangulation methods
+    def p(self):
+        pass
+
     def cyclic_product(self, bounds, origin, supremum):
 
         # self.V[tuple(origin)].connect(self.V[vg])
@@ -186,31 +189,96 @@ class Complex:
         vot = tuple(origin)
         #print(f'vo = {vo}')
       #  a = copy.copy(vo)
-        vu = tuple(supremum)  # Hyperrectangle supremum
+        vut = tuple(supremum)  # Hyperrectangle supremum
         #self.C2x = [self.V[tuple(origin)]]
-        self.C2x = Subgroup(VertexGroup)
-        self.C2x + self.V[tuple(origin)]
 
-        C2xp = [[vo]]  #Store connection pairs
-        if 0:
-            for vn in self.V[tuple(origin)].nn:
-                print(f'vn = {vn.x}')
-            print(f'self.C2x')
-            print(f'self.C2x.C = {self.C2x.C}')
-            for vn in self.C2x.C:
-                print(f'vc2x = {vn.x}')
+        self.V[vot]
+
 
         # Every i, x is a C2 group added to C2 x C2 ...
         ## o-s connection approach
-        vs = list(copy.copy(vo))  # Current supremum
+
         if 1:
+            a_vs = list(copy.copy(vo))  # Current aN supremum
+            a_vo = list(copy.copy(vo))  # Current aN group origin
             for i, x in enumerate(bounds):
                 print('='*60)
                 print(f'bound iteration: i = {i}')
                 print(f'bound iteration: dim = {i + 1}')
                 print('='*60)
                 yield 1
-                #self.V[tuple(origin)].nn
+                print(f'self.V.cache = {self.V.cache}')
+                # try to access a second bound (if not, C1 is symmetric)
+                try:
+                    # Try to add the operation of a new C2 product by accessing
+                    # the upper bound 
+                    a_vo = list(copy.copy(vo))
+                    # Early try so that we don't have to copy the cache before
+                    # moving on to next C1/C2:
+                    a_vo[i] = vut[i]  # Update aN Origin
+
+                    #a = copy.copy(vo)
+
+                    #a[i] = vut[1]
+                    C2x = copy.copy(self.V.cache)  # Current N group
+
+                    # Iterate over N group and add new C2 product to build N--aN
+                    for v in C2x:
+                        print(f'v = {v}')
+                        print(f'self.V[v].nn = {self.V[v].nn}')
+                        a_v = list(v)
+                        a_v[i] = vut[i]
+                        print(f'a_v = {a_v}')
+                        # Keep copy of neighbour set in current N group
+                        vnn = copy.copy(self.V[v].nn)
+
+                        # Connect vertex in N to corresponding vertex in aN
+                        self.V[v].connect(self.V[tuple(a_v)])
+                        for vn in vnn:
+                            print(f'vn.x = {vn.x}')
+                            a_vn = list(vn.x)
+                            a_vn[i] = vut[i]
+                            # Conenct the new vertex to the aN vertex
+                            self.V[tuple(a_vn)].connect(self.V[tuple(a_v)])
+                        #print(f'vt = {vt}')
+
+
+                except IndexError:
+                    #TODO: Study implications of symmetry on expansions on group
+                    #      expansion model. Note that we could use (0, 1) instead
+                    #      of (1, 0) for example.
+                    #j = i - 1  # First symmetry encounter, use previous var
+                    #vs[i] = vut[i]  # Update Supremum (connects to everything
+                    #TODO: connect
+                    pass
+
+                if 0:
+                    print("=" * 19)
+                    print("Current symmetry group:")
+                    print("=" * 19)
+                    # for v in self.C0():
+                    #   v.print_out()
+                    for v in self.V.cache:
+                        self.V[v].print_out()
+
+                    print("=" * 19)
+
+            # Connect all vertices to origin and supremum
+            if 1:
+                for v in self.V.cache:
+                    self.V[v].connect(self.V[vot])
+                    self.V[v].connect(self.V[vut])
+
+
+        if 0:
+            a_vs = list(copy.copy(vo))  # Current aN supremum
+            a_vo = list(copy.copy(vo))  # Current aN group origin
+            for i, x in enumerate(bounds):
+                print('='*60)
+                print(f'bound iteration: i = {i}')
+                print(f'bound iteration: dim = {i + 1}')
+                print('='*60)
+                yield 1
 
                 # REPLACE WITH ONLY CONNECTING NEW ORIGIN AND SUP
 
@@ -219,20 +287,83 @@ class Complex:
                     # Note that the group with the set {v, vs} forms is the new
                     # C2 group to operate on old Cn = C2 x C2 x ...
                     print(f'self.V[vot].nn = {self.V[vot].nn}')
-                    #v = copy.copy(vo)
-                    #v[i] = vu[i]  # Current operator a
-                    vs[i] = vu[i]  # Update Supremum
 
-                    #print(f'vu = {vu}')
-                    print(f'vs = {vs}')
-                    #print(f'v = {v}')
+                    a_vo = list(copy.copy(vo))
+                    a_vo[i] = vut[i]  # Update aN Origin
 
                     # Needed to avoid infinite loop adding to origin neighbours:
                     # Save current lower symmetry set
-                    Cnx_l = copy.copy(self.V[vot].nn)
+                    Cnx_l = copy.copy(self.V[vot].nn)  # Lower symmetry set
                     #print(f'Cnx_l = {Cnx_l}')
                     Cnx_l.add(self.V[vot])  # Add origin itself to C2xC2x...
                     #print(f'Cnx_l = {Cnx_l}')
+                    # Needed to avoid infinite loop adding to origin neighbours:
+                    # Save current lower symmetry set
+                    Cnx_u = copy.copy(self.V[tuple(a_vs)].nn)  # Upper symmetry set
+                    #print(f'Cnx_l = {Cnx_l}')
+                #    Cnx_u.add(self.V[tuple(vs)])  # Add origin itself to C2xC2x...
+                    #print(f'Cnx_l = {Cnx_l}')
+
+
+                    #v = copy.copy(vo)
+                    #v[i] = vu[i]  # Current operator a
+                    a_vs[i] = vut[i]  # Update aN supremum
+
+
+                    #print(f'vu = {vu}')
+                    print(f'a_vs = {a_vs}')
+                    print(f'a_vo = {a_vo}')
+                    #print(f'v = {v}')
+
+                    # Connect the aN group origin with its supremum
+                    self.V[tuple(a_vs)].connect(self.V[tuple(a_vo)])
+                    print(f'aNo---aNs operation: Connected a_vo = {a_vo} '
+                          f'to a_vs {a_vs}')
+                    # Connect the aN supremum with the true origin
+                    #self.V[tuple(a_vs)].connect(self.V[tuple(vot)])
+                    #print(f'o---aNs operation: Connected a_vs = {a_vs} '
+                    #      f'vo - {vot}')
+
+
+                    for vn in Cnx_l:
+                        print('-'*30)
+                        #print(f'vn = {vn}')
+                        print(f'Cnx_l')
+                        print('-' *5)
+                        print(f'vn.x = {vn.x}')
+                        # aN operation
+                        a_v = list(vn.x)
+                        a_v[i] = vut[i]
+                        # connect the N to corresponding vertex in aN
+                        self.V[vn.x].connect(self.V[tuple(a_v)])
+                        #print(f'vn.x = {vn.x}')
+                        print(f'a_v = {a_v}')
+                        #print(f'vn.x = {vn.x}')
+                        print(f'N---aN operation: Connected {vn.x} to {a_v}')
+
+                        # connect the new vertex in aN to origin in aN
+                        self.V[tuple(a_vo)].connect(self.V[tuple(a_v)])
+                        print(f'aNo---aN operation: '
+                              f'Connected a_vo {tuple(a_vo)}'
+                              f' to new vertex aN a_v {tuple(a_v)}')
+
+                        # connect the new vertex in aN to supremum in aN
+                        self.V[tuple(a_vs)].connect(self.V[tuple(a_v)])
+                        print(f'aN---aNs operation: Connected '
+                              f'new aN vertex a_v {tuple(a_v)}'
+                              f' to a_vs {tuple(a_vs)}')
+
+                        # connect the new vertex in aN to true origin
+                        self.V[tuple(a_v)].connect(self.V[vot])
+                        print(f'o---aNs operation: Connected vo = {vot}'
+                              f' to new aN vertex a_v = {a_v}')
+
+                        # connect the new vertex in aN to true supremum
+                        self.V[tuple(a_v)].connect(self.V[vut])
+                        print(f'o---aNs operation: Connected'
+                              f' the new aN vertex a_v = {a_v}'
+                              f'to  vs = {vut} ')
+
 
                     # Connect the second vertex in N v1-v2
                     #vnew = copy.copy(v)
@@ -246,40 +377,41 @@ class Complex:
                     #print(f'Connected {vot} to {vn.x}')
                     # Connect every old neighbour of vo (The C2xC2x... group)
                     # to the new supremum
-                    for vn in Cnx_l:
-                        print('-'*30)
-                        #print(f'vn = {vn}')
-                        print(f'vn.x = {vn.x}')
+                    if 0:
+                        for vn in Cnx_l:
+                            print('-'*30)
+                            #print(f'vn = {vn}')
+                            print(f'vn.x = {vn.x}')
 
-                        # aN operation
-                        vn_new = list(vn.x)
-                        vn_new[i] = vu[i]
-                        # connect the N to corresponding vertex in aN
-                        self.V[vn.x].connect(self.V[tuple(vn_new)])
-                        print(f'vn_new = {vn_new}')
-                        #print(f'vn.x = {vn.x}')
-                        print(f'N---aN operation: Connected {vn.x} to {vn_new}')
-                        # Connect to origin #TODO: NOT NEEDED
-                      #  self.V[vot].connect(self.V[tuple(vn_new)])
-                        # Connect to current origin
-                        self.V[vot].connect(self.V[tuple(vn_new)])
-                        print(f'vo---aN Connected {vot} to {tuple(vn_new)}')
+                            # aN operation
+                            a_v = list(vn.x)
+                            a_v[i] = vut[i]
+                            # connect the N to corresponding vertex in aN
+                            self.V[vn.x].connect(self.V[tuple(a_v)])
+                            print(f'vn_new = {a_v}')
+                            #print(f'vn.x = {vn.x}')
+                            print(f'N---aN operation: Connected {vn.x} to {a_v}')
+                            # Connect to origin #TODO: NOT NEEDED
+                          #  self.V[vot].connect(self.V[tuple(vn_new)])
+                            # Connect to current origin
+                            self.V[vot].connect(self.V[tuple(a_v)])
+                            print(f'vo---aN Connected {vot} to {tuple(a_v)}')
 
-                        # Connect to current supremum
-                        self.V[tuple(vs)].connect(self.V[tuple(vn_new)])
-                        print(f'aN---vs Connected {vn_new} to {tuple(vs)}')
-                        self.V[tuple(vs)].connect(self.V[vn.x])
-                        print(f'N---vs Connected {vn.x} to {tuple(vs)}')
+                            # Connect to current supremum
+                            self.V[tuple(vs)].connect(self.V[tuple(a_v)])
+                            print(f'aN---vs Connected {a_v} to {tuple(vs)}')
+                            self.V[tuple(vs)].connect(self.V[vn.x])
+                            print(f'N---vs Connected {vn.x} to {tuple(vs)}')
 
-                        # Connect new vertex to new C2 origin TODO: Needed??
-                        #self.V[tuple(vn_new)].connect(self.V[tuple(v)])
+                            # Connect new vertex to new C2 origin TODO: Needed??
+                            #self.V[tuple(vn_new)].connect(self.V[tuple(v)])
 
                 except IndexError:
                     #TODO: Study implications of symmetry on expansions on group
                     #      expansion model. Note that we could use (0, 1) instead
                     #      of (1, 0) for example.
                     j = i - 1  # First symmetry encounter, use previous var
-                    vs[i] = vu[i]  # Update Supremum (connects to everything
+                    vs[i] = vut[i]  # Update Supremum (connects to everything
                     #TODO: connect
                     pass
 
@@ -296,6 +428,17 @@ class Complex:
 
         # Every i, x is a C2 group added to C2 x C2 ...
         if 0:
+            self.C2x = Subgroup(VertexGroup)
+            self.C2x + self.V[tuple(origin)]
+            if 0:
+                for vn in self.V[tuple(origin)].nn:
+                    print(f'vn = {vn.x}')
+                print(f'self.C2x')
+                print(f'self.C2x.C = {self.C2x.C}')
+                for vn in self.C2x.C:
+                    print(f'vc2x = {vn.x}')
+
+            C2xp = [[vo]]  # Store connection pairs
             for i, x in enumerate(bounds):
                 #print("=" * 40)
                 #print("Bounds iteration:")
@@ -311,7 +454,7 @@ class Complex:
                 # try  (NOTE: if exception fails, different subroutine
                 a = copy.copy(vo)
                 #print(f'vo = {vo}')
-                a[i] = vu[1]  # Build operator (TODO: delete unused)
+                a[i] = vut[1]  # Build operator (TODO: delete unused)
                 #print(f'a = {a}')
                 C2xp_current = copy.copy(C2xp)
                 from sys import getsizeof
@@ -325,7 +468,7 @@ class Complex:
                     vp1 = copy.copy(vp[0])
                     vp1_new = copy.copy(vp1)
 
-                    vp1_new[i] = vu[i]  # isomorphic vertex in aN
+                    vp1_new[i] = vut[i]  # isomorphic vertex in aN
                     #TODO: FIXED: vu[1] to vu[i] is this correct?
                     # Connect v1 in N with v1_new in aN
                     self.V[tuple(vp1)].connect(self.V[tuple(vp1_new)])
@@ -338,7 +481,7 @@ class Complex:
                         # Connect the second vertex in N v1-v2
                         vp2 = copy.copy(vp[1])
                         vp2_new = copy.copy(vp2)
-                        vp2_new[i] = vu[1]  # isomorphic vertex in aN
+                        vp2_new[i] = vut[1]  # isomorphic vertex in aN
                         if 0:
                             print(f'vp1 = {vp1}')
                             print(f'vp2 = {vp2}')
@@ -365,7 +508,7 @@ class Complex:
                             # Equivalent to v + a (adding operator to move
                             # to next C2 group):
                             v_new = copy.copy(v)
-                            v_new[i] = vu[1]  # TODO: try
+                            v_new[i] = vut[1]  # TODO: try
 
                             # Connect new pair
                             self.V[tuple(v)].connect(self.V[tuple(v_new)])
@@ -395,7 +538,7 @@ class Complex:
             if 0:
                 for vi in self.C2x:
                     vl = v
-                    vu = vl
+                    vut = vl
                     vl[i] = x[1]
                     # Connect to origin + sup
                     #self.V[tuple(origin)].connect(self.V[tuple(vl)])
@@ -403,7 +546,7 @@ class Complex:
                     #self.V[tuple(supremum)].connect(self.V[tuple(vl)])
                     #self.V[tuple(supremum)].connect(self.V[tuple(vu)])
                     # Connect to C2 partner
-                    self.V[tuple(vu)].connect(self.V[tuple(vl)])
+                    self.V[tuple(vut)].connect(self.V[tuple(vl)])
 
             #x[0]
             #try:
