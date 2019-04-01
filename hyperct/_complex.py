@@ -216,6 +216,8 @@ class Complex:
             self.V[vot].connect(self.V[tuple(a_vo)])
             C1x = [[self.V[tuple(a_vo)]]]
 
+            ab_C = []  # Container for a + b operations
+
             # Loop over remaining bounds
             for i, x in enumerate(bounds[1:]):
                 print('='*60)
@@ -237,6 +239,10 @@ class Complex:
                     a_vot = tuple(a_vo)
                     C2x = copy.copy(self.V.cache)  # Current N group
 
+
+
+
+
                     #print(f'C0x = {C0x}')
                     #print(f'C0x[:i] = {C0x[:i+1]}')
                     #print(f'C1x = {C1x}')
@@ -252,7 +258,7 @@ class Complex:
                         print(f'j = {j}')
                         print(f'VL = {VL}')
                         print(f'VU = {VU}')
-                        for vl, vu in zip(VL, VU):
+                        for k, (vl, vu) in enumerate(zip(VL, VU)):
                             print('-'*5)
                             print(f'vl.x = {vl.x}')
                             print(f'vu.x = {vu.x}')
@@ -266,19 +272,33 @@ class Complex:
                             a_vu[i + 1] = vut[i + 1]
                             print(f'a_vl = {a_vl}')
                             print(f'a_vu = {a_vu}')
+                            a_vl = self.V[tuple(a_vl)]
+                            a_vu = self.V[tuple(a_vu)]
 
                             # Connect vertices in N to corresponding vertices
                             # in aN:
-                            vl.connect(self.V[tuple(a_vl)])
-                            vu.connect(self.V[tuple(a_vu)])
+                            vl.connect(a_vl)
+                            vu.connect(a_vu)
 
                             # Connect new vertex pair in aN:
-                            self.V[tuple(a_vl)].connect(self.V[tuple(a_vu)])
+                            a_vl.connect(a_vu)
 
                             # Connect lower pair to upper (triangulation
                             # operation of a + b (two arbitrary operations):
                             #vu.connect(self.V[tuple(a_vu)])
-                            vl.connect(self.V[tuple(a_vu)])
+                            vl.connect(a_vu)
+                            ab_C.append((vl, a_vu))
+
+                            # Try to connect aN lower source of previous a + b
+                            # operation with a aN vertex
+                            if 0:
+                                try:
+                                    ab_vu = list(VU[k + 1].x)
+                                    ab_vu[i + 1] = vut[i + 1]
+                                    ab_vu = self.V[tuple(ab_vu)]
+                                    a_vl.connect(ab_vu)
+                                except IndexError:
+                                    pass
 
                             # Update the containers
                             #TODO: Update current lower/upper containers
@@ -286,14 +306,47 @@ class Complex:
                             #C0x[i + 2].append(self.V[tuple(a_vl)])
                             C0x[i + 1].append(vl)
                             C0x[i + 1].append(vu)
-                            C1x[i + 1].append(self.V[tuple(a_vu)])
-                            C1x[i + 1].append(self.V[tuple(a_vl)])
+                            C1x[i + 1].append(a_vl)
+                            C1x[i + 1].append(a_vu)
 
                             # Update old containers
-                            #print()
-                            C0x[j].append(self.V[tuple(a_vl)])
-                            C1x[j].append(self.V[tuple(a_vu)])
-                            #print(f'C1x = {C1x}')
+                            C0x[j].append(a_vl)
+                            C1x[j].append(a_vu)
+
+
+                    # Try to connect aN lower source of previous a + b
+                    # operation with a aN vertex
+                    if 1:
+                        ab_Cc = copy.copy(ab_C)
+                        for vp in ab_Cc:
+                            print(f'Pair = {vp[0].x, vp[1].x}')
+                            b_v = list(vp[0].x)    # vl + b
+                            ab_v = list(vp[1].x)  # a_vl + b
+                            #ab_vl = list(vp[0].x)
+                            #ab_vu = list(vp[1].x)
+                            b_v[i + 1] = vut[i + 1]
+                            ab_v[i + 1] = vut[i + 1]
+                            print(f'b_v = {b_v}')
+                            print(f'ab_v = {ab_v}')
+                            b_v = self.V[tuple(b_v)]
+                            ab_v = self.V[tuple(ab_v)]
+                            #vp[0].connect(ab_vl)  # Already done
+                            # Note o---o is already connected
+                            vp[0].connect(ab_v)  # o-s\
+                            b_v.connect(ab_v)  # s-s
+                            #ab_vl.connect(ab_vu)  # ???
+
+                            # Add new list of cross pairs
+                            ab_C.append((vp[0], ab_v))
+                            ab_C.append((b_v, ab_v))
+
+                    # Connect all vertices to origin and supremum
+                    if 0:
+                        ccache = copy.copy(self.V.cache)
+                        for v in ccache:
+                            self.V[v].connect(self.V[vot])
+                            self.V[v].connect(self.V[vut])
+
                     # Iterate over N group and add new C2 product to build N--aN
                     if 0:
                         for v in C2x:
