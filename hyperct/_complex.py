@@ -236,12 +236,6 @@ class Complex:
                     # C2 product by accessing the upper bound
                     a_vo = list(copy.copy(vo))
                     a_vo[i + 1] = vut[i + 1]  # Update aN Origin
-                    a_vot = tuple(a_vo)
-                    C2x = copy.copy(self.V.cache)  # Current N group
-
-
-
-
 
                     #print(f'C0x = {C0x}')
                     #print(f'C0x[:i] = {C0x[:i+1]}')
@@ -251,17 +245,17 @@ class Complex:
 
                     cC0x = [x[:] for x in C0x[:i + 1]]
                     cC1x = [x[:] for x in C1x[:i + 1]]
-                    print(f'cC0x = {cC0x}')
-                    print(f'cC1x = {cC1x}')
+                    #print(f'cC0x = {cC0x}')
+                    #print(f'cC1x = {cC1x}')
                     for j, (VL, VU) in enumerate(zip(cC0x, cC1x)):
                         #print(f'i = {i}')
-                        print(f'j = {j}')
-                        print(f'VL = {VL}')
-                        print(f'VU = {VU}')
+                        #print(f'j = {j}')
+                        #print(f'VL = {VL}')
+                        #print(f'VU = {VU}')
                         for k, (vl, vu) in enumerate(zip(VL, VU)):
-                            print('-'*5)
-                            print(f'vl.x = {vl.x}')
-                            print(f'vu.x = {vu.x}')
+                        #    print('-'*5)
+                        #    print(f'vl.x = {vl.x}')
+                        #    print(f'vu.x = {vu.x}')
                             #print(f'VL = {VL}')
                             #print(f'VU = {VU}')
 
@@ -270,8 +264,8 @@ class Complex:
                             a_vu = list(vu.x)
                             a_vl[i + 1] = vut[i + 1]
                             a_vu[i + 1] = vut[i + 1]
-                            print(f'a_vl = {a_vl}')
-                            print(f'a_vu = {a_vu}')
+                        #    print(f'a_vl = {a_vl}')
+                        #    print(f'a_vu = {a_vu}')
                             a_vl = self.V[tuple(a_vl)]
                             a_vu = self.V[tuple(a_vu)]
 
@@ -326,8 +320,8 @@ class Complex:
                             #ab_vu = list(vp[1].x)
                             b_v[i + 1] = vut[i + 1]
                             ab_v[i + 1] = vut[i + 1]
-                            print(f'b_v = {b_v}')
-                            print(f'ab_v = {ab_v}')
+                        #    print(f'b_v = {b_v}')
+                        #    print(f'ab_v = {ab_v}')
                             b_v = self.V[tuple(b_v)]
                             ab_v = self.V[tuple(ab_v)]
                             #vp[0].connect(ab_vl)  # Already done

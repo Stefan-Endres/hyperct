@@ -15,12 +15,16 @@ def g_cons(x):  # (Requires n > 2)
 def init_triangulation(n, gen, check, nn_checks=None, bounds=None):
     HC = Complex(n, domain=bounds)
     HC.triangulate()
+    #HC.triangulate_c()
     for i in range(gen):
         HC.split_generation()
-
+    #print('DONE')
     # Test that all the correct vertices are present
     if bounds is None:
+        #print(f'HC.V.cache = {HC.V.cache}')
         for i, v in enumerate(HC.V.cache):
+            #print(f'check[i] = {check[i]}')
+            #print(f'v = {v}')
             numpy.testing.assert_equal(check[i], v)
     else:
         for i, v in enumerate(HC.V.cache):
