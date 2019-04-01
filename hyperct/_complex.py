@@ -191,8 +191,168 @@ class Complex:
       #  a = copy.copy(vo)
         vut = tuple(supremum)  # Hyperrectangle supremum
         #self.C2x = [self.V[tuple(origin)]]
-
         self.V[vot]
+        # Cyclic group aproach with second x_l --- x_u operation
+        if 1:
+            a_vs = list(copy.copy(vo))  # Current aN supremum
+            a_vo = list(copy.copy(vo))  # Current aN group origin
+            Cnx = []  # Storage for later local group triangulation
+            a_VO = []  # Storage for origins of later local group triangulation
+
+            # These containers store the "lower" and "upper" vertices
+            # corresponding to the origin or supremum of every C2 group.
+            # It has the structure of dim times embedded lists each containing
+            # these vertices as the entire complex grows.
+        #    C0x = [[self.V[vot]]]
+        #    C1x = [[self.V[vot]]]
+
+            # Bounds[0] has to be done outside the loops before we have symmetric
+            # containers
+            #NOTE: This means that bounds[0][1] must always exist
+            #TODO: Ensure that the first variable is never symmetric
+            C0x = [[self.V[vot]]]
+            a_vo = list(copy.copy(vo))
+            a_vo[0] = vut[0]  # Update aN Origin
+            self.V[vot].connect(self.V[tuple(a_vo)])
+            C1x = [[self.V[tuple(a_vo)]]]
+
+            # Loop over remaining bounds
+            for i, x in enumerate(bounds[1:]):
+                print('='*60)
+                print(f'bound iteration: i + 1 = {i + 1}')
+                print(f'bound iteration: dim = {i + 2}')
+                print('='*60)
+                # Update lower and upper containers
+                C0x.append([])
+                C1x.append([])
+                yield 1
+            #    print(f'self.V.cache = {self.V.cache}')
+                # try to access a second bound (if not, C1 is symmetric)
+                try:
+                    # Early try so that we don't have to copy the cache before
+                    # moving on to next C1/C2: Try to add the operation of a new
+                    # C2 product by accessing the upper bound
+                    a_vo = list(copy.copy(vo))
+                    a_vo[i + 1] = vut[i + 1]  # Update aN Origin
+                    a_vot = tuple(a_vo)
+                    C2x = copy.copy(self.V.cache)  # Current N group
+
+                    #print(f'C0x = {C0x}')
+                    #print(f'C0x[:i] = {C0x[:i+1]}')
+                    #print(f'C1x = {C1x}')
+                    #print(f'C1x[:i] = {C1x[:i+1]}')
+                    #NOTE: copy.deepcopy breaks when it copies the vertex object
+
+                    cC0x = [x[:] for x in C0x[:i + 1]]
+                    cC1x = [x[:] for x in C1x[:i + 1]]
+                    print(f'cC0x = {cC0x}')
+                    print(f'cC1x = {cC1x}')
+                    for j, (VL, VU) in enumerate(zip(cC0x, cC1x)):
+                        #print(f'i = {i}')
+                        print(f'j = {j}')
+                        print(f'VL = {VL}')
+                        print(f'VU = {VU}')
+                        for vl, vu in zip(VL, VU):
+                            print('-'*5)
+                            print(f'vl.x = {vl.x}')
+                            print(f'vu.x = {vu.x}')
+                            #print(f'VL = {VL}')
+                            #print(f'VU = {VU}')
+
+                            # Build aN vertices for each lower-upper pair in N:
+                            a_vl = list(vl.x)
+                            a_vu = list(vu.x)
+                            a_vl[i + 1] = vut[i + 1]
+                            a_vu[i + 1] = vut[i + 1]
+                            print(f'a_vl = {a_vl}')
+                            print(f'a_vu = {a_vu}')
+
+                            # Connect vertices in N to corresponding vertices
+                            # in aN:
+                            vl.connect(self.V[tuple(a_vl)])
+                            vu.connect(self.V[tuple(a_vu)])
+
+                            # Connect new vertex pair in aN:
+                            self.V[tuple(a_vl)].connect(self.V[tuple(a_vu)])
+
+                            # Connect lower pair to upper (triangulation
+                            # operation of a + b (two arbitrary operations):
+                            #vu.connect(self.V[tuple(a_vu)])
+                            vl.connect(self.V[tuple(a_vu)])
+
+                            # Update the containers
+                            #TODO: Update current lower/upper containers
+                            #      we will need copies in order to do this!
+                            #C0x[i + 2].append(self.V[tuple(a_vl)])
+                            C0x[i + 1].append(vl)
+                            C0x[i + 1].append(vu)
+                            C1x[i + 1].append(self.V[tuple(a_vu)])
+                            C1x[i + 1].append(self.V[tuple(a_vl)])
+
+                            # Update old containers
+                            #print()
+                            C0x[j].append(self.V[tuple(a_vl)])
+                            C1x[j].append(self.V[tuple(a_vu)])
+                            #print(f'C1x = {C1x}')
+                    # Iterate over N group and add new C2 product to build N--aN
+                    if 0:
+                        for v in C2x:
+                            print(f'v = {v}')
+                            #print(f'self.V[v].nn = {self.V[v].nn}')
+                            a_v = list(v)
+                            a_v[i] = vut[i]
+                            print(f'a_v = {a_v}')
+
+                            # Keep copy of neighbour set in current N group
+                            vnn = copy.copy(self.V[v].nn)
+
+                            # Connect vertex in N to corresponding vertex in aN
+                            self.V[v].connect(self.V[tuple(a_v)])
+
+                            # Update the containers
+                            C0x[i + 1].append(self.V[v])
+                            C1x[i + 1].append(self.V[tuple(a_v)])
+
+                            for vn in vnn:
+                                print(f'vn.x = {vn.x}')
+                                a_vn = list(vn.x)
+                                a_vn[i] = vut[i]
+                                # Conenct the new vertex to the aN vertex
+                                self.V[tuple(a_vn)].connect(self.V[tuple(a_v)])
+
+
+                except IndexError:
+                    #TODO: Study implications of symmetry on expansions on group
+                    #      expansion model. Note that we could use (0, 1) instead
+                    #      of (1, 0) for example.
+                    #j = i - 1  # First symmetry encounter, use previous var
+                    #vs[i] = vut[i]  # Update Supremum (connects to everything
+                    #TODO: connect
+                    pass
+
+                # Printing
+                if 1:
+                    print("=" * 19)
+                    print("Current symmetry group:")
+                    print("=" * 19)
+                    # for v in self.C0():
+                    #   v.print_out()
+                    for v in self.V.cache:
+                        self.V[v].print_out()
+
+                    print("=" * 19)
+
+            # Connect all vertices to origin and supremum
+            if 0:
+                for v in self.V.cache:
+                    self.V[v].connect(self.V[vot])
+                    self.V[v].connect(self.V[vut])
+
+            # In every aN group we need to connect all vertices in every aN
+            # group the the local aN origin
+            if 0:  # Connect to aN origin and sup
+                self.V[v].connect(self.V[a_vot])
+                self.V[v].connect(self.V[vut])
 
 
         if 0:
@@ -294,12 +454,10 @@ class Complex:
                 self.V[v].connect(self.V[a_vot])
                 self.V[v].connect(self.V[vut])
 
-
-
         # Every i, x is a C2 group added to C2 x C2 ...
         ## o-s connection approach
 
-        if 1:
+        if 0:
             a_vs = list(copy.copy(vo))  # Current aN supremum
             a_vo = list(copy.copy(vo))  # Current aN group origin
             Cnx = []  # Storage for later local group triangulation
