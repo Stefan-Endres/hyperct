@@ -21,15 +21,17 @@ def init_triangulation(n, gen, check, nn_checks=None, bounds=None):
     #print('DONE')
     # Test that all the correct vertices are present
     if bounds is None:
-        #print(f'HC.V.cache = {HC.V.cache}')
         for i, v in enumerate(HC.V.cache):
-            #print(f'check[i] = {check[i]}')
-            #print(f'v = {v}')
             numpy.testing.assert_equal(check[i], v)
+            # Unordered check 1:
+            numpy.testing.assert_equal(v in check, True)
+
+        for i, v in enumerate(check):
+            # Unordered check 2:
+            numpy.testing.assert_equal(v in HC.V.cache, True)
     else:
         for i, v in enumerate(HC.V.cache):
             numpy.testing.assert_equal(check[i], tuple(HC.V[v].x_a))
-
 
     # Build checks
     nnck = [(0.3, -3.9, -1.5, -3.0, -9.5), (0.3, -3.9, -1.5, 1.0, 11000.5),
@@ -50,7 +52,7 @@ def init_triangulation(n, gen, check, nn_checks=None, bounds=None):
             nn_check = []
             for v2 in HC.V[v].nn:
                 nn_check.append(v2.x)
-
+                print(f'v2 = {v2}')
             numpy.testing.assert_equal(nn_check, nn_checks[v])
 # Test
 class TestCube(object):

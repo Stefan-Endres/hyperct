@@ -182,29 +182,215 @@ class Complex:
         pass
 
     def cyclic_product(self, bounds, origin, supremum):
-
-        # self.V[tuple(origin)].connect(self.V[vg])
-        # self.V[tuple(supremum)].connect(self.V[vg])
         vo = list(origin)
         vot = tuple(origin)
-        #print(f'vo = {vo}')
-      #  a = copy.copy(vo)
         vut = tuple(supremum)  # Hyperrectangle supremum
-        #self.C2x = [self.V[tuple(origin)]]
         self.V[vot]
-        # Cyclic group aproach with second x_l --- x_u operation
+
+        # Cyclic group approach with upper-lower set intersections
         if 1:
-            a_vs = list(copy.copy(vo))  # Current aN supremum
-            a_vo = list(copy.copy(vo))  # Current aN group origin
-            Cnx = []  # Storage for later local group triangulation
-            a_VO = []  # Storage for origins of later local group triangulation
 
             # These containers store the "lower" and "upper" vertices
             # corresponding to the origin or supremum of every C2 group.
             # It has the structure of dim times embedded lists each containing
             # these vertices as the entire complex grows.
-        #    C0x = [[self.V[vot]]]
-        #    C1x = [[self.V[vot]]]
+
+            # Bounds[0] has to be done outside the loops before we have symmetric
+            # containers
+            #NOTE: This means that bounds[0][1] must always exist
+            #TODO: Ensure that the first variable is never symmetric
+            C0x = [[self.V[vot]]]
+            a_vo = list(copy.copy(vo))
+            a_vo[0] = vut[0]  # Update aN Origin
+            self.V[vot].connect(self.V[tuple(a_vo)])
+            C1x = [[self.V[tuple(a_vo)]]]
+
+            ab_C = []  # Container for a + b operations
+
+            # Loop over remaining bounds
+            for i, x in enumerate(bounds[1:]):
+                print('='*60)
+                print(f'bound iteration: i + 1 = {i + 1}')
+                print(f'bound iteration: dim = {i + 2}')
+                print('='*60)
+                # Update lower and upper containers
+                C0x.append([])
+                C1x.append([])
+                yield 1
+            #    print(f'self.V.cache = {self.V.cache}')
+                # try to access a second bound (if not, C1 is symmetric)
+                try:
+                    # Early try so that we don't have to copy the cache before
+                    # moving on to next C1/C2: Try to add the operation of a new
+                    # C2 product by accessing the upper bound
+                    a_vo = list(copy.copy(vo))
+                    a_vo[i + 1] = vut[i + 1]  # Update aN Origin
+
+                    #print(f'C0x = {C0x}')
+                    #print(f'C0x[:i] = {C0x[:i+1]}')
+                    #print(f'C1x = {C1x}')
+                    #print(f'C1x[:i] = {C1x[:i+1]}')
+                    #NOTE: copy.deepcopy breaks when it copies the vertex object
+
+                    cC0x = [x[:] for x in C0x[:i + 1]]
+                    cC1x = [x[:] for x in C1x[:i + 1]]
+                    #print(f'cC0x = {cC0x}')
+                    #print(f'cC1x = {cC1x}')
+                    for j, (VL, VU) in enumerate(zip(cC0x, cC1x)):
+                        #print(f'i = {i}')
+                        #print(f'j = {j}')
+                        #print(f'VL = {VL}')
+                        #print(f'VU = {VU}')
+                        for k, (vl, vu) in enumerate(zip(VL, VU)):
+                        #    print('-'*5)
+                        #    print(f'vl.x = {vl.x}')
+                        #    print(f'vu.x = {vu.x}')
+                            #print(f'VL = {VL}')
+                            #print(f'VU = {VU}')
+
+                            # Build aN vertices for each lower-upper pair in N:
+                            a_vl = list(vl.x)
+                            a_vu = list(vu.x)
+                            a_vl[i + 1] = vut[i + 1]
+                            a_vu[i + 1] = vut[i + 1]
+                        #    print(f'a_vl = {a_vl}')
+                        #    print(f'a_vu = {a_vu}')
+                            a_vl = self.V[tuple(a_vl)]
+                            a_vu = self.V[tuple(a_vu)]
+
+                            # Connect vertices in N to corresponding vertices
+                            # in aN:
+                            vl.connect(a_vl)
+                            vu.connect(a_vu)
+
+                            # Connect new vertex pair in aN:
+                            a_vl.connect(a_vu)
+
+                            # Connect lower pair to upper (triangulation
+                            # operation of a + b (two arbitrary operations):
+                            #vu.connect(self.V[tuple(a_vu)])
+                            vl.connect(a_vu)
+                            ab_C.append((vl, a_vu))
+
+                            # Try to connect aN lower source of previous a + b
+                            # operation with a aN vertex
+                            if 0:
+                                try:
+                                    ab_vu = list(VU[k + 1].x)
+                                    ab_vu[i + 1] = vut[i + 1]
+                                    ab_vu = self.V[tuple(ab_vu)]
+                                    a_vl.connect(ab_vu)
+                                except IndexError:
+                                    pass
+
+                            # Update the containers
+                            #TODO: Update current lower/upper containers
+                            #      we will need copies in order to do this!
+                            #C0x[i + 2].append(self.V[tuple(a_vl)])
+                            C0x[i + 1].append(vl)
+                            C0x[i + 1].append(vu)
+                            C1x[i + 1].append(a_vl)
+                            C1x[i + 1].append(a_vu)
+
+                            # Update old containers
+                            C0x[j].append(a_vl)
+                            C1x[j].append(a_vu)
+
+
+                    # Try to connect aN lower source of previous a + b
+                    # operation with a aN vertex
+                    results_list = [C0x[0], C0x[1]]
+                    results_list = [C0x[0], C0x[0]]
+                    print('#'*5)
+                    print(f'Permutations = {itertools.permutations(range(i))}')
+                    itertools.permutations(range(i))
+                    print(f'results_list = {results_list}')
+                    set1 = set(C0x[0])
+                    set2 = set(C0x[1])
+                    print(f'set1 = {set1}')
+                    print(f'set2 = {set2}')
+                    set3 = set1 & set2  # intersection
+                    print(f'set3 = {set3}')
+                    #results_intersection = set().intersection(*results_list)
+                    #print(f'results_intersection = {results_intersection}')
+                    print('#' * 5)
+
+                    if 1:
+                        ab_Cc = copy.copy(ab_C)
+                        for vp in ab_Cc:
+                            print(f'Pair = {vp[0].x, vp[1].x}')
+                            b_v = list(vp[0].x)    # vl + b
+                            ab_v = list(vp[1].x)  # a_vl + b
+                            #ab_vl = list(vp[0].x)
+                            #ab_vu = list(vp[1].x)
+                            b_v[i + 1] = vut[i + 1]
+                            ab_v[i + 1] = vut[i + 1]
+                        #    print(f'b_v = {b_v}')
+                        #    print(f'ab_v = {ab_v}')
+                            b_v = self.V[tuple(b_v)]
+                            ab_v = self.V[tuple(ab_v)]
+                            #vp[0].connect(ab_vl)  # Already done
+                            # Note o---o is already connected
+                            vp[0].connect(ab_v)  # o-s\
+                            b_v.connect(ab_v)  # s-s
+                            #ab_vl.connect(ab_vu)  # ???
+
+                            # Add new list of cross pairs
+                            ab_C.append((vp[0], ab_v))
+                            ab_C.append((b_v, ab_v))
+
+                    # Connect all vertices to origin and supremum
+                    if 0:
+                        ccache = copy.copy(self.V.cache)
+                        for v in ccache:
+                            self.V[v].connect(self.V[vot])
+                            self.V[v].connect(self.V[vut])
+
+
+                except IndexError:
+                    #TODO: Study implications of symmetry on expansions on group
+                    #      expansion model. Note that we could use (0, 1) instead
+                    #      of (1, 0) for example.
+                    #j = i - 1  # First symmetry encounter, use previous var
+                    #vs[i] = vut[i]  # Update Supremum (connects to everything
+                    #TODO: connect
+                    pass
+
+                # Printing
+                if 1:
+                    print("=" * 19)
+                    print("Current symmetry group:")
+                    print("=" * 19)
+                    # for v in self.C0():
+                    #   v.print_out()
+                    for v in self.V.cache:
+                        self.V[v].print_out()
+
+                    print("=" * 19)
+
+            # Connect all vertices to origin and supremum
+            if 0:
+                for v in self.V.cache:
+                    self.V[v].connect(self.V[vot])
+                    self.V[v].connect(self.V[vut])
+
+            # In every aN group we need to connect all vertices in every aN
+            # group the the local aN origin
+            if 0:  # Connect to aN origin and sup
+                self.V[v].connect(self.V[a_vot])
+                self.V[v].connect(self.V[vut])
+
+
+
+
+
+        # Cyclic group aproach with second x_l --- x_u operation
+        if 0:
+
+            # These containers store the "lower" and "upper" vertices
+            # corresponding to the origin or supremum of every C2 group.
+            # It has the structure of dim times embedded lists each containing
+            # these vertices as the entire complex grows.
 
             # Bounds[0] has to be done outside the loops before we have symmetric
             # containers
@@ -340,32 +526,6 @@ class Complex:
                         for v in ccache:
                             self.V[v].connect(self.V[vot])
                             self.V[v].connect(self.V[vut])
-
-                    # Iterate over N group and add new C2 product to build N--aN
-                    if 0:
-                        for v in C2x:
-                            print(f'v = {v}')
-                            #print(f'self.V[v].nn = {self.V[v].nn}')
-                            a_v = list(v)
-                            a_v[i] = vut[i]
-                            print(f'a_v = {a_v}')
-
-                            # Keep copy of neighbour set in current N group
-                            vnn = copy.copy(self.V[v].nn)
-
-                            # Connect vertex in N to corresponding vertex in aN
-                            self.V[v].connect(self.V[tuple(a_v)])
-
-                            # Update the containers
-                            C0x[i + 1].append(self.V[v])
-                            C1x[i + 1].append(self.V[tuple(a_v)])
-
-                            for vn in vnn:
-                                print(f'vn.x = {vn.x}')
-                                a_vn = list(vn.x)
-                                a_vn[i] = vut[i]
-                                # Conenct the new vertex to the aN vertex
-                                self.V[tuple(a_vn)].connect(self.V[tuple(a_v)])
 
 
                 except IndexError:
@@ -896,6 +1056,9 @@ class Complex:
 
         :param n:
         :param symmetry:
+
+            Ex. []
+
         :param printout:
         :return:
 
@@ -921,7 +1084,15 @@ class Complex:
         origin = [i[0] for i in self.bounds]
         self.origin = origin
         #TODO: Use symmetric build (try i[1])
-        supremum = [i[1] for i in self.bounds]
+        #supremum = [i[1] for i in self.bounds]
+        supremum = []
+        for i in self.bounds:
+            try:
+                supremum.append(i[1])
+                #supremum = [i[1] for i in self.bounds]
+            except IndexError:
+                pass
+
         self.supremum = supremum
         if symmetry is None:
             p_args = self.bounds
@@ -1018,11 +1189,12 @@ class Complex:
         origin = [i[0] for i in self.bounds]
         supremum = [i[1] for i in self.bounds]
         self.supremum = supremum
-        if symmetry is None:
-            p_args = self.bounds
-        else:
-            pass  # pop second entry on second symmetry vars
-                  # Possibly add check for if second var bounds is not similar
+        if 0:
+            if symmetry is None:
+                p_args = self.bounds
+            else:
+                pass  # pop second entry on second symmetry vars
+                      # Possibly add check for if second var bounds is not similar
 
         # Connect origin and suprenum (Uses 2 points)
         self.V[tuple(origin)].connect(self.V[tuple(supremum)])
