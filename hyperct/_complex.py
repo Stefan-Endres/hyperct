@@ -521,12 +521,12 @@ class Complex:
                         logging.warning(f"Variable {i} was specified as "
                                         f"symmetetric to variable {j}, however,"
                                         f"the bounds {i} ="
-                                        f" {self.bounds[symmetry[i]]} "
-                                        f"and {j} ="
-                                        f" {self.bounds[symmetry[j]]} "
-                                        f"do not match, the mismatch was "
-                                        f"ignore in the initial triangulation.")
-                        #TODO: Change the supremum to correct value
+                                        f" {self.bounds[symmetry[i]]} and {j} ="
+                                        f" {self.bounds[symmetry[j]]} do not "
+                                        f"match, the mismatch was ignored in "
+                                        f"the initial triangulation.")
+                        cbounds[i] = self.bounds[symmetry[j]]
+
 
 
         if n is None:
