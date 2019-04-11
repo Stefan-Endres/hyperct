@@ -289,100 +289,13 @@ class Complex:
 
                 # Loop over lower containers. Connect lower pair to a_vs
                 # triangulation operation of a + b (two arbitrary operations):
-                if 1:
-                    cC0x = [x[:] for x in C0x[:i + 1]]
-                    for j, VL in enumerate(cC0x):
-                        for k, vu in enumerate(VL):
-                            if vu is not a_vs:
-                                vu.connect(a_vs)
-                                #NOTE: Only needed when there will be no more
-                                #      symmetric points later on
-                                ab_C.append((vu, a_vs))
-
-                # Connect lower pair to upper (triangulation
-                # operation of a + b (two arbitrary operations):
-                if 0:
-                    # Try to connect aN lower source of previous a + b
-                    # operation with a aN vertex
-                    ab_Cc = copy.copy(ab_C)
-                    for vp in ab_Cc:
-                        b_v = list(vp[0].x)  # vl + b
-                        ab_v = list(vp[1].x)  # a_vl + b
-                        b_v[i + 1] = vut[i + 1]
-                        ab_v[i + 1] = vut[i + 1]
-                        b_v = self.V[tuple(b_v)]
-                        ab_v = self.V[tuple(ab_v)]
-                        # Note o---o is already connected
-                        vp[0].connect(ab_v)  # o-s
-                        b_v.connect(ab_v)  # s-s
-
-                        # Add new list of cross pairs
-                        ab_C.append((vp[0], ab_v))
-                        ab_C.append((b_v, ab_v))
-
-
-                # a operation ONLY on the upper points of the previous iteration
-                if 0:
-                    # Copy lists for iteration
-                    cC0x = [x[:] for x in C0x[:i + 1]]
-                    cC1x = [x[:] for x in C1x[:i + 1]]
-                    for j, (VL, VU) in enumerate(zip(cC0x, cC1x)):
-                        for k, (vl, vu) in enumerate(zip(VL, VU)):
-                            print(f'j = {j}')
-                            print(f'vl = {vl.x}')
-                            print(f'vu = {vu.x}')
-                            # Build aN vertices for each lower-upper pair in N:
-                            #a_vl = list(vl.x)
-                            a_vu = list(vu.x)
-                            #a_vl[i + 1] = vut[i + 1]
-                            a_vu[i + 1] = vut[i + 1]
-                            #a_vl = self.V[tuple(a_vl)]
-                            #yield a_vl.x
-                            a_vu = self.V[tuple(a_vu)]
-                            yield a_vu.x
-                            print(f'a_vu.x = {a_vu.x}')
-                            # Connect vertices in N to corresponding vertices
-                            # in aN:
-                            #vl.connect(a_vl)
-                            vu.connect(a_vu)
-
-                            # Connect new vertex pair in aN:
-                            #a_vl.connect(a_vu)
-
-                            # Connect lower pair to upper (triangulation
-                            # operation of a + b (two arbitrary operations):
-                            vl.connect(a_vu)
-                            ab_C.append((vl, a_vu))
-
-                            # Update the containers
-                           # C0x[i + 1].append(vl)
-                           # C0x[i + 1].append(vu)
-                           # C1x[i + 1].append(a_vl)
-                           # C1x[i + 1].append(a_vu)
-
-                            # Update old containers
-                           # C0x[j].append(a_vl)
-                           # C1x[j].append(a_vu)
-
-                            # Try to connect aN lower source of previous a + b
-                            # operation with a aN vertex
-                        ab_Cc = copy.copy(ab_C)
-
-                        if 1:
-                            for vp in ab_Cc:
-                                b_v = list(vp[0].x)  # vl + b
-                                ab_v = list(vp[1].x)  # a_vl + b
-                                b_v[i + 1] = vut[i + 1]
-                                ab_v[i + 1] = vut[i + 1]
-                                b_v = self.V[tuple(b_v)]
-                                ab_v = self.V[tuple(ab_v)]
-                                # Note o---o is already connected
-                                vp[0].connect(ab_v)  # o-s
-                                b_v.connect(ab_v)  # s-s
-
-                                # Add new list of cross pairs
-                                ab_C.append((vp[0], ab_v))
-                                ab_C.append((b_v, ab_v))
+                cC0x = [x[:] for x in C0x[:i + 1]]
+                for j, VL in enumerate(cC0x):
+                    for k, vu in enumerate(VL):
+                        if vu is not a_vs:
+                            vu.connect(a_vs)
+                            #NOTE: Only needed when there will be no more
+                            #      symmetric points later on
 
             # Printing
             if printout:
