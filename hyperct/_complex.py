@@ -179,7 +179,7 @@ class Complex:
         return self.H
 
     # %% Triangulation methods
-    def cyclic_product(self, bounds, origin, supremum, symmetry, printout=False):
+    def cyclic_product(self, bounds, origin, supremum, printout=False):
         vo = list(origin)
         vot = tuple(origin)
         vut = tuple(supremum)  # Hyperrectangle supremum
@@ -203,14 +203,7 @@ class Complex:
         ab_C = []  # Container for a + b operations
 
         # Loop over remaining bounds
-        #print(bounds)
-        #print(bounds[1:])
         for i, x in enumerate(bounds[1:]):
-            #print('='*60)
-            #print('=' * 25)
-            #print(f"Bound iteration i + 1 = {i + 1}")
-            #print('=' * 25)
-            #print('=' * 60)
             # Update lower and upper containers
             C0x.append([])
             C1x.append([])
@@ -219,11 +212,7 @@ class Complex:
                 # Early try so that we don't have to copy the cache before
                 # moving on to next C1/C2: Try to add the operation of a new
                 # C2 product by accessing the upper bound
-                #a_vo = list(copy.copy(vo))
-                #a_vo[i + 1] = vut[i + 1]  # Update aN Origin
                 x[1]
-                #print(f'x = {x}')
-
                 # Copy lists for iteration
                 cC0x = [x[:] for x in C0x[:i + 1]]
                 cC1x = [x[:] for x in C1x[:i + 1]]
@@ -265,7 +254,6 @@ class Complex:
                         C0x[j].append(a_vl)
                         C1x[j].append(a_vu)
 
-
                 # Try to connect aN lower source of previous a + b
                 # operation with a aN vertex
                 ab_Cc = copy.copy(ab_C)
@@ -285,33 +273,12 @@ class Complex:
                     ab_C.append((b_v, ab_v))
 
             except IndexError:
-                #TODO: Study implications of symmetry on expansions on group
-                #      expansion model. Note that we could use (0, 1) instead
-                #      of (1, 0) for example.
-                #j = i - 1  # First symmetry encounter, use previous var
-                #vs[i] = vut[i]  # Update Supremum (connects to everything
-                #TODO: connect
-                pass
-                #print("Symmetry loop")
-                #print(f'i + 1 = {i + 1}')
-                #print(f'x = {x}')
-                #print(f'symmetry[i + 1] = {symmetry[i + 1]}')
-                #print(f'bounds[symmetry[i + 1]][1] '
-                #      f'= {bounds[symmetry[i + 1]][1]}')
-                #STRAT:
-
                 # Add new group N + aN group supremum, connect to all
                 # Get previous
-                #print(f'C1x[i] = {C1x[i]}')
-                #print(f'C1x[i][-1] = {C1x[i][-1]}')
                 vs = C1x[i][-1]
                 a_vs = list(C1x[i][-1].x)
-                #print(f'vs = {vs}')
                 a_vs[i + 1] = vut[i + 1]
                 a_vs = self.V[tuple(a_vs)]
-                #print(f'vs = {vs.x}')
-                #print(f'a_vs = {a_vs.x}')
-                #print(f'a_vs.x = {a_vs.x}')
 
                 # Connect a_vs to vs (the nearest neighbour in N --- aN)
                 a_vs.connect(vs)
@@ -320,28 +287,20 @@ class Complex:
                 C0x[i + 1].append(vs)
                 C1x[i + 1].append(a_vs)
 
-                # Loop over all :
+                # Loop over lower containers. Connect lower pair to a_vs
+                # triangulation operation of a + b (two arbitrary operations):
                 if 1:
                     cC0x = [x[:] for x in C0x[:i + 1]]
                     for j, VL in enumerate(cC0x):
                         for k, vu in enumerate(VL):
-                            #print(f'j = {j}')
-                            #print(f'k = {k}')
-                            #print(f'vu = {vu.x}')
-                            #print(f'a_vs = {a_vs.x}')
-                            #vu.connect(vs)
                             if vu is not a_vs:
-                                #print('NOT vs')
                                 vu.connect(a_vs)
-
                                 #NOTE: Only needed when there will be no more
                                 #      symmetric points later on
                                 ab_C.append((vu, a_vs))
 
                 # Connect lower pair to upper (triangulation
                 # operation of a + b (two arbitrary operations):
-
-
                 if 0:
                     # Try to connect aN lower source of previous a + b
                     # operation with a aN vertex
@@ -490,15 +449,7 @@ class Complex:
         # Build origin and supremum vectors
         origin = [i[0] for i in self.bounds]
         self.origin = origin
-        #TODO: Use symmetric build (try i[1])
-        #supremum = [i[1] for i in self.bounds]
-        supremum = []
-        for i in self.bounds:
-            try:
-                supremum.append(i[1])
-                #supremum = [i[1] for i in self.bounds]
-            except IndexError:
-                pass
+        supremum = [i[1] for i in self.bounds]
 
         self.supremum = supremum
 
@@ -513,10 +464,6 @@ class Complex:
                     cbounds[i] = [self.bounds[symmetry[i]][0]]
                     # Sole (first) entry is the sup value and there is no origin
                     cbounds[i] = [self.bounds[symmetry[i]][1]]
-                    #print(f'i = {i}')
-                    #print(f'j = {j}')
-                    #print(symmetry[i])
-                    #print(f'self.bounds[symmetry[i]] = {self.bounds[symmetry[i]]}')
                     if self.bounds[symmetry[i]] is not self.bounds[symmetry[j]]:
                         logging.warning(f"Variable {i} was specified as "
                                         f"symmetetric to variable {j}, however,"
@@ -526,7 +473,6 @@ class Complex:
                                         f"match, the mismatch was ignored in "
                                         f"the initial triangulation.")
                         cbounds[i] = self.bounds[symmetry[j]]
-
 
 
         if n is None:
