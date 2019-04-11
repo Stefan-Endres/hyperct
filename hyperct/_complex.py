@@ -203,14 +203,14 @@ class Complex:
         ab_C = []  # Container for a + b operations
 
         # Loop over remaining bounds
-        print(bounds)
-        print(bounds[1:])
+        #print(bounds)
+        #print(bounds[1:])
         for i, x in enumerate(bounds[1:]):
-            print('='*60)
-            print('=' * 25)
-            print(f"Bound iteration i + 1 = {i + 1}")
-            print('=' * 25)
-            print('=' * 60)
+            #print('='*60)
+            #print('=' * 25)
+            #print(f"Bound iteration i + 1 = {i + 1}")
+            #print('=' * 25)
+            #print('=' * 60)
             # Update lower and upper containers
             C0x.append([])
             C1x.append([])
@@ -222,7 +222,7 @@ class Complex:
                 #a_vo = list(copy.copy(vo))
                 #a_vo[i + 1] = vut[i + 1]  # Update aN Origin
                 x[1]
-                print(f'x = {x}')
+                #print(f'x = {x}')
 
                 # Copy lists for iteration
                 cC0x = [x[:] for x in C0x[:i + 1]]
@@ -292,26 +292,26 @@ class Complex:
                 #vs[i] = vut[i]  # Update Supremum (connects to everything
                 #TODO: connect
                 pass
-                print("Symmetry loop")
-                print(f'i + 1 = {i + 1}')
-                print(f'x = {x}')
-                print(f'symmetry[i + 1] = {symmetry[i + 1]}')
-                print(f'bounds[symmetry[i + 1]][1] '
-                      f'= {bounds[symmetry[i + 1]][1]}')
+                #print("Symmetry loop")
+                #print(f'i + 1 = {i + 1}')
+                #print(f'x = {x}')
+                #print(f'symmetry[i + 1] = {symmetry[i + 1]}')
+                #print(f'bounds[symmetry[i + 1]][1] '
+                #      f'= {bounds[symmetry[i + 1]][1]}')
                 #STRAT:
 
                 # Add new group N + aN group supremum, connect to all
                 # Get previous
-                print(f'C1x[i] = {C1x[i]}')
-                print(f'C1x[i][-1] = {C1x[i][-1]}')
+                #print(f'C1x[i] = {C1x[i]}')
+                #print(f'C1x[i][-1] = {C1x[i][-1]}')
                 vs = C1x[i][-1]
                 a_vs = list(C1x[i][-1].x)
                 #print(f'vs = {vs}')
                 a_vs[i + 1] = vut[i + 1]
                 a_vs = self.V[tuple(a_vs)]
-                print(f'vs = {vs.x}')
+                #print(f'vs = {vs.x}')
                 #print(f'a_vs = {a_vs.x}')
-                print(f'a_vs.x = {a_vs.x}')
+                #print(f'a_vs.x = {a_vs.x}')
 
                 # Connect a_vs to vs (the nearest neighbour in N --- aN)
                 a_vs.connect(vs)
@@ -325,13 +325,13 @@ class Complex:
                     cC0x = [x[:] for x in C0x[:i + 1]]
                     for j, VL in enumerate(cC0x):
                         for k, vu in enumerate(VL):
-                            print(f'j = {j}')
-                            print(f'k = {k}')
-                            print(f'vu = {vu.x}')
-                            print(f'a_vs = {a_vs.x}')
+                            #print(f'j = {j}')
+                            #print(f'k = {k}')
+                            #print(f'vu = {vu.x}')
+                            #print(f'a_vs = {a_vs.x}')
                             #vu.connect(vs)
                             if vu is not a_vs:
-                                print('NOT vs')
+                                #print('NOT vs')
                                 vu.connect(a_vs)
 
                                 #NOTE: Only needed when there will be no more
@@ -427,7 +427,6 @@ class Complex:
 
             # Printing
             if printout:
-            #if 0:
                 print("=" * 19)
                 print("Current symmetry group:")
                 print("=" * 19)
@@ -503,21 +502,21 @@ class Complex:
 
         self.supremum = supremum
 
-        #TODO: Add check that symmetry is
+        #TODO: Add check that len(symmetry) is equal to len(self.bounds)
         if symmetry is None:
             cbounds = self.bounds
         else:
-            cbounds = self.bounds
+            cbounds = copy.copy(self.bounds)
             for i, j in enumerate(symmetry):
                 if i is not j:
                     # pop second entry on second symmetry vars
                     cbounds[i] = [self.bounds[symmetry[i]][0]]
                     # Sole (first) entry is the sup value and there is no origin
                     cbounds[i] = [self.bounds[symmetry[i]][1]]
-                    print(f'i = {i}')
-                    print(f'j = {j}')
-                    print(symmetry[i])
-                    print(f'self.bounds[symmetry[i]] = {self.bounds[symmetry[i]]}')
+                    #print(f'i = {i}')
+                    #print(f'j = {j}')
+                    #print(symmetry[i])
+                    #print(f'self.bounds[symmetry[i]] = {self.bounds[symmetry[i]]}')
                     if self.bounds[symmetry[i]] is not self.bounds[symmetry[j]]:
                         logging.warning(f"Variable {i} was specified as "
                                         f"symmetetric to variable {j}, however,"
@@ -528,8 +527,6 @@ class Complex:
                                         f"do not match, the mismatch was "
                                         f"ignore in the initial triangulation.")
                         #TODO: Change the supremum to correct value
-            print(f'cbounds = {cbounds}')
-
 
 
         if n is None:
@@ -680,16 +677,6 @@ class Complex:
 
             print("="*19)
 
-
-    def vgen_m(self, p_args):
-        """
-        Memoize a generator for the initial triangulation
-        """
-        try:  #TODO: Test if working
-            return self.vgen
-        except (AttributeError, KeyError):
-            self.vgen = itertools.product(*p_args)
-            return self.vgen
 
     def triangulate(self, domain=None, n=None, symm=None):
         """
