@@ -77,6 +77,7 @@ except ImportError:  # Python 2:
 
 # Module specific imports
 from hyperct._vertex import (VertexCacheIndex, VertexCacheField)
+from hyperct._vertex_group import (Subgroup, Cell, Simplex)
 
 
 # Main complex class:
@@ -178,19 +179,19 @@ class Complex:
         return self.H
 
     # %% Triangulation methods
-    def p(self):
-        pass
-
-    def cyclic_product(self, bounds, origin, supremum, printout=False):
+    def cyclic_product(self, bounds, origin, supremum, symmetry, printout=False):
         vo = list(origin)
         vot = tuple(origin)
         vut = tuple(supremum)  # Hyperrectangle supremum
         self.V[vot]
-        # Cyclic group aproach with second x_l --- x_u operation.
+        yield vot
+        self.V[vut].connect(self.V[vot])
+        yield vut
+        # Cyclic group approach with second x_l --- x_u operation.
 
         # These containers store the "lower" and "upper" vertices
         # corresponding to the origin or supremum of every C2 group.
-        # It has the structure of dim times embedded lists each containing
+        # It has the structure of `dim` times embedded lists each containing
         # these vertices as the entire complex grows. Bounds[0] has to be done
         # outside the loops before we have symmetric containers.
         #NOTE: This means that bounds[0][1] must always exist
@@ -202,19 +203,28 @@ class Complex:
         ab_C = []  # Container for a + b operations
 
         # Loop over remaining bounds
+        print(bounds)
+        print(bounds[1:])
         for i, x in enumerate(bounds[1:]):
+            print('='*60)
+            print('=' * 25)
+            print(f"Bound iteration i + 1 = {i + 1}")
+            print('=' * 25)
+            print('=' * 60)
             # Update lower and upper containers
             C0x.append([])
             C1x.append([])
-            yield 1
             # try to access a second bound (if not, C1 is symmetric)
             try:
                 # Early try so that we don't have to copy the cache before
                 # moving on to next C1/C2: Try to add the operation of a new
                 # C2 product by accessing the upper bound
-                a_vo = list(copy.copy(vo))
-                a_vo[i + 1] = vut[i + 1]  # Update aN Origin
+                #a_vo = list(copy.copy(vo))
+                #a_vo[i + 1] = vut[i + 1]  # Update aN Origin
+                x[1]
+                print(f'x = {x}')
 
+                # Copy lists for iteration
                 cC0x = [x[:] for x in C0x[:i + 1]]
                 cC1x = [x[:] for x in C1x[:i + 1]]
                 for j, (VL, VU) in enumerate(zip(cC0x, cC1x)):
@@ -225,7 +235,12 @@ class Complex:
                         a_vl[i + 1] = vut[i + 1]
                         a_vu[i + 1] = vut[i + 1]
                         a_vl = self.V[tuple(a_vl)]
+                        #TODO: We can check if the vertex is already in the
+                        #      so that we do not yield a non-new vertex,
+                        #      however, this might cause a significant slowdown.
+                        yield a_vl.x
                         a_vu = self.V[tuple(a_vu)]
+                        yield a_vu.x
 
                         # Connect vertices in N to corresponding vertices
                         # in aN:
@@ -255,7 +270,7 @@ class Complex:
                 # operation with a aN vertex
                 ab_Cc = copy.copy(ab_C)
                 for vp in ab_Cc:
-                    b_v = list(vp[0].x)    # vl + b
+                    b_v = list(vp[0].x)  # vl + b
                     ab_v = list(vp[1].x)  # a_vl + b
                     b_v[i + 1] = vut[i + 1]
                     ab_v[i + 1] = vut[i + 1]
@@ -277,9 +292,142 @@ class Complex:
                 #vs[i] = vut[i]  # Update Supremum (connects to everything
                 #TODO: connect
                 pass
+                print("Symmetry loop")
+                print(f'i + 1 = {i + 1}')
+                print(f'x = {x}')
+                print(f'symmetry[i + 1] = {symmetry[i + 1]}')
+                print(f'bounds[symmetry[i + 1]][1] '
+                      f'= {bounds[symmetry[i + 1]][1]}')
+                #STRAT:
+
+                # Add new group N + aN group supremum, connect to all
+                # Get previous
+                print(f'C1x[i] = {C1x[i]}')
+                print(f'C1x[i][-1] = {C1x[i][-1]}')
+                vs = C1x[i][-1]
+                a_vs = list(C1x[i][-1].x)
+                #print(f'vs = {vs}')
+                a_vs[i + 1] = vut[i + 1]
+                a_vs = self.V[tuple(a_vs)]
+                print(f'vs = {vs.x}')
+                #print(f'a_vs = {a_vs.x}')
+                print(f'a_vs.x = {a_vs.x}')
+
+                # Connect a_vs to vs (the nearest neighbour in N --- aN)
+                a_vs.connect(vs)
+
+                # Update the containers (only 2 new entries)
+                C0x[i + 1].append(vs)
+                C1x[i + 1].append(a_vs)
+
+                # Loop over all :
+                if 1:
+                    cC0x = [x[:] for x in C0x[:i + 1]]
+                    for j, VL in enumerate(cC0x):
+                        for k, vu in enumerate(VL):
+                            print(f'j = {j}')
+                            print(f'k = {k}')
+                            print(f'vu = {vu.x}')
+                            print(f'a_vs = {a_vs.x}')
+                            #vu.connect(vs)
+                            if vu is not a_vs:
+                                print('NOT vs')
+                                vu.connect(a_vs)
+
+                                #NOTE: Only needed when there will be no more
+                                #      symmetric points later on
+                                ab_C.append((vu, a_vs))
+
+                # Connect lower pair to upper (triangulation
+                # operation of a + b (two arbitrary operations):
+
+
+                if 0:
+                    # Try to connect aN lower source of previous a + b
+                    # operation with a aN vertex
+                    ab_Cc = copy.copy(ab_C)
+                    for vp in ab_Cc:
+                        b_v = list(vp[0].x)  # vl + b
+                        ab_v = list(vp[1].x)  # a_vl + b
+                        b_v[i + 1] = vut[i + 1]
+                        ab_v[i + 1] = vut[i + 1]
+                        b_v = self.V[tuple(b_v)]
+                        ab_v = self.V[tuple(ab_v)]
+                        # Note o---o is already connected
+                        vp[0].connect(ab_v)  # o-s
+                        b_v.connect(ab_v)  # s-s
+
+                        # Add new list of cross pairs
+                        ab_C.append((vp[0], ab_v))
+                        ab_C.append((b_v, ab_v))
+
+
+                # a operation ONLY on the upper points of the previous iteration
+                if 0:
+                    # Copy lists for iteration
+                    cC0x = [x[:] for x in C0x[:i + 1]]
+                    cC1x = [x[:] for x in C1x[:i + 1]]
+                    for j, (VL, VU) in enumerate(zip(cC0x, cC1x)):
+                        for k, (vl, vu) in enumerate(zip(VL, VU)):
+                            print(f'j = {j}')
+                            print(f'vl = {vl.x}')
+                            print(f'vu = {vu.x}')
+                            # Build aN vertices for each lower-upper pair in N:
+                            #a_vl = list(vl.x)
+                            a_vu = list(vu.x)
+                            #a_vl[i + 1] = vut[i + 1]
+                            a_vu[i + 1] = vut[i + 1]
+                            #a_vl = self.V[tuple(a_vl)]
+                            #yield a_vl.x
+                            a_vu = self.V[tuple(a_vu)]
+                            yield a_vu.x
+                            print(f'a_vu.x = {a_vu.x}')
+                            # Connect vertices in N to corresponding vertices
+                            # in aN:
+                            #vl.connect(a_vl)
+                            vu.connect(a_vu)
+
+                            # Connect new vertex pair in aN:
+                            #a_vl.connect(a_vu)
+
+                            # Connect lower pair to upper (triangulation
+                            # operation of a + b (two arbitrary operations):
+                            vl.connect(a_vu)
+                            ab_C.append((vl, a_vu))
+
+                            # Update the containers
+                           # C0x[i + 1].append(vl)
+                           # C0x[i + 1].append(vu)
+                           # C1x[i + 1].append(a_vl)
+                           # C1x[i + 1].append(a_vu)
+
+                            # Update old containers
+                           # C0x[j].append(a_vl)
+                           # C1x[j].append(a_vu)
+
+                            # Try to connect aN lower source of previous a + b
+                            # operation with a aN vertex
+                        ab_Cc = copy.copy(ab_C)
+
+                        if 1:
+                            for vp in ab_Cc:
+                                b_v = list(vp[0].x)  # vl + b
+                                ab_v = list(vp[1].x)  # a_vl + b
+                                b_v[i + 1] = vut[i + 1]
+                                ab_v[i + 1] = vut[i + 1]
+                                b_v = self.V[tuple(b_v)]
+                                ab_v = self.V[tuple(ab_v)]
+                                # Note o---o is already connected
+                                vp[0].connect(ab_v)  # o-s
+                                b_v.connect(ab_v)  # s-s
+
+                                # Add new list of cross pairs
+                                ab_C.append((vp[0], ab_v))
+                                ab_C.append((b_v, ab_v))
 
             # Printing
             if printout:
+            #if 0:
                 print("=" * 19)
                 print("Current symmetry group:")
                 print("=" * 19)
@@ -290,6 +438,15 @@ class Complex:
 
                 print("=" * 19)
 
+        # Clean class trash
+        try:
+            del C0x
+            del cC0x
+            del C1x
+            del cC1x
+        except UnboundLocalError:
+            pass
+
 
     def triangulate_c(self, n=None, symmetry=None, printout=False):
         """
@@ -299,7 +456,16 @@ class Complex:
         :param n:
         :param symmetry:
 
-            Ex. []
+            Ex. Dictionary/hashtable
+            f(x) = (x_1 + x_2 + x_3) + (x_4)**2 + (x_5)**2 + (x_6)**2
+
+            symmetry = symmetry[0]: 0,  # Variable 1
+                       symmetry[1]: 0,  # symmetric to variable 1
+                       symmetry[2]: 0,  # symmetric to variable 1
+                       symmetry[3]: 3,  # Variable 4
+                       symmetry[4]: 3,  # symmetric to variable 4
+                       symmetry[5]: 3,  # symmetric to variable 4
+                        }
 
         :param printout:
         :return:
@@ -336,29 +502,58 @@ class Complex:
                 pass
 
         self.supremum = supremum
+
+        #TODO: Add check that symmetry is
         if symmetry is None:
-            p_args = self.bounds
+            cbounds = self.bounds
         else:
-            pass  # pop second entry on second symmetry vars
-            # Possibly add check for if second var bounds is not similar
+            cbounds = self.bounds
+            for i, j in enumerate(symmetry):
+                if i is not j:
+                    # pop second entry on second symmetry vars
+                    cbounds[i] = [self.bounds[symmetry[i]][0]]
+                    # Sole (first) entry is the sup value and there is no origin
+                    cbounds[i] = [self.bounds[symmetry[i]][1]]
+                    print(f'i = {i}')
+                    print(f'j = {j}')
+                    print(symmetry[i])
+                    print(f'self.bounds[symmetry[i]] = {self.bounds[symmetry[i]]}')
+                    if self.bounds[symmetry[i]] is not self.bounds[symmetry[j]]:
+                        logging.warning(f"Variable {i} was specified as "
+                                        f"symmetetric to variable {j}, however,"
+                                        f"the bounds {i} ="
+                                        f" {self.bounds[symmetry[i]]} "
+                                        f"and {j} ="
+                                        f" {self.bounds[symmetry[j]]} "
+                                        f"do not match, the mismatch was "
+                                        f"ignore in the initial triangulation.")
+                        #TODO: Change the supremum to correct value
+            print(f'cbounds = {cbounds}')
 
-        # Connect origin and suprenum (Uses 2 points)
-        # TODO: Should do after generation?
-        # self.V[tuple(origin)].connect(self.V[tuple(supremum)])
 
-        # Build generator
 
-        #TODO: Yield a generator
-        try:
-            self.Hx
-        except (AttributeError, KeyError):
-            self.Hx = []
+        if n is None:
+            # Build generator
+            self.cp = self.cyclic_product(cbounds, origin, supremum, symmetry,
+                                          printout)
+            for i in self.cp:
+                print(f"Yield = {i}")
 
+
+        else:
+            #Check if generator already exists
+            try:
+                self.cp
+            except (AttributeError, KeyError):
+                self.cp = self.cyclic_product(cbounds, origin, supremum,
+                                              symmetry, printout)
+
+
+
+                i#print(f'Big outside gen i = {i}')
 
         # Replace with limited iterator and next()
-        self.cp = self.cyclic_product(self.bounds, origin, supremum, True) # try
-        for i in self.cp:
-            i#print(f'Big outside gen i = {i}')
+
 
 
         #for vg in self.vgen:
@@ -2089,93 +2284,3 @@ class Complex:
         :param fn: str, filename
         :return:
         """
-
-# %% Vertex group classes
-class VertexGroup(object):
-    def __init__(self, p_gen=0, p_hgr=0):
-        self.p_gen = p_gen  # parent generation
-        self.p_hgr = p_hgr  # parent homology group rank
-        self.hg_n = None
-        self.hg_d = None
-
-        # Maybe add parent homology group rank total history
-        # This is the sum off all previously split cells
-        # cumulatively throughout its entire history
-        self.C = []
-
-    def __add__(self, v):
-        #self.C.append(v)
-        self.add_vertex(v)
-
-    def __call__(self):
-        return self.C
-
-    def add_vertex(self, V):
-        if V not in self.C:
-            self.C.append(V)
-
-    def homology_group_rank(self):
-        """
-        Returns the homology group order of the current cell
-        """
-        if self.hg_n is None:
-            self.hg_n = sum(1 for v in self.C if v.minimiser())
-
-        return self.hg_n
-
-    def homology_group_differential(self):
-        """
-        Returns the difference between the current homology group of the
-        cell and it's parent group
-        """
-        if self.hg_d is None:
-            self.hgd = self.hg_n - self.p_hgr
-
-        return self.hgd
-
-    def polytopial_sperner_lemma(self):
-        """
-        Returns the number of stationary points theoretically contained in the
-        cell based information currently known about the cell
-        """
-        pass
-
-    def print_out(self):
-        """
-        Print the current cell to console
-        """
-        for v in self():
-            v.print_out()
-
-class Subgroup(VertexGroup):
-    """
-    Contains a subgroup of vertices
-    """
-    def __init__(self, p_gen=0, p_hgr=0, origin=None, supremum=None):
-        super(Subgroup, self).__init__(p_gen, p_hgr)
-
-
-class Cell(VertexGroup):
-    """
-    Contains a cell that is symmetric to the initial hypercube triangulation
-    """
-
-    def __init__(self, p_gen, p_hgr, origin, supremum):
-        super(Cell, self).__init__(p_gen, p_hgr)
-
-        self.origin = origin
-        self.supremum = supremum
-        self.centroid = None  # (Not always used)
-        # TODO: self.bounds
-
-
-class Simplex(VertexGroup):
-    """
-    Contains a simplex that is symmetric to the initial symmetry constrained
-    hypersimplex triangulation
-    """
-
-    def __init__(self, p_gen, p_hgr, generation_cycle, dim):
-        super(Simplex, self).__init__(p_gen, p_hgr)
-
-        self.generation_cycle = (generation_cycle + 1) % (dim - 1)
