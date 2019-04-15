@@ -315,6 +315,8 @@ class Complex:
             del cC0x
             del C1x
             del cC1x
+            del ab_C
+            del ab_Cc
         except UnboundLocalError:
             pass
 
@@ -390,8 +392,7 @@ class Complex:
 
         if n is None:
             # Build generator
-            self.cp = self.cyclic_product(cbounds, origin, supremum, symmetry,
-                                          printout)
+            self.cp = self.cyclic_product(cbounds, origin, supremum, printout)
             for i in self.cp:
                 print(f"Yield = {i}")
 
@@ -417,6 +418,8 @@ class Complex:
             #self.V[tuple(origin)].connect(self.V[vg])
             #self.V[tuple(supremum)].connect(self.V[vg])
 
+        # Save the triangulated space for future refinement
+        self.triangulated_vectors = [(self.origin, self.supremum)]
 
         if printout:
             print("=" * 19)
@@ -656,7 +659,415 @@ class Complex:
     # 3. Connected based on the indices of the previous graph structure
     # 4. Disconnect the edges in the original cell
 
-    # %% Split symmetric generations
+    # %% Refinement
+    # % Refinement based on vector partitions
+
+    def refine(self):
+        """
+        Refine the entire domain of the current complex
+        :return:
+        """
+        print(f'self.triangulated_vectors = {self.triangulated_vectors}')
+        tvs = copy.copy(self.triangulated_vectors)
+        for vp in tvs:
+            print(f'tvs = {tvs}')
+            self.refine_local_space(*vp)
+            self.triangulated_vectors.remove(vp)#
+
+    def refine_local_space2(self, origin, supremum):
+        """
+        Refines the inside the hyperrectangle captured by the vector
+
+        #TODO: Ensure correct dimensions in input vectors
+
+        :param origin: vector origin tuple/list
+        :param supremum: vector supremum tuple/list
+        :return:
+        """
+        vot = tuple(origin)
+        vst = tuple(supremum)
+        print('='*20)
+        print(f'origin = {origin}')
+        print(f'supremum = {supremum}')
+        print(f'vot = {vot}')
+        print(f'vst = {vst}')
+        print('=' * 20)
+        # Initiate vertices in case they don't exist
+        vo = self.V[vot]
+        vs = self.V[vst]
+
+        # Disconnect the origin and supremum
+        vo.disconnect(vs)
+
+        #IN NEW METHOD WE NEED TO RUN THIS TO DISCONNECT EVERYTHING\
+
+        # Find the lower/upper bounds of the refinement hyperrectangle
+        bl = list(vot)
+        bu = list(vst)
+        print(f'bl = {bl}')
+        print(f'bu = {bu}')
+        for i, (voi, vsi) in enumerate(zip(vot, vst)):
+            print(f'i = {i}')
+            print(f'voi = {voi}')
+            print(f'vsi = {vsi}')
+            if bl[i] > vsi:
+                bl[i] = vsi
+            if bu[i] < voi:
+                bu[i] = voi
+
+
+        #TODO: These for loops can easily be replaced by numpy operations,
+        #      tests should be run to determine which method is faster.
+        #      NOTE: This is mostly done with sets/lists because we aren't sure
+        #            how well the numpy arrays will scale to thousands of
+        #             variables.
+        vn_pool = set()
+        vn_pool.update(vo.nn)
+        vn_pool.update(vs.nn)
+        print(f'vn_pool = {vn_pool}')
+        cvn_pool = copy.copy(vn_pool)
+        for vn in cvn_pool:
+            for i, xi in enumerate(vn.x):
+                #print(f' bl[i] <= xi and xi <= bu[i] '
+                #      f'= {bl[i] <= xi and xi <= bu[i]}')
+               # print(f'vn.x = {vn.x}')
+               # print(f'xi = {xi}')
+               # print(f'bl = {bl}')
+               # print(f'bu = {bu}')
+                if bl[i] <= xi <= bu[i]:
+                    pass
+                else:
+                    try:
+                        vn_pool.remove(vn)
+                    except KeyError:
+                        pass  #NOTE: Not all neigbouds are in initial pool
+        # Build centroid
+        # vca = (vo.x_a + vs.x_a) / 2.0
+        vca = (vs.x_a - vo.x_a) / 2.0 + vo.x_a
+        vc = self.V[tuple(vca)]
+        print(f'vc.x = {vc.x}')
+
+        # Connect the origin and supremum  to the centroid
+        # vo.disconnect(vs)
+        vc.connect(vo)
+        vc.connect(vs)
+
+        for vn in vn_pool:
+            print('-'*5)
+            print(f'vn.x = {vn.x}')
+            print('-'*5)
+            # Disconnect with origin vertex
+            vn.disconnect(vo)
+            #Disconnect with supremum vertex
+            vn.disconnect(vs)
+
+            # Create the new vertex to connect to vo and von
+            vjt = (vn.x_a - vo.x_a) / 2.0 + vo.x_a
+            print(f'vjt (vo---vn) = {vjt}')
+            vj = self.V[tuple(vjt)]
+            vj.connect(vo)
+            vj.connect(vn)
+            # Connect the vertices to the centroid (vo is already connected)
+            vj.connect(vc)
+            vn.connect(vc)
+
+            # Create the new vertex to connect to vs and vn
+            vkt = (vn.x_a - vs.x_a) / 2.0 + vs.x_a
+            print(f'vkt (vs---vn) = {vkt}')
+            vk = self.V[tuple(vkt)]
+            vk.connect(vs)
+            vk.connect(vn)
+
+            # Connect the vertices to the centroid (vo is already connected)
+            vk.connect(vc)
+            vn.connect(vc)
+
+            # Append the newly triangulated search spaces for future refinement
+            self.triangulated_vectors.append((vc.x, vn.x))
+            print(f'self.triangulated_vectors.append({(vc.x, vn.x)})')
+            #print(f'self.triangulated_vectors = { self.triangulated_vectors}')
+
+        #self.triangulated_vectors.append((vc.x, vo.x))
+        print(f'self.triangulated_vectors.append({(vc.x, vo.x)})')
+        #self.triangulated_vectors.append((vc.x, vs.x))
+        print(f'self.triangulated_vectors.append({(vc.x, vs.x)})')
+
+        # Pool all neighbours
+        if 0:
+            print(f'vo.nn = {vo.nn}')
+            von_pool = []
+            vsn_pool = []
+            for von in vo.nn:
+                print(f'von = {von}')
+                print(f'von.x = {von.x}')
+                print(f'von.x_a = {von.x_a}')
+                for i, xi in enumerate(von.x):
+                    print(f'i = {i}')
+                    print(f'xi = {xi}')
+                    print(f'von[i] = {von.x[i]}')
+                    print(f'xi <= von[i] = {xi <= von.x[i]}')
+                    if xi <= von.x[i]:
+                        break  # The else statement will run breaking main loop
+                else:
+                    break  # This breaks back to loop "for von in vo.nn:"
+
+                # If no breaks we can add to pool
+                von_pool.append(von)
+
+            for vsn in vs.nn:
+                print(f'vsn.x = {vsn.x}')
+                for i, xi in enumerate(vsn.x):
+                    print(f'i = {i}')
+                    print(f'xi = {xi}')
+                    print(f'vs[i] = {vsn.x[i]}')
+                    print(f'xi >= von[i] = {xi >= vsn.x[i]}')
+                    if xi >= vsn.x[i]:
+                        break  # The else statement will run breaking main loop
+                else:
+                    break  # This breaks back to loop "for von in vo.nn:"
+
+                # If no breaks we can add to pool
+                vsn_pool.append(von)
+
+            print(f'von_pool = {von_pool}')
+            print(f'vsn_pool = {vsn_pool}')
+
+            # Build centroid
+            vca = (vo.x_a + vs.x_a)/2.0
+            vc = self.V[tuple(vca)]
+            print(f'vc.x = {vc.x}')
+
+            # Connect the origin and supremum  to the centroid
+            #vo.disconnect(vs)
+            vc.connect(vo)
+            vc.connect(vs)
+
+            print(f'vc.nn = {vc.nn}')
+            for von in von_pool:
+                # Disconnect with origin vertex
+                von.disconnect(vo)
+
+                # Create the new vertex to connect to vo and von
+                vnt = (vo.x_a + von.x_a) / 2.0
+                vn = self.V[tuple(vnt)]
+                vn.connect(vo)
+                vn.connect(von)
+
+                # Connect the vertices to the centroid (vo is already connected)
+                von.connect(vc)
+                vn.connect(vc)
+
+            for vsn in vsn_pool:
+                # Disconnect with origin vertex
+                vsn.disconnect(vs)
+
+                # Create the new vertex to connect to vo and von
+                vnt = (vs.x_a + vsn.x_a) / 2.0
+                vn = self.V[tuple(vnt)]
+                vn.connect(vs)
+                vn.connect(vsn)
+
+                # Connect the vertices to the centroid (vo is already connected)
+                vsn.connect(vc)
+                vn.connect(vc)
+
+    def refine_local_space(self, origin, supremum):
+        """
+        Refines the inside the hyperrectangle captured by the vector
+
+        #TODO: Ensure correct dimensions in input vectors
+
+        :param origin: vector origin tuple/list
+        :param supremum: vector supremum tuple/list
+        :return:
+        """
+        vot = tuple(origin)
+        vst = tuple(supremum)
+        print('='*20)
+        print(f'origin = {origin}')
+        print(f'supremum = {supremum}')
+        print(f'vot = {vot}')
+        print(f'vst = {vst}')
+        print('=' * 20)
+        # Initiate vertices in case they don't exist
+        vo = self.V[vot]
+        vs = self.V[vst]
+
+        # Disconnect the origin and supremum
+        vo.disconnect(vs)
+
+        # Find the lower/upper bounds of the refinement hyperrectangle
+        bl = list(vot)
+        bu = list(vst)
+        print(f'bl = {bl}')
+        print(f'bu = {bu}')
+        for i, (voi, vsi) in enumerate(zip(vot, vst)):
+            print(f'i = {i}')
+            print(f'voi = {voi}')
+            print(f'vsi = {vsi}')
+            if bl[i] > vsi:
+                bl[i] = vsi
+            if bu[i] < voi:
+                bu[i] = voi
+
+
+        #TODO: These for loops can easily be replaced by numpy operations,
+        #      tests should be run to determine which method is faster.
+        #      NOTE: This is mostly done with sets/lists because we aren't sure
+        #            how well the numpy arrays will scale to thousands of
+        #             variables.
+        vn_pool = []
+        vn_pool = set()
+        vn_pool.update(vo.nn)
+        vn_pool.update(vs.nn)
+        print(f'vn_pool = {vn_pool}')
+        cvn_pool = copy.copy(vn_pool)
+        for vn in cvn_pool:
+            for i, xi in enumerate(vn.x):
+                #print(f' bl[i] <= xi and xi <= bu[i] '
+                #      f'= {bl[i] <= xi and xi <= bu[i]}')
+               # print(f'vn.x = {vn.x}')
+               # print(f'xi = {xi}')
+               # print(f'bl = {bl}')
+               # print(f'bu = {bu}')
+                if bl[i] <= xi <= bu[i]:
+                    pass
+                else:
+                    try:
+                        vn_pool.remove(vn)
+                    except KeyError:
+                        pass  #NOTE: Not all neigbouds are in initial pool
+        # Build centroid
+        # vca = (vo.x_a + vs.x_a) / 2.0
+        vca = (vs.x_a - vo.x_a) / 2.0 + vo.x_a
+        vc = self.V[tuple(vca)]
+        print(f'vc.x = {vc.x}')
+
+        # Connect the origin and supremum  to the centroid
+        # vo.disconnect(vs)
+        vc.connect(vo)
+        vc.connect(vs)
+
+        for vn in vn_pool:
+            print('-'*5)
+            print(f'vn.x = {vn.x}')
+            print('-'*5)
+            # Disconnect with origin vertex
+            vn.disconnect(vo)
+            #Disconnect with supremum vertex
+            vn.disconnect(vs)
+
+            # Create the new vertex to connect to vo and von
+            vjt = (vn.x_a - vo.x_a) / 2.0 + vo.x_a
+            print(f'vjt (vo---vn) = {vjt}')
+            vj = self.V[tuple(vjt)]
+            vj.connect(vo)
+            vj.connect(vn)
+            # Connect the vertices to the centroid (vo is already connected)
+            vj.connect(vc)
+            vn.connect(vc)
+
+            # Create the new vertex to connect to vs and vn
+            vkt = (vn.x_a - vs.x_a) / 2.0 + vs.x_a
+            print(f'vkt (vs---vn) = {vkt}')
+            vk = self.V[tuple(vkt)]
+            vk.connect(vs)
+            vk.connect(vn)
+
+            # Connect the vertices to the centroid (vo is already connected)
+            vk.connect(vc)
+            vn.connect(vc)
+
+            # Append the newly triangulated search spaces for future refinement
+            self.triangulated_vectors.append((vc.x, vn.x))
+            print(f'self.triangulated_vectors.append({(vc.x, vn.x)})')
+            #print(f'self.triangulated_vectors = { self.triangulated_vectors}')
+
+        #self.triangulated_vectors.append((vc.x, vo.x))
+        print(f'self.triangulated_vectors.append({(vc.x, vo.x)})')
+        #self.triangulated_vectors.append((vc.x, vs.x))
+        print(f'self.triangulated_vectors.append({(vc.x, vs.x)})')
+
+        # Pool all neighbours
+        if 0:
+            print(f'vo.nn = {vo.nn}')
+            von_pool = []
+            vsn_pool = []
+            for von in vo.nn:
+                print(f'von = {von}')
+                print(f'von.x = {von.x}')
+                print(f'von.x_a = {von.x_a}')
+                for i, xi in enumerate(von.x):
+                    print(f'i = {i}')
+                    print(f'xi = {xi}')
+                    print(f'von[i] = {von.x[i]}')
+                    print(f'xi <= von[i] = {xi <= von.x[i]}')
+                    if xi <= von.x[i]:
+                        break  # The else statement will run breaking main loop
+                else:
+                    break  # This breaks back to loop "for von in vo.nn:"
+
+                # If no breaks we can add to pool
+                von_pool.append(von)
+
+            for vsn in vs.nn:
+                print(f'vsn.x = {vsn.x}')
+                for i, xi in enumerate(vsn.x):
+                    print(f'i = {i}')
+                    print(f'xi = {xi}')
+                    print(f'vs[i] = {vsn.x[i]}')
+                    print(f'xi >= von[i] = {xi >= vsn.x[i]}')
+                    if xi >= vsn.x[i]:
+                        break  # The else statement will run breaking main loop
+                else:
+                    break  # This breaks back to loop "for von in vo.nn:"
+
+                # If no breaks we can add to pool
+                vsn_pool.append(von)
+
+            print(f'von_pool = {von_pool}')
+            print(f'vsn_pool = {vsn_pool}')
+
+            # Build centroid
+            vca = (vo.x_a + vs.x_a)/2.0
+            vc = self.V[tuple(vca)]
+            print(f'vc.x = {vc.x}')
+
+            # Connect the origin and supremum  to the centroid
+            #vo.disconnect(vs)
+            vc.connect(vo)
+            vc.connect(vs)
+
+            print(f'vc.nn = {vc.nn}')
+            for von in von_pool:
+                # Disconnect with origin vertex
+                von.disconnect(vo)
+
+                # Create the new vertex to connect to vo and von
+                vnt = (vo.x_a + von.x_a) / 2.0
+                vn = self.V[tuple(vnt)]
+                vn.connect(vo)
+                vn.connect(von)
+
+                # Connect the vertices to the centroid (vo is already connected)
+                von.connect(vc)
+                vn.connect(vc)
+
+            for vsn in vsn_pool:
+                # Disconnect with origin vertex
+                vsn.disconnect(vs)
+
+                # Create the new vertex to connect to vo and von
+                vnt = (vs.x_a + vsn.x_a) / 2.0
+                vn = self.V[tuple(vnt)]
+                vn.connect(vs)
+                vn.connect(vsn)
+
+                # Connect the vertices to the centroid (vo is already connected)
+                vsn.connect(vc)
+                vn.connect(vc)
+
+    # % Split symmetric generations
     def split_generation(self):
         """
         Run sub_generate_cell for every cell in the current complex self.gen

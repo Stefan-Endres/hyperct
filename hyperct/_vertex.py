@@ -84,6 +84,8 @@ class VertexScalarField(VertexBase):
         """
         super().__init__(x, nn=nn, index=index)
 
+
+        #TODO: Only build this array if x_a is called
         self.x_a = numpy.array(x)  # Array version of the hashed tuple
 
         # Note Vertex is only initiated once for all x so only
