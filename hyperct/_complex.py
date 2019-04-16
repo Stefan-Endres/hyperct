@@ -394,7 +394,7 @@ class Complex:
             # Build generator
             self.cp = self.cyclic_product(cbounds, origin, supremum, printout)
             for i in self.cp:
-                print(f"Yield = {i}")
+                i#print(f"Yield = {i}")
 
 
         else:
@@ -787,6 +787,14 @@ class Complex:
             print(f'self.triangulated_vectors.append({(vc.x, vn.x)})')
             #print(f'self.triangulated_vectors = { self.triangulated_vectors}')
 
+            # Find intersecting neighbours
+            vn_nn = vn.nn.intersect(vn_pool)
+            print(f'vn.nn = {vn.nn}')
+            print(f'vn_nn = {vn_nn}')
+            for vnn in vn.nn:
+                pass
+
+
         #self.triangulated_vectors.append((vc.x, vo.x))
         print(f'self.triangulated_vectors.append({(vc.x, vo.x)})')
         #self.triangulated_vectors.append((vc.x, vs.x))
@@ -948,6 +956,8 @@ class Complex:
         vc.connect(vo)
         vc.connect(vs)
 
+        vn_done = set()
+
         for vn in vn_pool:
             print('-'*5)
             print(f'vn.x = {vn.x}')
@@ -983,10 +993,60 @@ class Complex:
             print(f'self.triangulated_vectors.append({(vc.x, vn.x)})')
             #print(f'self.triangulated_vectors = { self.triangulated_vectors}')
 
+            # Add vn to vertices that have finished loop
+            vn_done.add(vn)
+
+            # Find intersecting neighbours
+            vn_nn = vn.nn.intersection(vn_pool)
+            #try:
+            #    vn_nn.remove(vo)
+            #    vn_nn.remove(vs)
+            #except KeyError:
+            #    vn_nn.remove(vs)
+            #    vn_nn.remove(vo)
+
+            print(f'vn.nn = {vn.nn}')
+            print(f'vn_nn = {vn_nn}')
+            vn_nn = vn_nn - vn_done
+            print(f'vn_nn = {vn_nn}')
+
+            for vnn in vn_nn:
+                print('#####')
+                print(f'vn.x = {vn.x}')
+                print(f'vnn.x = {vnn.x}')
+                # Disconnect old neighbours
+                vn.disconnect(vnn)
+
+                # Create the new vertex to connect to vn and vnn
+                vlt = (vnn.x_a - vn.x_a) / 2.0 + vn.x_a
+
+                print(f'vlt (vn---vnn) = {vlt}')
+                vl = self.V[tuple(vlt)]
+                vl.connect(vnn)
+                vl.connect(vn)
+
+                # Connect the vertices to the centroid (vn and vnn
+                # is already connected)
+                vl.connect(vc)
+                #vnn.connect(vc)
+                print('#####')
+
         #self.triangulated_vectors.append((vc.x, vo.x))
         print(f'self.triangulated_vectors.append({(vc.x, vo.x)})')
         #self.triangulated_vectors.append((vc.x, vs.x))
         print(f'self.triangulated_vectors.append({(vc.x, vs.x)})')
+
+        #NOW CONNECT ALL NEIGBOURS OF NEW SUPRENUMS TO EACH OTHER?????
+        # ^ Not gonna work
+
+        # New idea, take the set of new vo and vs tuples and run the cyclic
+        # routine without any cross triangulation (should work?_)
+        # We will need a new plan for symmetries here, or perhaps we don't, and
+        # we can just continue since vo-vs tuples remain the same and let the
+        # vertices be capture in the outer g_x constraintes?
+
+
+        # All combinations of 2 neigbours?
 
         # Pool all neighbours
         if 0:
