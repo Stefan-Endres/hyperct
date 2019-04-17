@@ -1033,28 +1033,6 @@ class Complex:
                 print('#####')
 
 
-            if 0:
-                for vnn in vn_nn:
-                    print('#####')
-                    print(f'vn.x = {vn.x}')
-                    print(f'vnn.x = {vnn.x}')
-                    # Disconnect old neighbours
-                    vn.disconnect(vnn)
-
-                    # Create the new vertex to connect to vn and vnn
-                    vlt = (vnn.x_a - vn.x_a) / 2.0 + vn.x_a
-
-                    print(f'vlt (vn---vnn) = {vlt}')
-                    vl = self.V[tuple(vlt)]
-                    vl.connect(vnn)
-                    vl.connect(vn)
-
-                    # Connect the vertices to the centroid (vn and vnn
-                    # is already connected)
-                    vl.connect(vc)
-                    #vnn.connect(vc)
-                    print('#####')
-
         self.triangulated_vectors.append((vc.x, vo.x))
         print(f'self.triangulated_vectors.append({(vc.x, vo.x)})')
         self.triangulated_vectors.append((vc.x, vs.x))
