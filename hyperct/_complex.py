@@ -713,8 +713,9 @@ class Complex:
         vc.connect(vs)
 
         vn_done = set()
+        cvn_pool = copy.copy(vn_pool)
 
-        for vn in vn_pool:
+        for vn in cvn_pool:
             # Disconnect with origin vertex
             vn.disconnect(vo)
             #Disconnect with supremum vertex
@@ -746,16 +747,8 @@ class Complex:
             vn_done.add(vn)
 
             # Find intersecting neighbours
-            vn_nn = vn.nn.intersection(vn_pool)
-            #try:
-            #    vn_nn.remove(vo)
-            #    vn_nn.remove(vs)
-            #except KeyError:
-            #    vn_nn.remove(vs)
-            #    vn_nn.remove(vo)
-
-            vn_nn = vn_nn - vn_done
-
+            vn_pool = vn_pool - set([vn])
+            print(f'vn_pool = {vn_pool}')
             for vnn in vn_pool:
                 #NOTE: if vnn not vn, but might be faster to just leave out?
                 # Disconnect old neighbours
@@ -775,7 +768,7 @@ class Complex:
 
         self.triangulated_vectors.append((vc.x, vo.x))
         self.triangulated_vectors.append((vc.x, vs.x))
-        
+
 
     def vpool(self, origin, supremum):
         vot = tuple(origin)
