@@ -741,7 +741,6 @@ class Complex:
 
             # Append the newly triangulated search spaces for future refinement
             self.triangulated_vectors.append((vc.x, vn.x))
-            #print(f'self.triangulated_vectors = { self.triangulated_vectors}')
 
             # Add vn to vertices that have finished loop
             vn_done.add(vn)
@@ -776,15 +775,7 @@ class Complex:
 
         self.triangulated_vectors.append((vc.x, vo.x))
         self.triangulated_vectors.append((vc.x, vs.x))
-
-        #NOW CONNECT ALL NEIGBOURS OF NEW SUPRENUMS TO EACH OTHER?????
-        # ^ Not gonna work
-
-        # New idea, take the set of new vo and vs tuples and run the cyclic
-        # routine without any cross triangulation (should work?_)
-        # We will need a new plan for symmetries here, or perhaps we don't, and
-        # we can just continue since vo-vs tuples remain the same and let the
-        # vertices be capture in the outer g_x constraintes?
+        
 
     def vpool(self, origin, supremum):
         vot = tuple(origin)
