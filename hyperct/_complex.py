@@ -667,20 +667,16 @@ class Complex:
         Refine the entire domain of the current complex
         :return:
         """
-        print(f'self.triangulated_vectors = {self.triangulated_vectors}')
         tvs = copy.copy(self.triangulated_vectors)
 
         vn_pool_sets = []
 
         for vp in tvs:
-            print(f'tvs = {tvs}')
             vn_pool_sets.append(self.vpool(*vp))
 
-        print(f'vn_pool_sets = {vn_pool_sets}')
         for i, vp in enumerate(tvs):
-            print(f'tvs = {tvs}')
             self.refine_local_space(*vp, vpool=vn_pool_sets[i])
-            self.triangulated_vectors.remove(vp)#
+            self.triangulated_vectors.remove(vp)
 
     def refine_local_space(self, origin, supremum, vpool=None):
         """
@@ -694,12 +690,6 @@ class Complex:
         """
         vot = tuple(origin)
         vst = tuple(supremum)
-        print('='*20)
-        print(f'origin = {origin}')
-        print(f'supremum = {supremum}')
-        print(f'vot = {vot}')
-        print(f'vst = {vst}')
-        print('=' * 20)
         # Initiate vertices in case they don't exist
         vo = self.V[vot]
         vs = self.V[vst]
@@ -716,7 +706,6 @@ class Complex:
         # vca = (vo.x_a + vs.x_a) / 2.0
         vca = (vs.x_a - vo.x_a) / 2.0 + vo.x_a
         vc = self.V[tuple(vca)]
-        print(f'vc.x = {vc.x}')
 
         # Connect the origin and supremum  to the centroid
         # vo.disconnect(vs)
@@ -726,9 +715,6 @@ class Complex:
         vn_done = set()
 
         for vn in vn_pool:
-            print('-'*5)
-            print(f'vn.x = {vn.x}')
-            print('-'*5)
             # Disconnect with origin vertex
             vn.disconnect(vo)
             #Disconnect with supremum vertex
@@ -736,7 +722,6 @@ class Complex:
 
             # Create the new vertex to connect to vo and von
             vjt = (vn.x_a - vo.x_a) / 2.0 + vo.x_a
-            print(f'vjt (vo---vn) = {vjt}')
             vj = self.V[tuple(vjt)]
             vj.connect(vo)
             vj.connect(vn)
@@ -746,7 +731,6 @@ class Complex:
 
             # Create the new vertex to connect to vs and vn
             vkt = (vn.x_a - vs.x_a) / 2.0 + vs.x_a
-            print(f'vkt (vs---vn) = {vkt}')
             vk = self.V[tuple(vkt)]
             vk.connect(vs)
             vk.connect(vn)
@@ -757,7 +741,6 @@ class Complex:
 
             # Append the newly triangulated search spaces for future refinement
             self.triangulated_vectors.append((vc.x, vn.x))
-            print(f'self.triangulated_vectors.append({(vc.x, vn.x)})')
             #print(f'self.triangulated_vectors = { self.triangulated_vectors}')
 
             # Add vn to vertices that have finished loop
@@ -772,23 +755,15 @@ class Complex:
             #    vn_nn.remove(vs)
             #    vn_nn.remove(vo)
 
-            print(f'vn.nn = {vn.nn}')
-            print(f'vn_nn = {vn_nn}')
             vn_nn = vn_nn - vn_done
-            print(f'vn_nn = {vn_nn}')
 
             for vnn in vn_pool:
                 #NOTE: if vnn not vn, but might be faster to just leave out?
-                print('#####')
-                print(f'vn.x = {vn.x}')
-                print(f'vnn.x = {vnn.x}')
                 # Disconnect old neighbours
                 vn.disconnect(vnn)
 
                 # Create the new vertex to connect to vn and vnn
                 vlt = (vnn.x_a - vn.x_a) / 2.0 + vn.x_a
-
-                print(f'vlt (vn---vnn) = {vlt}')
                 vl = self.V[tuple(vlt)]
                 vl.connect(vnn)
                 vl.connect(vn)
@@ -797,13 +772,10 @@ class Complex:
                 # is already connected)
                 vl.connect(vc)
                 #vnn.connect(vc)
-                print('#####')
 
 
         self.triangulated_vectors.append((vc.x, vo.x))
-        print(f'self.triangulated_vectors.append({(vc.x, vo.x)})')
         self.triangulated_vectors.append((vc.x, vs.x))
-        print(f'self.triangulated_vectors.append({(vc.x, vs.x)})')
 
         #NOW CONNECT ALL NEIGBOURS OF NEW SUPRENUMS TO EACH OTHER?????
         # ^ Not gonna work
@@ -817,13 +789,6 @@ class Complex:
     def vpool(self, origin, supremum):
         vot = tuple(origin)
         vst = tuple(supremum)
-        print('=' * 20)
-        print('V pool function')
-        print('=' * 10)
-        print(f'origin = {origin}')
-        print(f'supremum = {supremum}')
-        print(f'vot = {vot}')
-        print(f'vst = {vst}')
         # Initiate vertices in case they don't exist
         vo = self.V[vot]
         vs = self.V[vst]
@@ -834,12 +799,7 @@ class Complex:
         # Find the lower/upper bounds of the refinement hyperrectangle
         bl = list(vot)
         bu = list(vst)
-        print(f'bl = {bl}')
-        print(f'bu = {bu}')
         for i, (voi, vsi) in enumerate(zip(vot, vst)):
-            print(f'i = {i}')
-            print(f'voi = {voi}')
-            print(f'vsi = {vsi}')
             if bl[i] > vsi:
                 bl[i] = vsi
             if bu[i] < voi:
@@ -850,20 +810,12 @@ class Complex:
         #      NOTE: This is mostly done with sets/lists because we aren't sure
         #            how well the numpy arrays will scale to thousands of
         #             variables.
-        vn_pool = []
         vn_pool = set()
         vn_pool.update(vo.nn)
         vn_pool.update(vs.nn)
-        print(f'vn_pool = {vn_pool}')
         cvn_pool = copy.copy(vn_pool)
         for vn in cvn_pool:
             for i, xi in enumerate(vn.x):
-                # print(f' bl[i] <= xi and xi <= bu[i] '
-                #      f'= {bl[i] <= xi and xi <= bu[i]}')
-                # print(f'vn.x = {vn.x}')
-                # print(f'xi = {xi}')
-                # print(f'bl = {bl}')
-                # print(f'bu = {bu}')
                 if bl[i] <= xi <= bu[i]:
                     pass
                 else:
@@ -871,10 +823,6 @@ class Complex:
                         vn_pool.remove(vn)
                     except KeyError:
                         pass  # NOTE: Not all neigbouds are in initial pool
-        # Build centroid
-        # vca = (vo.x_a + vs.x_a) / 2.0
-
-        print('=' * 20)
         return vn_pool
 
     # % Split symmetric generations
