@@ -669,12 +669,20 @@ class Complex:
         """
         print(f'self.triangulated_vectors = {self.triangulated_vectors}')
         tvs = copy.copy(self.triangulated_vectors)
+
+        vn_pool_sets = []
+
         for vp in tvs:
             print(f'tvs = {tvs}')
-            self.refine_local_space(*vp)
+            vn_pool_sets.append(self.vpool(*vp))
+
+        print(f'vn_pool_sets = {vn_pool_sets}')
+        for i, vp in enumerate(tvs):
+            print(f'tvs = {tvs}')
+            self.refine_local_space(*vp, vpool=vn_pool_sets[i])
             self.triangulated_vectors.remove(vp)#
 
-    def refine_local_space(self, origin, supremum):
+    def refine_local_space(self, origin, supremum, vpool=None):
         """
         Refines the inside the hyperrectangle captured by the vector
 
@@ -699,47 +707,11 @@ class Complex:
         # Disconnect the origin and supremum
         vo.disconnect(vs)
 
-        # Find the lower/upper bounds of the refinement hyperrectangle
-        bl = list(vot)
-        bu = list(vst)
-        print(f'bl = {bl}')
-        print(f'bu = {bu}')
-        for i, (voi, vsi) in enumerate(zip(vot, vst)):
-            print(f'i = {i}')
-            print(f'voi = {voi}')
-            print(f'vsi = {vsi}')
-            if bl[i] > vsi:
-                bl[i] = vsi
-            if bu[i] < voi:
-                bu[i] = voi
+        if vpool is None:
+            vn_pool = self.vpool(origin, supremum)
+        else:
+            vn_pool = vpool
 
-
-        #TODO: These for loops can easily be replaced by numpy operations,
-        #      tests should be run to determine which method is faster.
-        #      NOTE: This is mostly done with sets/lists because we aren't sure
-        #            how well the numpy arrays will scale to thousands of
-        #             variables.
-        vn_pool = []
-        vn_pool = set()
-        vn_pool.update(vo.nn)
-        vn_pool.update(vs.nn)
-        print(f'vn_pool = {vn_pool}')
-        cvn_pool = copy.copy(vn_pool)
-        for vn in cvn_pool:
-            for i, xi in enumerate(vn.x):
-                #print(f' bl[i] <= xi and xi <= bu[i] '
-                #      f'= {bl[i] <= xi and xi <= bu[i]}')
-               # print(f'vn.x = {vn.x}')
-               # print(f'xi = {xi}')
-               # print(f'bl = {bl}')
-               # print(f'bu = {bu}')
-                if bl[i] <= xi <= bu[i]:
-                    pass
-                else:
-                    try:
-                        vn_pool.remove(vn)
-                    except KeyError:
-                        pass  #NOTE: Not all neigbouds are in initial pool
         # Build centroid
         # vca = (vo.x_a + vs.x_a) / 2.0
         vca = (vs.x_a - vo.x_a) / 2.0 + vo.x_a
@@ -842,8 +814,68 @@ class Complex:
         # we can just continue since vo-vs tuples remain the same and let the
         # vertices be capture in the outer g_x constraintes?
 
-    def vpool(self, source, supremum):
-        pass
+    def vpool(self, origin, supremum):
+        vot = tuple(origin)
+        vst = tuple(supremum)
+        print('=' * 20)
+        print('V pool function')
+        print('=' * 10)
+        print(f'origin = {origin}')
+        print(f'supremum = {supremum}')
+        print(f'vot = {vot}')
+        print(f'vst = {vst}')
+        # Initiate vertices in case they don't exist
+        vo = self.V[vot]
+        vs = self.V[vst]
+
+        # Disconnect the origin and supremum
+        vo.disconnect(vs)
+
+        # Find the lower/upper bounds of the refinement hyperrectangle
+        bl = list(vot)
+        bu = list(vst)
+        print(f'bl = {bl}')
+        print(f'bu = {bu}')
+        for i, (voi, vsi) in enumerate(zip(vot, vst)):
+            print(f'i = {i}')
+            print(f'voi = {voi}')
+            print(f'vsi = {vsi}')
+            if bl[i] > vsi:
+                bl[i] = vsi
+            if bu[i] < voi:
+                bu[i] = voi
+
+        # TODO: These for loops can easily be replaced by numpy operations,
+        #      tests should be run to determine which method is faster.
+        #      NOTE: This is mostly done with sets/lists because we aren't sure
+        #            how well the numpy arrays will scale to thousands of
+        #             variables.
+        vn_pool = []
+        vn_pool = set()
+        vn_pool.update(vo.nn)
+        vn_pool.update(vs.nn)
+        print(f'vn_pool = {vn_pool}')
+        cvn_pool = copy.copy(vn_pool)
+        for vn in cvn_pool:
+            for i, xi in enumerate(vn.x):
+                # print(f' bl[i] <= xi and xi <= bu[i] '
+                #      f'= {bl[i] <= xi and xi <= bu[i]}')
+                # print(f'vn.x = {vn.x}')
+                # print(f'xi = {xi}')
+                # print(f'bl = {bl}')
+                # print(f'bu = {bu}')
+                if bl[i] <= xi <= bu[i]:
+                    pass
+                else:
+                    try:
+                        vn_pool.remove(vn)
+                    except KeyError:
+                        pass  # NOTE: Not all neigbouds are in initial pool
+        # Build centroid
+        # vca = (vo.x_a + vs.x_a) / 2.0
+
+        print('=' * 20)
+        return vn_pool
 
     # % Split symmetric generations
     def split_generation(self):
