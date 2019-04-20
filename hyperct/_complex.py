@@ -84,7 +84,7 @@ from hyperct._vertex_group import (Subgroup, Cell, Simplex)
 class Complex:
     def __init__(self, dim, domain=None, sfield=None, sfield_args=(),
                  vfield=None, vfield_args=None,
-                 symmetry=False, g_cons=None, g_cons_args=()):
+                 symmetry=None, g_cons=None, g_cons_args=()):
         """
         A base class for a simplicial complex described as a cache of vertices
         together with their connections.
@@ -185,8 +185,8 @@ class Complex:
         vut = tuple(supremum)  # Hyperrectangle supremum
         self.V[vot]
         yield vot
-        self.V[vut].connect(self.V[vot])
-        yield vut
+        #self.V[vut].connect(self.V[vot])
+        #yield vut
         # Cyclic group approach with second x_l --- x_u operation.
 
         # These containers store the "lower" and "upper" vertices
@@ -198,8 +198,12 @@ class Complex:
         C0x = [[self.V[vot]]]
         a_vo = copy.copy(vo)
         a_vo[0] = vut[0]  # Update aN Origin
-        self.V[vot].connect(self.V[tuple(a_vo)])
-        C1x = [[self.V[tuple(a_vo)]]]
+        a_vo = self.V[tuple(a_vo)]
+        yield a_vo.x
+        #self.V[vot].connect(self.V[tuple(a_vo)])
+        self.V[vot].connect(a_vo)
+        C1x = [[a_vo]]
+        #C1x = [[self.V[tuple(a_vo)]]]
         ab_C = []  # Container for a + b operations
 
         # Loop over remaining bounds
@@ -296,6 +300,7 @@ class Complex:
                             vu.connect(a_vs)
                             #NOTE: Only needed when there will be no more
                             #      symmetric points later on
+                yield a_vs
 
             # Printing
             if printout:
@@ -309,6 +314,7 @@ class Complex:
 
                 print("=" * 19)
 
+
         # Clean class trash
         try:
             del C0x
@@ -320,8 +326,9 @@ class Complex:
         except UnboundLocalError:
             pass
 
+        return
 
-    def triangulate_c(self, n=None, symmetry=None, printout=False):
+    def triangulate(self, n=None, symmetry=None, printout=False):
         """
         Triangulate the initial domain, if n is not None then a limited number
         of points will be generated
@@ -394,7 +401,9 @@ class Complex:
             # Build generator
             self.cp = self.cyclic_product(cbounds, origin, supremum, printout)
             for i in self.cp:
-                i#print(f"Yield = {i}")
+                print("Continuing triangulation")
+                print(f'i = {i}')
+                #print(f'next(self.cp) = {next(self.cp)}')
 
 
         else:
@@ -403,23 +412,21 @@ class Complex:
                 self.cp
             except (AttributeError, KeyError):
                 self.cp = self.cyclic_product(cbounds, origin, supremum,
-                                              symmetry, printout)
+                                              printout)
 
+            try:
+                for i in range(n):
+                    print(f'i = {i}')
+                    print(f'next(self.cp) = {next(self.cp)}')
+            except StopIteration:
+                #TODO: We should maybe append and add the possibility of
+                #      of starting new triangulated domains on different
+                #      complexes
+                self.triangulated_vectors = [(self.origin, self.supremum)]
 
-
-                i#print(f'Big outside gen i = {i}')
-
-        # Replace with limited iterator and next()
-
-
-
-        #for vg in self.vgen:
-
-            #self.V[tuple(origin)].connect(self.V[vg])
-            #self.V[tuple(supremum)].connect(self.V[vg])
 
         # Save the triangulated space for future refinement
-        self.triangulated_vectors = [(self.origin, self.supremum)]
+        #self.triangulated_vectors = [(self.origin, self.supremum)]
 
         if printout:
             print("=" * 19)
@@ -433,7 +440,7 @@ class Complex:
             print("=" * 19)
 
 
-    def triangulate(self, domain=None, n=None, symm=None):
+    def triangulate_p(self, domain=None, n=None, symm=None):
         """
 
         :param n: Limited number of points to generate
@@ -661,8 +668,16 @@ class Complex:
 
     # %% Refinement
     # % Refinement based on vector partitions
+    def refine(self, n=1):
+        try:
+            self.triangulated_vectors
+            print(f'Found initial triangulation vector space, starting refinement')
+        except (AttributeError, KeyError):
+            print(f'Initial vector space still being traingulated:')
+            self.triangulate(n, self.symmetry)
 
-    def refine(self):
+
+    def refine_all(self):
         """
         Refine the entire domain of the current complex
         :return:
@@ -740,15 +755,12 @@ class Complex:
             vk.connect(vc)
             vn.connect(vc)
 
-            # Append the newly triangulated search spaces for future refinement
-            self.triangulated_vectors.append((vc.x, vn.x))
-
             # Add vn to vertices that have finished loop
             vn_done.add(vn)
 
             # Find intersecting neighbours
             vn_pool = vn_pool - set([vn])
-            print(f'vn_pool = {vn_pool}')
+            #print(f'vn_pool = {vn_pool}')
             for vnn in vn_pool:
                 #NOTE: if vnn not vn, but might be faster to just leave out?
                 # Disconnect old neighbours
@@ -765,6 +777,8 @@ class Complex:
                 vl.connect(vc)
                 #vnn.connect(vc)
 
+            # Append the newly triangulated search spaces for future refinement
+            self.triangulated_vectors.append((vc.x, vn.x))
 
         self.triangulated_vectors.append((vc.x, vo.x))
         self.triangulated_vectors.append((vc.x, vs.x))
