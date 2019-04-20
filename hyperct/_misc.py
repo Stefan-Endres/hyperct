@@ -1,5 +1,8 @@
+import collections, time, functools
+
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
+
 class Arrow3D(FancyArrowPatch):
     """
     Arrow used in the plotting of 3D vecotrs
