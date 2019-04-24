@@ -228,16 +228,16 @@ class Complex:
                         a_vl[i + 1] = vut[i + 1]
                         a_vu[i + 1] = vut[i + 1]
                         a_vl = self.V[tuple(a_vl)]
-                        #TODO: We can check if the vertex is already in the
-                        #      so that we do not yield a non-new vertex,
-                        #      however, this might cause a significant slowdown.
-                        yield a_vl.x
-                        a_vu = self.V[tuple(a_vu)]
-                        yield a_vu.x
 
                         # Connect vertices in N to corresponding vertices
                         # in aN:
                         vl.connect(a_vl)
+
+                        yield a_vl.x
+
+                        a_vu = self.V[tuple(a_vu)]
+                        # Connect vertices in N to corresponding vertices
+                        # in aN:
                         vu.connect(a_vu)
 
                         # Connect new vertex pair in aN:
@@ -257,6 +257,13 @@ class Complex:
                         # Update old containers
                         C0x[j].append(a_vl)
                         C1x[j].append(a_vu)
+
+                        # Yield new points
+                        #TODO: We can check if the vertex is already in the
+                        #      so that we do not yield a non-new vertex,
+                        #      however, this might cause a significant slowdown.
+
+                        yield a_vu.x
 
                 # Try to connect aN lower source of previous a + b
                 # operation with a aN vertex
@@ -300,6 +307,8 @@ class Complex:
                             vu.connect(a_vs)
                             #NOTE: Only needed when there will be no more
                             #      symmetric points later on
+
+                # Yield a tuple
                 yield a_vs
 
             # Printing
@@ -326,7 +335,8 @@ class Complex:
         except UnboundLocalError:
             pass
 
-        return
+        # Extra yield to ensure that the triangulation is completed
+        return vut
 
     def triangulate(self, n=None, symmetry=None, printout=False):
         """
@@ -405,6 +415,7 @@ class Complex:
                 print(f'i = {i}')
                 #print(f'next(self.cp) = {next(self.cp)}')
 
+            self.triangulated_vectors = [(self.origin, self.supremum)]
 
         else:
             #Check if generator already exists
@@ -415,8 +426,8 @@ class Complex:
                                               printout)
 
             try:
-                for i in range(n):
-                    print(f'i = {i}')
+                while len(self.V.cache) < n:
+                    #next(self.cp)
                     print(f'next(self.cp) = {next(self.cp)}')
             except StopIteration:
                 #TODO: We should maybe append and add the possibility of
@@ -669,13 +680,57 @@ class Complex:
     # %% Refinement
     # % Refinement based on vector partitions
     def refine(self, n=1):
-        try:
-            self.triangulated_vectors
-            print(f'Found initial triangulation vector space, starting refinement')
-        except (AttributeError, KeyError):
-            print(f'Initial vector space still being traingulated:')
-            self.triangulate(n, self.symmetry)
+        #TODO: Replace with while loop checking cache size instead?
+        nt = len(self.V.cache) + n
+        while len(self.V.cache) < nt:
+            print(f'len(self.V.cache) = {len(self.V.cache)}')
+            try:
+                self.triangulated_vectors
+                print(f'Found initial triangulation vector space, '
+                      f'starting refinement')
+                if n is None:
+                    self.refine_all()
+                else:
+                    # Check if a generator exists, it should only be initiated the
+                    # first time and replaced in the subsequent loops.
+                    #try:
+                    #    self.rls
+                    #except(AttributeError, StopIteration, KeyError):
+                    #    pass
 
+                    #for i in range(n):
+                    # Try a usual iteration of the current generator, if it
+                    # does not exist then produce a new generator
+                    try:
+                        #next(self.rls)
+                        #print(f'i = {i}')
+                        print(f'next(self.rls) = {next(self.rls)}')
+                    except (AttributeError, StopIteration, KeyError):
+                        #TODO: Test if it works to use the first vector in the
+                        # list
+
+                        # Try to generate a new vertex generator using the
+                        # current vertex neighbour pool generator, if it does
+                        # not exist or the iteration is exhausted then produce
+                        # the next generator
+                        try:
+                            vn_pool = next(self.tvs)
+                            vp = self.triangulated_vectors[0]
+                            self.rls = self.refine_local_space(*vp, vn_pool)
+                            print(f'next(self.rls) = {next(self.rls)}')
+                        except (AttributeError, StopIteration, KeyError):
+                            self.tvs = self.tvs_gen()
+                            vn_pool = next(self.tvs)
+                            vp = self.triangulated_vectors[0]
+                            self.rls = self.refine_local_space(*vp, vn_pool)
+                            print(f'next(self.rls) = {next(self.rls)}')
+
+            except (AttributeError, KeyError):
+                print(f'Initial vector space still being triangulated:')
+                self.triangulate(nt, self.symmetry)
+                # Recursively
+
+    #def refine_usual(self, n):
 
     def refine_all(self):
         """
@@ -683,7 +738,6 @@ class Complex:
         :return:
         """
         tvs = copy.copy(self.triangulated_vectors)
-
         vn_pool_sets = []
 
         for vp in tvs:
@@ -691,7 +745,26 @@ class Complex:
 
         for i, vp in enumerate(tvs):
             self.refine_local_space(*vp, vpool=vn_pool_sets[i])
-            self.triangulated_vectors.remove(vp)
+            #self.triangulated_vectors.remove(vp)
+
+    def tvs_gen(self):
+        """
+        A generator to yield vpool objects for a generation of
+        sub-triangulations. Preserving the original triangulated_vectors is
+        needed to
+        :return:
+        """
+        tvs = copy.copy(self.triangulated_vectors)
+        vn_pool_sets = []
+
+        for vp in tvs:
+            vn_pool_sets.append(self.vpool(*vp))
+
+        for vn_pool in vn_pool_sets:
+            print(f'vn_pool = {vn_pool}')
+            yield vn_pool
+
+        return
 
     def refine_local_space(self, origin, supremum, vpool=None):
         """
@@ -726,6 +799,7 @@ class Complex:
         # vo.disconnect(vs)
         vc.connect(vo)
         vc.connect(vs)
+        yield vc.x
 
         vn_done = set()
         cvn_pool = copy.copy(vn_pool)
@@ -744,16 +818,17 @@ class Complex:
             # Connect the vertices to the centroid (vo is already connected)
             vj.connect(vc)
             vn.connect(vc)
+            yield vj.x
 
             # Create the new vertex to connect to vs and vn
             vkt = (vn.x_a - vs.x_a) / 2.0 + vs.x_a
             vk = self.V[tuple(vkt)]
             vk.connect(vs)
             vk.connect(vn)
-
             # Connect the vertices to the centroid (vo is already connected)
             vk.connect(vc)
             vn.connect(vc)
+            yield vk.x
 
             # Add vn to vertices that have finished loop
             vn_done.add(vn)
@@ -777,12 +852,20 @@ class Complex:
                 vl.connect(vc)
                 #vnn.connect(vc)
 
+                # Yield a tuple
+                yield vl.x
+
             # Append the newly triangulated search spaces for future refinement
             self.triangulated_vectors.append((vc.x, vn.x))
 
         self.triangulated_vectors.append((vc.x, vo.x))
         self.triangulated_vectors.append((vc.x, vs.x))
 
+        # Remove the current vector from the external container
+        self.triangulated_vectors.remove((origin, supremum))
+        # Complete the routine in the generator
+        yield vc.x
+        return
 
     def vpool(self, origin, supremum):
         vot = tuple(origin)
@@ -791,8 +874,7 @@ class Complex:
         vo = self.V[vot]
         vs = self.V[vst]
 
-        # Disconnect the origin and supremum
-        vo.disconnect(vs)
+        # Remove origin - supremum disconnect
 
         # Find the lower/upper bounds of the refinement hyperrectangle
         bl = list(vot)
