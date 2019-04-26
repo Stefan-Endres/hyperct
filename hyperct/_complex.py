@@ -741,7 +741,6 @@ class Complex:
             vn_pool_sets.append(self.vpool(*vp))
 
         for vn_pool in vn_pool_sets:
-            print(f'vn_pool = {vn_pool}')
             yield vn_pool
 
         return
