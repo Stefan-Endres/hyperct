@@ -185,8 +185,8 @@ class Complex:
         vut = tuple(supremum)  # Hyperrectangle supremum
         self.V[vot]
         yield vot
-        #self.V[vut].connect(self.V[vot])
-        #yield vut
+        self.V[vut].connect(self.V[vot])
+        yield vut
         # Cyclic group approach with second x_l --- x_u operation.
 
         # These containers store the "lower" and "upper" vertices
@@ -411,9 +411,7 @@ class Complex:
             # Build generator
             self.cp = self.cyclic_product(cbounds, origin, supremum, printout)
             for i in self.cp:
-                print("Continuing triangulation")
-                print(f'i = {i}')
-                #print(f'next(self.cp) = {next(self.cp)}')
+                next(self.cp)
 
             self.triangulated_vectors = [(self.origin, self.supremum)]
 
@@ -427,17 +425,17 @@ class Complex:
 
             try:
                 while len(self.V.cache) < n:
-                    #next(self.cp)
-                    print(f'next(self.cp) = {next(self.cp)}')
+                    next(self.cp)
             except StopIteration:
                 #TODO: We should maybe append and add the possibility of
                 #      of starting new triangulated domains on different
                 #      complexes
-                self.triangulated_vectors = [(self.origin, self.supremum)]
+                try:
+                    self.triangulated_vectors.append((self.origin,
+                                                      self.supremum))
+                except (AttributeError, KeyError):
+                    self.triangulated_vectors = [(self.origin, self.supremum)]
 
-
-        # Save the triangulated space for future refinement
-        #self.triangulated_vectors = [(self.origin, self.supremum)]
 
         if printout:
             print("=" * 19)
@@ -679,36 +677,20 @@ class Complex:
 
     # %% Refinement
     # % Refinement based on vector partitions
-    def refine(self, n=1):
+    def refine(self, n=1, symmetry=None):
         #TODO: Replace with while loop checking cache size instead?
         nt = len(self.V.cache) + n
         while len(self.V.cache) < nt:
-            print(f'len(self.V.cache) = {len(self.V.cache)}')
             try:
                 self.triangulated_vectors
-                print(f'Found initial triangulation vector space, '
-                      f'starting refinement')
                 if n is None:
                     self.refine_all()
                 else:
-                    # Check if a generator exists, it should only be initiated the
-                    # first time and replaced in the subsequent loops.
-                    #try:
-                    #    self.rls
-                    #except(AttributeError, StopIteration, KeyError):
-                    #    pass
-
-                    #for i in range(n):
                     # Try a usual iteration of the current generator, if it
                     # does not exist then produce a new generator
                     try:
-                        #next(self.rls)
-                        #print(f'i = {i}')
-                        print(f'next(self.rls) = {next(self.rls)}')
+                        next(self.rls)
                     except (AttributeError, StopIteration, KeyError):
-                        #TODO: Test if it works to use the first vector in the
-                        # list
-
                         # Try to generate a new vertex generator using the
                         # current vertex neighbour pool generator, if it does
                         # not exist or the iteration is exhausted then produce
@@ -717,20 +699,18 @@ class Complex:
                             vn_pool = next(self.tvs)
                             vp = self.triangulated_vectors[0]
                             self.rls = self.refine_local_space(*vp, vn_pool)
-                            print(f'next(self.rls) = {next(self.rls)}')
+                            next(self.rls)
                         except (AttributeError, StopIteration, KeyError):
                             self.tvs = self.tvs_gen()
                             vn_pool = next(self.tvs)
                             vp = self.triangulated_vectors[0]
                             self.rls = self.refine_local_space(*vp, vn_pool)
-                            print(f'next(self.rls) = {next(self.rls)}')
+                            next(self.rls)
 
             except (AttributeError, KeyError):
-                print(f'Initial vector space still being triangulated:')
-                self.triangulate(nt, self.symmetry)
+                self.triangulate(nt, symmetry)
                 # Recursively
 
-    #def refine_usual(self, n):
 
     def refine_all(self):
         """
@@ -807,8 +787,6 @@ class Complex:
         for vn in cvn_pool:
             # Disconnect with origin vertex
             vn.disconnect(vo)
-            #Disconnect with supremum vertex
-            vn.disconnect(vs)
 
             # Create the new vertex to connect to vo and von
             vjt = (vn.x_a - vo.x_a) / 2.0 + vo.x_a
@@ -819,6 +797,9 @@ class Complex:
             vj.connect(vc)
             vn.connect(vc)
             yield vj.x
+
+            #Disconnect with supremum vertex
+            vn.disconnect(vs)
 
             # Create the new vertex to connect to vs and vn
             vkt = (vn.x_a - vs.x_a) / 2.0 + vs.x_a
@@ -838,9 +819,6 @@ class Complex:
             #print(f'vn_pool = {vn_pool}')
             for vnn in vn_pool:
                 #NOTE: if vnn not vn, but might be faster to just leave out?
-                # Disconnect old neighbours
-                vn.disconnect(vnn)
-
                 # Create the new vertex to connect to vn and vnn
                 vlt = (vnn.x_a - vn.x_a) / 2.0 + vn.x_a
                 vl = self.V[tuple(vlt)]
@@ -854,6 +832,9 @@ class Complex:
 
                 # Yield a tuple
                 yield vl.x
+
+                # Disconnect old neighbours
+                vn.disconnect(vnn)
 
             # Append the newly triangulated search spaces for future refinement
             self.triangulated_vectors.append((vc.x, vn.x))
