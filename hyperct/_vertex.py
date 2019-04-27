@@ -18,6 +18,13 @@ class VertexBase(ABC):
     def __hash__(self):
         return hash(self.x)
 
+    def __getattr__(self, item):
+        if item not in ['x_a']:
+            raise AttributeError(f"{type(self)} object has no attribute 'x_a'")
+        elif item is 'x_a':
+            self.x_a = numpy.array(self.x)
+            return self.x_a
+
     @abstractmethod
     def connect(self, v):
         raise NotImplementedError("This method is only implemented with an "
@@ -83,10 +90,6 @@ class VertexScalarField(VertexBase):
 
         """
         super().__init__(x, nn=nn, index=index)
-
-
-        #TODO: Only build this array if x_a is called
-        self.x_a = numpy.array(x)  # Array version of the hashed tuple
 
         # Note Vertex is only initiated once for all x so only
         # evaluated once
