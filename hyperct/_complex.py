@@ -199,9 +199,9 @@ class Complex:
         a_vo = copy.copy(vo)
         a_vo[0] = vut[0]  # Update aN Origin
         a_vo = self.V[tuple(a_vo)]
-        yield a_vo.x
         #self.V[vot].connect(self.V[tuple(a_vo)])
         self.V[vot].connect(a_vo)
+        yield a_vo.x
         C1x = [[a_vo]]
         #C1x = [[self.V[tuple(a_vo)]]]
         ab_C = []  # Container for a + b operations
@@ -778,6 +778,9 @@ class Complex:
         # vo.disconnect(vs)
         vc.connect(vo)
         vc.connect(vs)
+        #TODO: We need to update the centroid nn set to connect to everything to
+        #     ensure triangulation. Check if the following is consistent
+        vc.nn.update(vpool)
         yield vc.x
 
         vn_done = set()

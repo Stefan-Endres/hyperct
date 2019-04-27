@@ -60,10 +60,13 @@ def init_triangulation(n, gen, check, nn_checks=None, bounds=None):
     # Test if the vertex connections are correct
     if nn_checks is not None:
         for v in nn_checks:
+            print(f'v = {v}')
             nn_check = []
             for v2 in HC.V[v].nn:
                 nn_check.append(v2.x)
-                print(f'v2 = {v2}')
+                print(f'v2.x = {v2.x}')
+            print(f'nn_checks = {nn_checks}')
+            print(f'nn_check = {nn_check}')
             numpy.testing.assert_equal(nn_check, nn_checks[v])
 # Test
 class TestCube(object):
