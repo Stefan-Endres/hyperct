@@ -411,7 +411,7 @@ class Complex:
             # Build generator
             self.cp = self.cyclic_product(cbounds, origin, supremum, printout)
             for i in self.cp:
-                next(self.cp)
+                i
 
             self.triangulated_vectors = [(self.origin, self.supremum)]
 
@@ -449,7 +449,7 @@ class Complex:
             print("=" * 19)
 
 
-    def triangulate_p(self, domain=None, n=None, symm=None):
+    def triangulate_p(self, domain=None, n=None, symm=None, printout=False):
         """
 
         :param n: Limited number of points to generate
@@ -466,7 +466,7 @@ class Complex:
         """
         # Generate n-cube here:
         self.H.append([])
-        self.n_cube(symmetry=self.symmetry, printout=1)
+        self.n_cube(symmetry=self.symmetry, printout=printout)
 
         # TODO: Assign functions to a the complex instead
         if self.symmetry:
@@ -724,8 +724,9 @@ class Complex:
             vn_pool_sets.append(self.vpool(*vp))
 
         for i, vp in enumerate(tvs):
-            self.refine_local_space(*vp, vpool=vn_pool_sets[i])
-            #self.triangulated_vectors.remove(vp)
+            self.rls =self.refine_local_space(*vp, vpool=vn_pool_sets[i])
+            for i in self.rls:
+                i
 
     def tvs_gen(self):
         """
@@ -739,7 +740,6 @@ class Complex:
 
         for vp in tvs:
             vn_pool_sets.append(self.vpool(*vp))
-
         for vn_pool in vn_pool_sets:
             yield vn_pool
 

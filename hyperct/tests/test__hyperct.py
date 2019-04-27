@@ -15,10 +15,11 @@ def g_cons(x):  # (Requires n > 2)
 def init_triangulation(n, gen, check, nn_checks=None, bounds=None):
     HC = Complex(n, domain=bounds)
     HC.triangulate()
+    HC.refine(1)  # Add centroid
     #HC.triangulate_c()
     for i in range(gen):
-        HC.split_generation()
-    #print('DONE')
+        #HC.split_generation()
+        HC.refine_all()
     # Test that all the correct vertices are present
     if bounds is None:
         for i, v in enumerate(HC.V.cache):
@@ -28,10 +29,20 @@ def init_triangulation(n, gen, check, nn_checks=None, bounds=None):
 
         for i, v in enumerate(check):
             # Unordered check 2:
+            print(f'v = {v}')
             numpy.testing.assert_equal(v in HC.V.cache, True)
     else:
         for i, v in enumerate(HC.V.cache):
-            numpy.testing.assert_equal(check[i], tuple(HC.V[v].x_a))
+            numpy.testing.assert_equal(check[i], v)
+            # Unordered check 1:
+            numpy.testing.assert_equal(v in check, True)
+
+        for i, v in enumerate(check):
+            # Unordered check 2:
+            numpy.testing.assert_equal(v in HC.V.cache, True)
+
+        #for i, v in enumerate(HC.V.cache):
+        #    numpy.testing.assert_equal(check[i], tuple(HC.V[v].x_a))
 
     # Build checks
     nnck = [(0.3, -3.9, -1.5, -3.0, -9.5), (0.3, -3.9, -1.5, 1.0, 11000.5),
