@@ -15,15 +15,17 @@ def g_cons(x):  # (Requires n > 2)
 def init_triangulation(n, gen, check, nn_checks=None, bounds=None):
     HC = Complex(n, domain=bounds)
     HC.triangulate()
+    print(f'HC.V.printout = {HC.V.print_out()}')
     HC.refine(1)  # Add centroid
     #HC.triangulate_c()
     for i in range(gen):
         #HC.split_generation()
         HC.refine_all()
+    print(f'HC.V.printout = {HC.V.print_out()}')
     # Test that all the correct vertices are present
     if bounds is None:
         for i, v in enumerate(HC.V.cache):
-            numpy.testing.assert_equal(check[i], v)
+            #numpy.testing.assert_equal(check[i], v)
             # Unordered check 1:
             numpy.testing.assert_equal(v in check, True)
 
@@ -33,7 +35,7 @@ def init_triangulation(n, gen, check, nn_checks=None, bounds=None):
             numpy.testing.assert_equal(v in HC.V.cache, True)
     else:
         for i, v in enumerate(HC.V.cache):
-            numpy.testing.assert_equal(check[i], v)
+            #numpy.testing.assert_equal(check[i], v)
             # Unordered check 1:
             numpy.testing.assert_equal(v in check, True)
 
@@ -66,8 +68,20 @@ def init_triangulation(n, gen, check, nn_checks=None, bounds=None):
                 nn_check.append(v2.x)
                 print(f'v2.x = {v2.x}')
             print(f'nn_checks = {nn_checks}')
+            print(f'nn_checks[v] = {nn_checks[v]}')
             print(f'nn_check = {nn_check}')
-            numpy.testing.assert_equal(nn_check, nn_checks[v])
+            print(f'numpy.lexsort(nn_check) = {numpy.lexsort(nn_check)}')
+            print(f'numpy.lexsort(numpy.rot90(nn_check)) = '
+                  f'{numpy.lexsort(numpy.rot90(nn_check))}')
+            print(f' numpy.array(nn_check)[numpy.lexsort(numpy.rot90(nn_check))] = '
+                  f'{numpy.array(nn_check)[numpy.lexsort(numpy.rot90(nn_check))]}')
+            print(f' numpy.array(nn_checks[v])[numpy.lexsort(numpy.rot90(nn_checks[v]))] = '
+                  f'{numpy.array(nn_checks[v])[numpy.lexsort(numpy.rot90(nn_checks[v]))]}')
+
+            numpy.testing.assert_equal(
+                numpy.array(nn_check)[numpy.lexsort(numpy.rot90(nn_check))],
+                numpy.array(nn_checks[v])[numpy.lexsort(numpy.rot90(nn_checks[v]))]
+            )
 # Test
 class TestCube(object):
     def test_1_1_2D_cube_init(self):  # TODO: REMOVE FUNC AFTER SPLIT
@@ -371,7 +385,7 @@ class TestCube(object):
                  (0, 0, 0, 0, 1),
                  (0.5, 0.5, 0.5, 0.5, 0.5)]
 
-        nn_checks = {(0, 0, 0, 0): [], (0, 1, 0, 1, 1): [(0, 0, 0, 0, 0), (
+        nn_checks = {(0, 1, 0, 1, 1): [(0, 0, 0, 0, 0), (
         0.5, 0.5, 0.5, 0.5, 0.5), (0, 0, 0, 1, 1), (1, 1, 0, 1, 1),
                                                          (0, 1, 0, 0, 0),
                                                          (0, 1, 0, 0, 1),
