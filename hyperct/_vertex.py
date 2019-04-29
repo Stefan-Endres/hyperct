@@ -197,6 +197,14 @@ class VertexCacheBase(object):
         """
         return self.index + 1
 
+    def print_out(self):
+        headlen = len(f"Vertex cache of size: {len(self.cache)}:")
+        print('=' * headlen)
+        print(f"Vertex cache of size: {len(self.cache)}:")
+        print('=' * headlen)
+        for v in self.cache:
+            self.cache[v].print_out()
+
 class VertexCacheIndex(VertexCacheBase):
     def __init__(self):
         super().__init__()
