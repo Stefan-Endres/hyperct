@@ -183,11 +183,13 @@ class Complex:
     # %% Triangulation methods
     def cyclic_product(self, bounds, origin, supremum, centroid=True,
                        printout=False):
-        vo = list(origin)
+        vol = list(origin)
         vot = tuple(origin)
         vut = tuple(supremum)  # Hyperrectangle supremum
         self.V[vot]
-        yield vot
+        vo = self.V[vot]
+        yield vo.x
+        vuu = self.V[vut]
         self.V[vut].connect(self.V[vot])
         yield vut
         # Cyclic group approach with second x_l --- x_u operation.
@@ -199,7 +201,7 @@ class Complex:
         # outside the loops before we have symmetric containers.
         #NOTE: This means that bounds[0][1] must always exist
         C0x = [[self.V[vot]]]
-        a_vo = copy.copy(vo)
+        a_vo = copy.copy(vol)
         a_vo[0] = vut[0]  # Update aN Origin
         a_vo = self.V[tuple(a_vo)]
         #self.V[vot].connect(self.V[tuple(a_vo)])
@@ -209,13 +211,20 @@ class Complex:
         #C1x = [[self.V[tuple(a_vo)]]]
         ab_C = []  # Container for a + b operations
 
+        vst = copy.copy(list(origin))
+        vst[0] = vut[0]
         # Loop over remaining bounds
         for i, x in enumerate(bounds[1:]):
             # Update lower and upper containers
             C0x.append([])
             C1x.append([])
+
             # try to access a second bound (if not, C1 is symmetric)
             try:
+                vst[i + 1] = vut[i + 1]  # Update local supremum
+                vs = self.V[tuple(vst)]
+                voot = copy.copy(list(origin))
+                voo = self.V[tuple(voot)]
                 # Early try so that we don't have to copy the cache before
                 # moving on to next C1/C2: Try to add the operation of a new
                 # C2 product by accessing the upper bound
@@ -225,12 +234,26 @@ class Complex:
                 cC1x = [x[:] for x in C1x[:i + 1]]
                 for j, (VL, VU) in enumerate(zip(cC0x, cC1x)):
                     for k, (vl, vu) in enumerate(zip(VL, VU)):
+                        #TEST IF NEEDED
+                        vl.connect(vo)
+                        vl.connect(voo)
+                        vl.connect(vuu)
+                        vl.connect(vs)
+                        vu.connect(vo)
+                        vu.connect(voo)
+                        vu.connect(vuu)
+                        vu.connect(vs)
+
                         # Build aN vertices for each lower-upper pair in N:
                         a_vl = list(vl.x)
                         a_vu = list(vu.x)
                         a_vl[i + 1] = vut[i + 1]
                         a_vu[i + 1] = vut[i + 1]
                         a_vl = self.V[tuple(a_vl)]
+                        a_vl.connect(vo)
+                        a_vl.connect(voo)
+                        a_vl.connect(vuu)
+                        a_vl.connect(vs)
 
                         # Connect vertices in N to corresponding vertices
                         # in aN:
@@ -245,6 +268,11 @@ class Complex:
 
                         # Connect new vertex pair in aN:
                         a_vl.connect(a_vu)
+
+                        a_vu.connect(vo)
+                        a_vu.connect(voo)
+                        a_vu.connect(vuu)
+                        a_vu.connect(vs)
 
                         # Connect lower pair to upper (triangulation
                         # operation of a + b (two arbitrary operations):
@@ -264,23 +292,25 @@ class Complex:
                         # Yield new points
                         yield a_vu.x
 
-                # Try to connect aN lower source of previous a + b
-                # operation with a aN vertex
-                ab_Cc = copy.copy(ab_C)
-                for vp in ab_Cc:
-                    b_v = list(vp[0].x)
-                    ab_v = list(vp[1].x)
-                    b_v[i + 1] = vut[i + 1]
-                    ab_v[i + 1] = vut[i + 1]
-                    b_v = self.V[tuple(b_v)]  # b + vl
-                    ab_v = self.V[tuple(ab_v)]  # b + a_vl
-                    # Note o---o is already connected
-                    vp[0].connect(ab_v)  # o-s
-                    b_v.connect(ab_v)  # s-s
 
-                    # Add new list of cross pairs
-                    ab_C.append((vp[0], ab_v))
-                    ab_C.append((b_v, ab_v))
+                if 0:
+                    # Try to connect aN lower source of previous a + b
+                    # operation with a aN vertex
+                    ab_Cc = copy.copy(ab_C)
+                    for vp in ab_Cc:
+                        b_v = list(vp[0].x)
+                        ab_v = list(vp[1].x)
+                        b_v[i + 1] = vut[i + 1]
+                        ab_v[i + 1] = vut[i + 1]
+                        b_v = self.V[tuple(b_v)]  # b + vl
+                        ab_v = self.V[tuple(ab_v)]  # b + a_vl
+                        # Note o---o is already connected
+                        vp[0].connect(ab_v)  # o-s
+                        b_v.connect(ab_v)  # s-s
+
+                        # Add new list of cross pairs
+                        ab_C.append((vp[0], ab_v))
+                        ab_C.append((b_v, ab_v))
 
             except IndexError:
                 # Add new group N + aN group supremum, connect to all
