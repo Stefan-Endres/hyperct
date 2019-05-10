@@ -16,7 +16,7 @@ def init_triangulation(n, gen, check, nn_checks=None, bounds=None):
     HC = Complex(n, domain=bounds)
     HC.triangulate()
     print(f'HC.V.printout = {HC.V.print_out()}')
-    HC.refine(1)  # Add centroid
+    #HC.refine(1)  # Add centroid
     #HC.triangulate_c()
     for i in range(gen):
         #HC.split_generation()

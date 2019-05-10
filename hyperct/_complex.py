@@ -181,7 +181,8 @@ class Complex:
         return self.H
 
     # %% Triangulation methods
-    def cyclic_product(self, bounds, origin, supremum, printout=False):
+    def cyclic_product(self, bounds, origin, supremum, centroid=True,
+                       printout=False):
         vo = list(origin)
         vot = tuple(origin)
         vut = tuple(supremum)  # Hyperrectangle supremum
@@ -261,22 +262,18 @@ class Complex:
                         C1x[j].append(a_vu)
 
                         # Yield new points
-                        #TODO: We can check if the vertex is already in the
-                        #      so that we do not yield a non-new vertex,
-                        #      however, this might cause a significant slowdown.
-
                         yield a_vu.x
 
                 # Try to connect aN lower source of previous a + b
                 # operation with a aN vertex
                 ab_Cc = copy.copy(ab_C)
                 for vp in ab_Cc:
-                    b_v = list(vp[0].x)  # vl + b
-                    ab_v = list(vp[1].x)  # a_vl + b
+                    b_v = list(vp[0].x)
+                    ab_v = list(vp[1].x)
                     b_v[i + 1] = vut[i + 1]
                     ab_v[i + 1] = vut[i + 1]
-                    b_v = self.V[tuple(b_v)]
-                    ab_v = self.V[tuple(ab_v)]
+                    b_v = self.V[tuple(b_v)]  # b + vl
+                    ab_v = self.V[tuple(ab_v)]  # b + a_vl
                     # Note o---o is already connected
                     vp[0].connect(ab_v)  # o-s
                     b_v.connect(ab_v)  # s-s
@@ -338,9 +335,24 @@ class Complex:
             pass
 
         # Extra yield to ensure that the triangulation is completed
-        return vut
+        if centroid:
+            vo = self.V[vot]
+            vs = self.V[vut]
+            # Disconnect the origin and supremum
+            vo.disconnect(vs)
+            # Build centroid
+            vc = self.split_edge(vot, vut)
+            # TODO: If not initial triangulation, we'll need to use a different
+            # container
+            for v in vo.nn:
+                v.connect(vc)
+            yield vc.x
+            return vc.x
+        else:
+            yield vut
+            return vut
 
-    def triangulate(self, n=None, symmetry=None, printout=False):
+    def triangulate(self, n=None, symmetry=None, centroid=True, printout=False):
         """
         Triangulate the initial domain, if n is not None then a limited number
         of points will be generated
@@ -411,11 +423,17 @@ class Complex:
 
         if n is None:
             # Build generator
-            self.cp = self.cyclic_product(cbounds, origin, supremum, printout)
+            self.cp = self.cyclic_product(cbounds, origin, supremum, centroid,
+                                          printout)
             for i in self.cp:
                 i
 
-            self.triangulated_vectors = [(self.origin, self.supremum)]
+            try:
+                self.triangulated_vectors.append((tuple(self.origin),
+                                                  tuple(self.supremum)))
+            except (AttributeError, KeyError):
+                self.triangulated_vectors = [(tuple(self.origin),
+                                              tuple(self.supremum))]
 
         else:
             #Check if generator already exists
@@ -423,7 +441,7 @@ class Complex:
                 self.cp
             except (AttributeError, KeyError):
                 self.cp = self.cyclic_product(cbounds, origin, supremum,
-                                              printout)
+                                              centroid, printout)
 
             try:
                 while len(self.V.cache) < n:
@@ -433,10 +451,11 @@ class Complex:
                 #      of starting new triangulated domains on different
                 #      complexes
                 try:
-                    self.triangulated_vectors.append((self.origin,
-                                                      self.supremum))
+                    self.triangulated_vectors.append((tuple(self.origin),
+                                                      tuple(self.supremum)))
                 except (AttributeError, KeyError):
-                    self.triangulated_vectors = [(self.origin, self.supremum)]
+                    self.triangulated_vectors = [tuple(self.origin),
+                                                 tuple(self.supremum)]
 
 
         if printout:
@@ -450,6 +469,7 @@ class Complex:
 
             print("=" * 19)
 
+        return
 
     def triangulate_p(self, domain=None, n=None, symm=None, printout=False):
         """
@@ -841,6 +861,235 @@ class Complex:
 
         return
 
+    def refine_local_space_c(self, origin, supremum, bounds, vpool=None, vc_i=False):
+        """
+        Refines the inside the hyperrectangle captured by the vector
+
+        #TODO: Ensure correct dimensions in input vectors
+
+        :param origin: vector origin tuple/list
+        :param supremum: vector supremum tuple/list
+        :param vc_i: bool, Generate centroid if not generated in outside loop
+                     (recommended to be set to True if the routine is called on
+                      a new domain)
+        :return:
+        """
+        vol = list(origin)
+        vot = tuple(origin)
+        vut = tuple(supremum)  # Hyperrectangle supremum
+        vo = self.V[vot]
+        vs = self.V[vut]
+        # Build centroid
+        vc = self.split_edge(vot, vut)
+        centroids = [vc]
+
+
+        C0x = [[self.V[vot]]]
+        a_vo = copy.copy(vol)
+        a_vo[0] = vut[0]  # Update aN Origin
+        a_vo = self.V[tuple(a_vo)]
+        #self.V[vot].connect(self.V[tuple(a_vo)])
+    #    self.V[vot].connect(a_vo)
+        voac = self.split_edge(vo.x, a_vo.x)
+
+        #yield a_vo.x
+        Ccx = [[voac]]  # center containers
+        C1x = [[a_vo]]
+        #C1x = [[self.V[tuple(a_vo)]]]
+        ab_C = []  # Container for a + b operations
+
+    #    vc.connect(voac)
+    #    yield vc.x
+        yield voac.x
+
+        # Loop over remaining bounds
+        for i, x in enumerate(bounds[1:]):
+            print(f'='*10)
+            print(f'i = {i}')
+            print(f'C0x = {C0x}')
+            print(f'Ccx = {Ccx}')
+            print(f'C1x = {C1x}')
+            print(f'=' * 10)
+            # Update lower and upper containers
+            C0x.append([])
+            Ccx.append([])
+            C1x.append([])
+            # try to access a second bound (if not, C1 is symmetric)
+        #    try:
+            # Early try so that we don't have to copy the cache before
+            # moving on to next C1/C2: Try to add the operation of a new
+            # C2 product by accessing the upper bound
+            x[1]
+            # Copy lists for iteration
+            cC0x = [x[:] for x in C0x[:i + 1]]
+            cC1x = [x[:] for x in C1x[:i + 1]]
+            for j, (VL, VU) in enumerate(zip(cC0x, cC1x)):
+            #for j, (VL, VC, VU) in enumerate(zip(cC0x, Ccx, cC1x)):
+                for k, (vl, vu) in enumerate(zip(VL, VU)):
+                #for k, (vl, vc, vu) in enumerate(zip(VL, VC, VU)):
+                    print(f'vl.x = {vl.x}')
+                    #print(f'vc.x = {vc.x}')
+                    print(f'vu.x = {vu.x}')
+                    # Build aN vertices for each lower-upper pair in N:
+                    a_vl = list(vl.x)
+                    a_vu = list(vu.x)
+                    a_vl[i + 1] = vut[i + 1]
+                    a_vu[i + 1] = vut[i + 1]
+                    a_vl = self.V[tuple(a_vl)]
+
+                    # Connect vertices in N to corresponding vertices
+                    # in aN:
+
+                    #yield a_vl.x
+
+                    a_vu = self.V[tuple(a_vu)]
+                    # Connect vertices in N to corresponding vertices
+                    # in aN:
+                 #   vu.connect(a_vu)
+                    vabc = self.split_edge(vl.x, a_vu.x)
+                    vl.connect(vabc)
+                    vu.connect(vabc)
+                    a_vl.connect(vabc)
+                    a_vu.connect(vabc)
+                    #for vc in centroids:
+                    #    vc.connect(vabc)
+
+                    yield vabc.x
+                    vluc = self.split_edge(vl.x, vu.x)
+                    vabc.connect(vluc)
+                    #for vc in centroids:
+                    #    vc.connect(vabc)
+                    yield vluc.x
+
+                    vlc = self.split_edge(vl.x, a_vl.x) #    vl.connect(a_vl)
+
+                    vabc.connect(vlc)
+                    #vabc.connect(vc)
+
+
+                    # Connect previous centre
+                    if 0:
+                        print(f'Ccx = {Ccx}')
+                        print(f'i = {i}')
+                        print(f'j = {j}')
+                        #Ccx[i][j].connect(vabc)
+                     #   vc.connect(vabc)
+                        #Ccx[i + 1].append(vabc)
+
+                        #Ccx[i].append(vabc)
+                        #
+                        #Ccx[i + 1].append(Ccx[i][j])
+
+                    yield vlc.x
+
+                    vuc = self.split_edge(vu.x, a_vu.x)
+
+                    # Connect lower pair to upper (triangulation
+                    # operation of a + b (two arbitrary operations):
+                    #vl.connect(a_vu)
+
+                    vabc.connect(vuc)
+                    ab_C.append((vl, a_vu))
+
+                    # Connect new vertex pair in aN:
+                    #a_vl.connect(a_vu)
+                    yield vuc.x
+                    vac = self.split_edge(a_vl.x, a_vu.x)
+                    vabc.connect(vac)
+                   # vac.connect(vc)
+                    yield vac.x
+
+
+                    # Update the containers
+                    C0x[i + 1].append(vl)
+                    C0x[i + 1].append(vu)
+                    #Ccx[i + 1].append(vc)
+                    C1x[i + 1].append(a_vl)
+                    C1x[i + 1].append(a_vu)
+
+                    # Update old containers
+                    C0x[j].append(a_vl)
+                    C1x[j].append(a_vu)
+
+                    # Yield new points
+                    #yield a_vu.x
+
+                    centroids.append(vabc)
+
+            # Try to connect aN lower source of previous a + b
+            # operation with a aN vertex
+            ab_Cc = copy.copy(ab_C)
+            for vp in ab_Cc:
+                b_v = list(vp[0].x)
+                ab_v = list(vp[1].x)
+                b_v[i + 1] = vut[i + 1]
+                ab_v[i + 1] = vut[i + 1]
+                b_v = self.V[tuple(b_v)]  # b + vl
+                ab_v = self.V[tuple(ab_v)]  # b + a_vl
+                # Note o---o is already connected
+                #vp[0].connect(ab_v)  # o-s
+                vcpab = self.split_edge(vp[0].x, ab_v.x)
+
+                yield vcpab.x
+                #b_v.connect(ab_v)  # s-s
+
+                vcbb = self.split_edge(b_v.x, ab_v.x)
+                vcpab.connect(vcbb)
+
+                if 1:  # Test, already connected in 3D
+                    vcvp = self.split_edge(vp[0].x, vp[1].x)
+                    vcvp.connect(vcpab)
+                    vcvp.connect(vcbb)
+                yield vcbb.x
+
+                # Add new list of cross pairs
+                ab_C.append((vp[0], ab_v))
+                ab_C.append((b_v, ab_v))
+
+        #    except IndexError:
+            if 0:
+                # Add new group N + aN group supremum, connect to all
+                # Get previous
+                vs = C1x[i][-1]
+                a_vs = list(C1x[i][-1].x)
+                a_vs[i + 1] = vut[i + 1]
+                a_vs = self.V[tuple(a_vs)]
+
+                # Connect a_vs to vs (the nearest neighbour in N --- aN)
+                a_vs.connect(vs)
+
+                # Update the containers (only 2 new entries)
+                C0x[i + 1].append(vs)
+                C1x[i + 1].append(a_vs)
+
+                # Loop over lower containers. Connect lower pair to a_vs
+                # triangulation operation of a + b (two arbitrary operations):
+                cC0x = [x[:] for x in C0x[:i + 1]]
+                for j, VL in enumerate(cC0x):
+                    for k, vu in enumerate(VL):
+                        if vu is not a_vs:
+                            vu.connect(a_vs)
+                            #NOTE: Only needed when there will be no more
+                            #      symmetric points later on
+
+                # Yield a tuple
+                #yield a_vs
+
+        # Clean class trash
+        try:
+            del C0x
+            del cC0x
+            del C1x
+            del cC1x
+            del ab_C
+            del ab_Cc
+        except UnboundLocalError:
+            pass
+
+        return
+
+
+
     def refine_local_space(self, origin, supremum, vpool=None, vc_i=False):
         """
         Refines the inside the hyperrectangle captured by the vector
@@ -865,92 +1114,141 @@ class Complex:
         # Initiate vertices in case they don't exist
         vo = self.V[vot]
         vs = self.V[vst]
-        #%%
-
-        # Disconnect the origin and supremum
-        vo.disconnect(vs)
-
-        # Build centroid  #TODO: Done in outer loop and no longer needed
-        # vca = (vo.x_a + vs.x_a) / 2.0
-        vca = (vs.x_a - vo.x_a) / 2.0 + vo.x_a
-        vc = self.V[tuple(vca)]
-
-        # Connect the origin and supremum  to the centroid
-        # vo.disconnect(vs)
-        vc.connect(vo)
-        vc.connect(vs)
-        #TODO: We need to update the centroid nn set to connect to everything to
-        #     ensure triangulation. Check if the following is consistent
-        #     UPDATE: It was found to be inconsistent since the vertices in
-        #     vpool is not connected to vc, there is potential to improve this
-        #     routine by improving parrallel connections in _vertex.py
-        #vc.nn.update(vpool)
-        for v in vpool:
-            v.connect(vc)
-        yield vc.x
-        # %%
+        # Should be cached in initial triangulation:
+        vc = self.split_edge(vo.x, vs.x)
+        print(vc.x)  # yielding only needed if centroid not initiated
 
         vn_done = set()
+        vj_pool = set()  # new origin vertices from split edges
+        vk_pool = set()  # new supremum vertices from split edges
+
+        try:
+            vn_pool.remove(vc)
+            #vn_pool.remove(vo)
+            #vn_pool.remove(vs)
+        except KeyError:
+            pass
+        vn_pool.add(vo)
+        vn_pool.add(vs)
         cvn_pool = copy.copy(vn_pool)
+        # TODO: SPLIT vo --- vc and vc --- vs
+        vn_pools = []
+        for i, vn in enumerate(cvn_pool):
+            print(f'i = {i}')
+            #vn_pool = vn_pool - set([vn])
+            vn_pools.append(set())
+            if vn is vc:
+                continue
+            for vnn in vn_pool:
+                if vnn is vn:
+                    continue
+                if vnn is vc:
+                    continue
+                print(f'vn.x = {vn.x}')
+                print(f'vnn.x = {vnn.x}')
+                vnnc = self.split_edge(vn.x, vnn.x)
+                vnnc.connect(vc)
+                print(f'vnnc.x = {vnnc.x}')
+                vn_pools[i].add(vnnc)
+                yield vnnc.x
+                #vnnc.connect(vj)
+                #vnnc.connect(vk)
 
+        for vn_pool in vn_pools:
+            print('='*5)
+            cvn_pool = copy.copy(vn_pool)
+            for v in cvn_pool:
+                print(f'v.x = {v.x}')
+                #continue
+                #cvn_pool = cvn_pool - set([v])
+                if v is vc:
+                    continue
+                for vn in cvn_pool:
+                    if vn is v:
+                        continue
+                    if vn is vc:
+                        continue
+                    vnnc = self.split_edge(v.x, vn.x)
+                    yield vnnc.x
+
+
+            #vn_pool = vn_pool - set([vn])
+
+        cvn_pool = []
         for vn in cvn_pool:
-            # Disconnect with origin vertex
-            vn.disconnect(vo)
-
-            # Create the new vertex to connect to vo and von
-            vjt = (vn.x_a - vo.x_a) / 2.0 + vo.x_a
-            vj = self.V[tuple(vjt)]
-            vj.connect(vo)
-            vj.connect(vn)
+            print('='*10)
+            print(f'vn = {vn.x}')
+            print('=' * 10)
+            # Split vo --- vn
+            vj = self.split_edge(vo.x, vn.x)
             # Connect the vertices to the centroid (vo is already connected)
-            vj.connect(vc)
-            vn.connect(vc)
+            #vj.connect(vc)
+            #vn.connect(vc)
             yield vj.x
+            for vjj in vj_pool:  #TODO: move to end of loop
+                pass#vj.connect(vjj)
+                #vjjj = self.split_edge(vj.x, vjj.x)
+                #yield vjjj.x
 
-            # Disconnect with supremum vertex
-            vn.disconnect(vs)
+            vj_pool.add(vj)
 
-            # Create the new vertex to connect to vs and vn
-            vkt = (vn.x_a - vs.x_a) / 2.0 + vs.x_a
-            vk = self.V[tuple(vkt)]
-            vk.connect(vs)
-            vk.connect(vn)
+            # Split vs --- vn
+            vk = self.split_edge(vs.x, vn.x)
             # Connect the vertices to the centroid (vo is already connected)
             vk.connect(vc)
             vn.connect(vc)
             yield vk.x
+            for vkk in vk_pool:  #TODO: move to end of loop
+                pass#vk.connect(vkk)
+                #vkkk = self.split_edge(vk.x, vkk.x)
+                #yield vkkk.x
+            vk_pool.add(vk)
+
+
+            if 0:
+                #NOTE: Since we have the vj and vk pools we can do this outside loop
+                #      which could provide a neater triangulation
+                # Create a centroid connecting vj --- vjk --- vk
+                vjk = self.split_edge(vj.x, vk.x)
+                self.split_edge(vc.x, vn.x)  # break vc --- vn
+                yield vjk
 
             # Add vn to vertices that have finished loop
             vn_done.add(vn)
 
             # Find intersecting neighbours
-            vn_pool = vn_pool - set([vn])
+            if 0:
+                nn_pool = vn.nn
+                nn_pool = nn_pool.intersection(vn_pool)
+                print(f'nn_pool = {nn_pool}')
+                for vnn in nn_pool:
+                    print(f'vnn.x = {vnn.x}')
+                    #vnnc = self.split_edge(vn.x, vnn.x)
+                    #vnnc.connect(vj)
+                    #vnnc.connect(vk)
+
+            #vn_pool = vn_pool - set([vn])
             #print(f'vn_pool = {vn_pool}')
-            for vnn in vn_pool:
-                #NOTE: if vnn not vn, but might be faster to just leave out?
-                #NOTE 2: Every vertex is connected with every other vertex,
-                #        often the centroid is generated and connected again.
-                #TODO: Ease the issue in NOTE 2 using lru_caches
 
-                # Create the new vertex to connect to vn and vnn
-                vlt = (vnn.x_a - vn.x_a) / 2.0 + vn.x_a
-                vl = self.V[tuple(vlt)]
-                vl.connect(vnn)
-                vl.connect(vn)
+            if 0:
+                for vnn in vn_pool:
+                    #NOTE: if vnn not vn, but might be faster to just leave out?
+                    #NOTE 2: Every vertex is connected with every other vertex,
+                    #        often the centroid is generated and connected again.
+                    #TODO: Ease the issue in NOTE 2 using lru_caches
 
-                # Connect the vertices to the centroid (vn and vnn
-                # is already connected)
-                vl.connect(vc)
-                #vnn.connect(vc)
+                    # Split vn --- vnn
+                    vl = self.split_edge(vn.x, vnn.x)
 
-                # Yield a tuple
-                yield vl.x
-
-                # Disconnect old neighbours
-                vn.disconnect(vnn)
+                    # Connect the vertices to the centroid (vn and vnn
+                    # is already connected)
+                    vl.connect(vc)
+                    # Yield a tuple
+                    yield vl.x
 
             # Append the newly triangulated search spaces for future refinement
             self.triangulated_vectors.append((vc.x, vn.x))
+
 
         self.triangulated_vectors.append((vc.x, vo.x))
         self.triangulated_vectors.append((vc.x, vs.x))
@@ -960,6 +1258,21 @@ class Complex:
         # Complete the routine in the generator
         yield vc.x
         return
+
+    @lru_cache(maxsize=None)
+    def split_edge(self, v1, v2):
+        v1 = self.V[v1]
+        v2 = self.V[v2]
+    #    print(f'splitting {v1.x} --- {v2.x}')
+        # Destroy original edge, if it exists:
+        v1.disconnect(v2)
+        # Compute vertex on centre of edge:
+        vct = (v2.x_a - v1.x_a) / 2.0 + v1.x_a
+        vc = self.V[tuple(vct)]
+        # Connect to original 2 vertices to the new centre vertex
+        vc.connect(v1)
+        vc.connect(v2)
+        return vc
 
     def vpool(self, origin, supremum):
         vot = tuple(origin)

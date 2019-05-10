@@ -20,7 +20,8 @@ class VertexBase(ABC):
 
     def __getattr__(self, item):
         if item not in ['x_a']:
-            raise AttributeError(f"{type(self)} object has no attribute 'x_a'")
+            raise AttributeError(f"{type(self)} object has no attribute "
+                                 f"'{item}'")
         elif item is 'x_a':
             self.x_a = numpy.array(self.x)
             return self.x_a
