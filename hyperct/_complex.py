@@ -782,7 +782,7 @@ class Complex:
                 vn_pool_sets.append(self.vpool(*vp))
 
         for i, vp in enumerate(tvs):
-            self.rls =self.refine_local_space(*vp, vpool=vn_pool_sets[i])
+            self.rls =self.refine_local_space_c(*vp, vpool=vn_pool_sets[i])
             for i in self.rls:
                 i
 
@@ -972,12 +972,6 @@ class Complex:
                     #vabc.connect(vc)
 
 
-                    # Connect previous centre
-                    if 0:
-                        print(f'Ccx = {Ccx}')
-                        print(f'i = {i}')
-                        print(f'j = {j}')
-                        #Ccx[i][j].connect(vabc)
                      #   vc.connect(vabc)
                         #Ccx[i + 1].append(vabc)
 
