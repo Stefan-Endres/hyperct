@@ -862,6 +862,178 @@ class Complex:
 
         return
 
+    def cyclic_product_c2(self, bounds, origin, supremum, centroid=True,
+                       printout=False):
+        vol = list(origin)
+        vot = tuple(origin)
+        vut = tuple(supremum)  # Hyperrectangle supremum
+        self.V[vot]
+        vo = self.V[vot]
+        yield vo.x
+        self.V[vut].connect(self.V[vot])
+        yield vut
+        # Cyclic group approach with second x_l --- x_u operation.
+
+        # These containers store the "lower" and "upper" vertices
+        # corresponding to the origin or supremum of every C2 group.
+        # It has the structure of `dim` times embedded lists each containing
+        # these vertices as the entire complex grows. Bounds[0] has to be done
+        # outside the loops before we have symmetric containers.
+        #NOTE: This means that bounds[0][1] must always exist
+        C0x = [[self.V[vot]]]
+        a_vo = copy.copy(list(origin))
+        a_vo[0] = vut[0]  # Update aN Origin
+        a_vo = self.V[tuple(a_vo)]
+        #self.V[vot].connect(self.V[tuple(a_vo)])
+        self.V[vot].connect(a_vo)
+        yield a_vo.x
+        C1x = [[a_vo]]
+        #C1x = [[self.V[tuple(a_vo)]]]
+        ab_C = []  # Container for a + b operations
+
+        # Loop over remaining bounds
+        for i, x in enumerate(bounds[1:]):
+            # Update lower and upper containers
+            C0x.append([])
+            C1x.append([])
+            # try to access a second bound (if not, C1 is symmetric)
+            try:
+                # Early try so that we don't have to copy the cache before
+                # moving on to next C1/C2: Try to add the operation of a new
+                # C2 product by accessing the upper bound
+                x[1]
+                # Copy lists for iteration
+                cC0x = [x[:] for x in C0x[:i + 1]]
+                cC1x = [x[:] for x in C1x[:i + 1]]
+                for j, (VL, VU) in enumerate(zip(cC0x, cC1x)):
+                    for k, (vl, vu) in enumerate(zip(VL, VU)):
+                        # Build aN vertices for each lower-upper pair in N:
+                        a_vl = list(vl.x)
+                        a_vu = list(vu.x)
+                        a_vl[i + 1] = vut[i + 1]
+                        a_vu[i + 1] = vut[i + 1]
+                        a_vl = self.V[tuple(a_vl)]
+
+                        # Connect vertices in N to corresponding vertices
+                        # in aN:
+                        vl.connect(a_vl)
+
+                        yield a_vl.x
+
+                        a_vu = self.V[tuple(a_vu)]
+                        # Connect vertices in N to corresponding vertices
+                        # in aN:
+                        vu.connect(a_vu)
+
+                        # Connect new vertex pair in aN:
+                        a_vl.connect(a_vu)
+
+                        # Connect lower pair to upper (triangulation
+                        # operation of a + b (two arbitrary operations):
+                        vl.connect(a_vu)
+                        ab_C.append((vl, a_vu))
+
+                        # Update the containers
+                        C0x[i + 1].append(vl)
+                        C0x[i + 1].append(vu)
+                        C1x[i + 1].append(a_vl)
+                        C1x[i + 1].append(a_vu)
+
+                        # Update old containers
+                        C0x[j].append(a_vl)
+                        C1x[j].append(a_vu)
+
+                        # Yield new points
+                        yield a_vu.x
+
+                # Try to connect aN lower source of previous a + b
+                # operation with a aN vertex
+                ab_Cc = copy.copy(ab_C)
+                for vp in ab_Cc:
+                    b_v = list(vp[0].x)
+                    ab_v = list(vp[1].x)
+                    b_v[i + 1] = vut[i + 1]
+                    ab_v[i + 1] = vut[i + 1]
+                    b_v = self.V[tuple(b_v)]  # b + vl
+                    ab_v = self.V[tuple(ab_v)]  # b + a_vl
+                    # Note o---o is already connected
+                    vp[0].connect(ab_v)  # o-s
+                    b_v.connect(ab_v)  # s-s
+
+                    # Add new list of cross pairs
+                    ab_C.append((vp[0], ab_v))
+                    ab_C.append((b_v, ab_v))
+
+            except IndexError:
+                # Add new group N + aN group supremum, connect to all
+                # Get previous
+                vs = C1x[i][-1]
+                a_vs = list(C1x[i][-1].x)
+                a_vs[i + 1] = vut[i + 1]
+                a_vs = self.V[tuple(a_vs)]
+
+                # Connect a_vs to vs (the nearest neighbour in N --- aN)
+                a_vs.connect(vs)
+
+                # Update the containers (only 2 new entries)
+                C0x[i + 1].append(vs)
+                C1x[i + 1].append(a_vs)
+
+                # Loop over lower containers. Connect lower pair to a_vs
+                # triangulation operation of a + b (two arbitrary operations):
+                cC0x = [x[:] for x in C0x[:i + 1]]
+                for j, VL in enumerate(cC0x):
+                    for k, vu in enumerate(VL):
+                        if vu is not a_vs:
+                            vu.connect(a_vs)
+                            #NOTE: Only needed when there will be no more
+                            #      symmetric points later on
+
+                # Yield a tuple
+                yield a_vs
+
+            # Printing
+            if printout:
+                print("=" * 19)
+                print("Current symmetry group:")
+                print("=" * 19)
+                # for v in self.C0():
+                #   v.print_out()
+                for v in self.V.cache:
+                    self.V[v].print_out()
+
+                print("=" * 19)
+
+
+        # Clean class trash
+        try:
+            del C0x
+            del cC0x
+            del C1x
+            del cC1x
+            del ab_C
+            del ab_Cc
+        except UnboundLocalError:
+            pass
+
+        # Extra yield to ensure that the triangulation is completed
+        if centroid:
+            vo = self.V[vot]
+            vs = self.V[vut]
+            # Disconnect the origin and supremum
+            vo.disconnect(vs)
+            # Build centroid
+            vc = self.split_edge(vot, vut)
+            # TODO: If not initial triangulation, we'll need to use a different
+            # container
+            for v in vo.nn:
+                v.connect(vc)
+            yield vc.x
+            return vc.x
+        else:
+            yield vut
+            return vut
+
     def refine_local_space_c(self, origin, supremum, bounds, vpool=None, vc_i=False):
         """
         Refines the inside the hyperrectangle captured by the vector
