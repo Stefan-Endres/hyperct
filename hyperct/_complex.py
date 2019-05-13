@@ -189,7 +189,6 @@ class Complex:
         self.V[vot]
         vo = self.V[vot]
         yield vo.x
-        vuu = self.V[vut]
         self.V[vut].connect(self.V[vot])
         yield vut
         # Cyclic group approach with second x_l --- x_u operation.
@@ -201,7 +200,7 @@ class Complex:
         # outside the loops before we have symmetric containers.
         #NOTE: This means that bounds[0][1] must always exist
         C0x = [[self.V[vot]]]
-        a_vo = copy.copy(vol)
+        a_vo = copy.copy(list(origin))
         a_vo[0] = vut[0]  # Update aN Origin
         a_vo = self.V[tuple(a_vo)]
         #self.V[vot].connect(self.V[tuple(a_vo)])
@@ -211,20 +210,13 @@ class Complex:
         #C1x = [[self.V[tuple(a_vo)]]]
         ab_C = []  # Container for a + b operations
 
-        vst = copy.copy(list(origin))
-        vst[0] = vut[0]
         # Loop over remaining bounds
         for i, x in enumerate(bounds[1:]):
             # Update lower and upper containers
             C0x.append([])
             C1x.append([])
-
             # try to access a second bound (if not, C1 is symmetric)
             try:
-                vst[i + 1] = vut[i + 1]  # Update local supremum
-                vs = self.V[tuple(vst)]
-                voot = copy.copy(list(origin))
-                voo = self.V[tuple(voot)]
                 # Early try so that we don't have to copy the cache before
                 # moving on to next C1/C2: Try to add the operation of a new
                 # C2 product by accessing the upper bound
@@ -234,26 +226,12 @@ class Complex:
                 cC1x = [x[:] for x in C1x[:i + 1]]
                 for j, (VL, VU) in enumerate(zip(cC0x, cC1x)):
                     for k, (vl, vu) in enumerate(zip(VL, VU)):
-                        #TEST IF NEEDED
-                        vl.connect(vo)
-                        vl.connect(voo)
-                        vl.connect(vuu)
-                        vl.connect(vs)
-                        vu.connect(vo)
-                        vu.connect(voo)
-                        vu.connect(vuu)
-                        vu.connect(vs)
-
                         # Build aN vertices for each lower-upper pair in N:
                         a_vl = list(vl.x)
                         a_vu = list(vu.x)
                         a_vl[i + 1] = vut[i + 1]
                         a_vu[i + 1] = vut[i + 1]
                         a_vl = self.V[tuple(a_vl)]
-                        a_vl.connect(vo)
-                        a_vl.connect(voo)
-                        a_vl.connect(vuu)
-                        a_vl.connect(vs)
 
                         # Connect vertices in N to corresponding vertices
                         # in aN:
@@ -268,11 +246,6 @@ class Complex:
 
                         # Connect new vertex pair in aN:
                         a_vl.connect(a_vu)
-
-                        a_vu.connect(vo)
-                        a_vu.connect(voo)
-                        a_vu.connect(vuu)
-                        a_vu.connect(vs)
 
                         # Connect lower pair to upper (triangulation
                         # operation of a + b (two arbitrary operations):
@@ -292,25 +265,23 @@ class Complex:
                         # Yield new points
                         yield a_vu.x
 
+                # Try to connect aN lower source of previous a + b
+                # operation with a aN vertex
+                ab_Cc = copy.copy(ab_C)
+                for vp in ab_Cc:
+                    b_v = list(vp[0].x)
+                    ab_v = list(vp[1].x)
+                    b_v[i + 1] = vut[i + 1]
+                    ab_v[i + 1] = vut[i + 1]
+                    b_v = self.V[tuple(b_v)]  # b + vl
+                    ab_v = self.V[tuple(ab_v)]  # b + a_vl
+                    # Note o---o is already connected
+                    vp[0].connect(ab_v)  # o-s
+                    b_v.connect(ab_v)  # s-s
 
-                if 0:
-                    # Try to connect aN lower source of previous a + b
-                    # operation with a aN vertex
-                    ab_Cc = copy.copy(ab_C)
-                    for vp in ab_Cc:
-                        b_v = list(vp[0].x)
-                        ab_v = list(vp[1].x)
-                        b_v[i + 1] = vut[i + 1]
-                        ab_v[i + 1] = vut[i + 1]
-                        b_v = self.V[tuple(b_v)]  # b + vl
-                        ab_v = self.V[tuple(ab_v)]  # b + a_vl
-                        # Note o---o is already connected
-                        vp[0].connect(ab_v)  # o-s
-                        b_v.connect(ab_v)  # s-s
-
-                        # Add new list of cross pairs
-                        ab_C.append((vp[0], ab_v))
-                        ab_C.append((b_v, ab_v))
+                    # Add new list of cross pairs
+                    ab_C.append((vp[0], ab_v))
+                    ab_C.append((b_v, ab_v))
 
             except IndexError:
                 # Add new group N + aN group supremum, connect to all
@@ -911,7 +882,7 @@ class Complex:
         vs = self.V[vut]
         # Build centroid
         vc = self.split_edge(vot, vut)
-        centroids = [vc]
+        #centroids = [vc]
 
 
         C0x = [[self.V[vot]]]
@@ -926,11 +897,13 @@ class Complex:
         Ccx = [[voac]]  # center containers
         C1x = [[a_vo]]
         #C1x = [[self.V[tuple(a_vo)]]]
-        ab_C = []  # Container for a + b operations
+        ab_C = [[]]  # Container for a + b operations (no operations in 1st dim)
 
     #    vc.connect(voac)
     #    yield vc.x
         yield voac.x
+
+        Cacx = [[]]
 
         # Loop over remaining bounds
         for i, x in enumerate(bounds[1:]):
@@ -943,7 +916,9 @@ class Complex:
             # Update lower and upper containers
             C0x.append([])
             Ccx.append([])
+            Cacx.append([])
             C1x.append([])
+            ab_C.append([])
             # try to access a second bound (if not, C1 is symmetric)
         #    try:
             # Early try so that we don't have to copy the cache before
@@ -1019,7 +994,7 @@ class Complex:
                     #vl.connect(a_vu)
 
                     vabc.connect(vuc)
-                    ab_C.append((vl, a_vu))
+                    ab_C[i + 1].append((vl, a_vu))
 
                     # Connect new vertex pair in aN:
                     #a_vl.connect(a_vu)
@@ -1041,15 +1016,61 @@ class Complex:
                     C0x[j].append(a_vl)
                     C1x[j].append(a_vu)
 
+
+                    # New cent
+                    Ccx[i + 1].append(vabc)
+                    Ccx[i + 1].append(vluc)
+                    Ccx[i + 1].append(vlc)
+                    Ccx[i + 1].append(vuc)
+                    Ccx[i + 1].append(vac)
+
+                    Cacx[i + 1].append(vac)
+
                     # Yield new points
                     #yield a_vu.x
 
-                    centroids.append(vabc)
+                    #centroids.append(vabc)
 
+
+            # Connect all centroids in N to the new group centroid
+            if 0:
+                vst = copy.copy(list(vot))
+                for m in range(i + 2):
+                    vst[m] = supremum[m]
+
+                print(f'vst = {vst}')
+                vs = self.V[tuple(vst)]
+                vnanc = self.split_edge(vo.x, vs.x)  # Current group centroid
+                print(f'vnanc.x = {vnanc.x}')
+                for vcx in Ccx[i]:
+                    print(f'vcx.x = {vcx.x}')
+                    vnanc.connect(vcx)
+
+                for vcx in C0x[i + 1]:
+                    print(f'vcx.x = {vcx.x}')
+                    vnanc.connect(vcx)
+
+                # Connect all centroids in aN to the new group centroid
+                for vcx in Ccx[i + 1]:
+                    print(f'vcx.x = {vcx.x}')
+                    vnanc.connect(vcx)
+
+                for vcx in C1x[i + 1]:
+                    print(f'vcx.x = {vcx.x}')
+                    vnanc.connect(vcx)
+
+            ab_Cc = copy.copy(ab_C[i])
             # Try to connect aN lower source of previous a + b
             # operation with a aN vertex
-            ab_Cc = copy.copy(ab_C)
+            print(f'ab_C = {ab_C}')
+            print(f'ab_C[:i + 1] = {ab_C[:i + 1]}')
+            print(f'ab_C[i] = {ab_C[i]}')
+            print(f'ab_C[i + 1] = {ab_C[i + 1]}')
+            ab_Cc = copy.copy(ab_C[i])
             for vp in ab_Cc:
+
+                vcp = self.split_edge(vp[0].x, vp[1].x)
+
                 b_v = list(vp[0].x)
                 ab_v = list(vp[1].x)
                 b_v[i + 1] = vut[i + 1]
@@ -1060,17 +1081,50 @@ class Complex:
                 #vp[0].connect(ab_v)  # o-s
                 vcpab = self.split_edge(vp[0].x, ab_v.x)
 
-                yield vcpab.x
-                #b_v.connect(ab_v)  # s-s
+                # Connect every N group vertex to old and new centres
+                for vcx in Ccx[i]:
+                    vcx.connect(vcp)
+                    vcx.connect(vcpab)
 
+                for vcx in C0x[i + 1]:
+                    vcx.connect(vcp)  # Not needed in 3D
+                    vcx.connect(vcpab)
+
+
+
+                vcvp = self.split_edge(vp[0].x, vp[1].x)
+                vcvp.connect(vcpab)
+
+                yield vcpab.x
+                if 0:
+                    for vprev in Ccx[i]:
+                        vprev.connect(vcpab)
+                #print(f'vcpab.x = {vcpab.x}')
+                #b_v.connect(ab_v)  # s-s
                 vcbb = self.split_edge(b_v.x, ab_v.x)
                 vcpab.connect(vcbb)
 
-                if 1:  # Test, already connected in 3D
+                # Connect all centroids in aN to the new group centroid
+                for vcx in Cacx[i + 1]:
+                    vcx.connect(vcbb)
+
+                for vcx in Ccx[i + 1]:
+                    vcx.connect(vcpab)
+                    #vcx.connect(vcbb)
+                for vcx in C1x[i + 1]:
+                    vcx.connect(vcbb)
+                    vcx.connect(vcpab)
+
+                if 0:  # Test, already connected in 3D
                     vcvp = self.split_edge(vp[0].x, vp[1].x)
                     vcvp.connect(vcpab)
                     vcvp.connect(vcbb)
+
+                if 0:
+                    for vprev in Ccx[i]:
+                        vprev.connect(vcbb)
                 yield vcbb.x
+                #print(f'vcbb.x = {vcbb.x}')
 
                 # Add new list of cross pairs
                 ab_C.append((vp[0], ab_v))
