@@ -353,6 +353,7 @@ class Complex:
             yield vut
             return vut
 
+
     def triangulate(self, n=None, symmetry=None, centroid=True, printout=False):
         """
         Triangulate the initial domain, if n is not None then a limited number
@@ -862,16 +863,19 @@ class Complex:
 
         return
 
-    def cyclic_product_c2(self, bounds, origin, supremum, centroid=True,
-                       printout=False):
-        vol = list(origin)
+    def refine_local_space_c2(self, origin, supremum, bounds, centroid=1,
+                              printout=0):
         vot = tuple(origin)
         vut = tuple(supremum)  # Hyperrectangle supremum
-        self.V[vot]
-        vo = self.V[vot]
-        yield vo.x
-        self.V[vut].connect(self.V[vot])
-        yield vut
+        vo = self.V[vot]  # initiate if doesn't exist yet
+        vs = self.V[vut]
+
+        # Start by finding the old centroid of the new space:
+        vcc = self.split_edge(vo.x, vs.x)
+        # vcc should be connected to all other vertices, it is the origin of all
+        # refining vertices
+
+
         # Cyclic group approach with second x_l --- x_u operation.
 
         # These containers store the "lower" and "upper" vertices
@@ -880,22 +884,23 @@ class Complex:
         # these vertices as the entire complex grows. Bounds[0] has to be done
         # outside the loops before we have symmetric containers.
         #NOTE: This means that bounds[0][1] must always exist
-        C0x = [[self.V[vot]]]
-        a_vo = copy.copy(list(origin))
-        a_vo[0] = vut[0]  # Update aN Origin
-        a_vo = self.V[tuple(a_vo)]
-        #self.V[vot].connect(self.V[tuple(a_vo)])
-        self.V[vot].connect(a_vo)
-        yield a_vo.x
-        C1x = [[a_vo]]
+        Cox = [[self.V[vot]]]
+        a_vl = copy.copy(list(origin))
+        a_vl[0] = vut[0]  # Update aN Origin
+        a_vl = self.V[tuple(a_vl)]
+        c_v = self.split_edge(vo.x, a_vl.x)
+        yield c_v.x
+        Ccx = [[c_v]]
+        Cux = [[a_vl]]
         #C1x = [[self.V[tuple(a_vo)]]]
         ab_C = []  # Container for a + b operations
 
         # Loop over remaining bounds
         for i, x in enumerate(bounds[1:]):
             # Update lower and upper containers
-            C0x.append([])
-            C1x.append([])
+            Cox.append([])
+            Ccx.append([])
+            Cux.append([])
             # try to access a second bound (if not, C1 is symmetric)
             try:
                 # Early try so that we don't have to copy the cache before
@@ -903,66 +908,117 @@ class Complex:
                 # C2 product by accessing the upper bound
                 x[1]
                 # Copy lists for iteration
-                cC0x = [x[:] for x in C0x[:i + 1]]
-                cC1x = [x[:] for x in C1x[:i + 1]]
-                for j, (VL, VU) in enumerate(zip(cC0x, cC1x)):
-                    for k, (vl, vu) in enumerate(zip(VL, VU)):
-                        # Build aN vertices for each lower-upper pair in N:
+                cCox = [x[:] for x in Cox[:i + 1]]
+                cCcx = [x[:] for x in Ccx[:i + 1]]
+                cCux = [x[:] for x in Cux[:i + 1]]
+                # Try to connect aN lower source of previous a + b
+                # operation with a aN vertex
+                ab_Cc = copy.copy(ab_C)
+                for vectors in ab_Cc:
+                    #TODO: Make for loops instead of using variables
+                    bc_vc = list(vectors[0].x)
+                    b_vl = list(vectors[1].x)
+                    b_vu = list(vectors[2].x)
+                    ba_vl = list(vectors[3].x)
+                    ba_vu = list(vectors[4].x)
+                    bc_vc[i + 1] = vut[i + 1]
+                    b_vl[i + 1] = vut[i + 1]
+                    b_vu[i + 1] = vut[i + 1]
+                    ba_vl[i + 1] = vut[i + 1]
+                    ba_vu[i + 1] = vut[i + 1]
+
+                    bc_vc = self.V[tuple(bc_vc)]
+                    b_vl = self.V[tuple(b_vl)]
+                    b_vu = self.V[tuple(b_vu)]
+                    ba_vl = self.V[tuple(ba_vl)]
+                    ba_vu = self.V[tuple(ba_vu)]
+                    print(f'bc_vc.x = {bc_vc.x}')
+
+                    # Connect aN cross pairs
+                    bc_vc.connect(b_vl)
+                    bc_vc.connect(b_vu)
+                    bc_vc.connect(ba_vl)
+                    bc_vc.connect(ba_vu)
+
+                    # Split to centre, call this centre group "d = 0.5*a"
+                    d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
+                    d_b_vl = self.split_edge(vectors[1].x, b_vl.x)
+                    d_b_vu = self.split_edge(vectors[2].x, b_vu.x)
+                    d_ba_vl = self.split_edge(vectors[3].x, ba_vl.x)
+                    d_ba_vu = self.split_edge(vectors[4].x, ba_vu.x)
+
+                    # Connect dN cross pairs
+                    d_bc_vc.connect(d_b_vl)
+                    d_bc_vc.connect(d_b_vu)
+                    d_bc_vc.connect(d_ba_vl)
+                    d_bc_vc.connect(d_ba_vu)
+
+                    # Connect all to centroid
+                    d_bc_vc.connect(b_vl)
+                    d_bc_vc.connect(b_vu)
+                    d_bc_vc.connect(ba_vl)
+                    d_bc_vc.connect(ba_vu)
+                    d_bc_vc.connect(vectors[1])
+                    d_bc_vc.connect(vectors[2])
+                    d_bc_vc.connect(vectors[3])
+                    d_bc_vc.connect(vectors[4])
+
+                    # Add new list of cross pairs
+                    ab_C.append((bc_vc, b_vl, b_vu, ba_vl, ba_vu))
+                    ab_C.append((d_bc_vc, d_b_vl, d_b_vu, d_ba_vl, d_ba_vu))
+
+
+                for j, (VL, VC, VU) in enumerate(zip(cCox, cCcx, cCux)):
+                    for k, (vl, vc, vu) in enumerate(zip(VL, VC, VU)):
+                        # Build aN vertices for each lower-upper C3 group in N:
                         a_vl = list(vl.x)
                         a_vu = list(vu.x)
                         a_vl[i + 1] = vut[i + 1]
                         a_vu[i + 1] = vut[i + 1]
                         a_vl = self.V[tuple(a_vl)]
-
-                        # Connect vertices in N to corresponding vertices
-                        # in aN:
-                        vl.connect(a_vl)
-
-                        yield a_vl.x
-
                         a_vu = self.V[tuple(a_vu)]
-                        # Connect vertices in N to corresponding vertices
-                        # in aN:
-                        vu.connect(a_vu)
+                        a_vc = self.split_edge(a_vl.x, a_vu.x)
 
-                        # Connect new vertex pair in aN:
-                        a_vl.connect(a_vu)
+                        # Build cN vertices for each lower-upper C3 group in N:
+                        c_vl = self.split_edge(vl.x, a_vl.x)
+                        c_vc = self.split_edge(vc.x, a_vc.x)
+                        c_vu = self.split_edge(vu.x, a_vu.x)
 
-                        # Connect lower pair to upper (triangulation
-                        # operation of a + b (two arbitrary operations):
-                        vl.connect(a_vu)
-                        ab_C.append((vl, a_vu))
+                        # Connect cN group vertices
+                        c_vc.connect(c_vl)
+                        c_vc.connect(c_vu)
+
+                        # Connect c + ac operatoins:
+                        c_vc.connect(vl)
+                        c_vc.connect(vu)
+                        c_vc.connect(a_vl)
+                        c_vc.connect(a_vu)
+
+                        ab_C.append((c_vc, vl, vu, a_vl, a_vu))
 
                         # Update the containers
-                        C0x[i + 1].append(vl)
-                        C0x[i + 1].append(vu)
-                        C1x[i + 1].append(a_vl)
-                        C1x[i + 1].append(a_vu)
+                        Cox[i + 1].append(vl)
+                        Cox[i + 1].append(vc)
+                        Cox[i + 1].append(vu)
+                        Ccx[i + 1].append(c_vl)
+                        Ccx[i + 1].append(c_vc)
+                        Ccx[i + 1].append(c_vu)
+                        Cux[i + 1].append(a_vl)
+                        Cux[i + 1].append(a_vc)
+                        Cux[i + 1].append(a_vu)
 
                         # Update old containers
-                        C0x[j].append(a_vl)
-                        C1x[j].append(a_vu)
+                        Cox[j].append(c_vl)  # !
+                        Cox[j].append(a_vl)
+                        Ccx[j].append(c_vc)  # !
+                        Ccx[j].append(a_vc)  # !
+                        Cux[j].append(c_vu)  # !
+                        Cux[j].append(a_vu)
 
                         # Yield new points
                         yield a_vu.x
 
-                # Try to connect aN lower source of previous a + b
-                # operation with a aN vertex
-                ab_Cc = copy.copy(ab_C)
-                for vp in ab_Cc:
-                    b_v = list(vp[0].x)
-                    ab_v = list(vp[1].x)
-                    b_v[i + 1] = vut[i + 1]
-                    ab_v[i + 1] = vut[i + 1]
-                    b_v = self.V[tuple(b_v)]  # b + vl
-                    ab_v = self.V[tuple(ab_v)]  # b + a_vl
-                    # Note o---o is already connected
-                    vp[0].connect(ab_v)  # o-s
-                    b_v.connect(ab_v)  # s-s
 
-                    # Add new list of cross pairs
-                    ab_C.append((vp[0], ab_v))
-                    ab_C.append((b_v, ab_v))
 
             except IndexError:
                 # Add new group N + aN group supremum, connect to all
