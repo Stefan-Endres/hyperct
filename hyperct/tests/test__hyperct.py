@@ -62,7 +62,7 @@ def init_triangulation(n, gen, check, nn_checks=None, bounds=None):
     # Test if the vertex connections are correct
     if nn_checks is not None:
         for v in nn_checks:
-            print(f'v = {v}')
+            print(f'checking v.nn of v.x = {v}')
             nn_check = []
             for v2 in HC.V[v].nn:
                 nn_check.append(v2.x)

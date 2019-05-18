@@ -784,10 +784,10 @@ class Complex:
         print('...')
         print('...')
         print('...')
-        print('='*30)
+        print('='*100)
         print(f'origin = {origin}')
         print(f'supremum = {supremum}')
-        print('='*30)
+        print('='*100)
         #TODO: Add new triangulated vectors
         #TODO: Remove current triangulated vector
         #TODO: Build centroids by intersection of v_origin.nn and v_s.nn ?
@@ -798,13 +798,7 @@ class Complex:
         vco = self.split_edge(vo.x, vs.x)  # Split in case not centroid arg
 
         # Find set of extreme vertices in current local space
-        #sup_set = vo.nn.union(vs.nn) #+ vo + vs
-        sup_set = vo.nn.intersection(vs.nn) #+ vo + vs
-        sup_set.update(set((vo, vs)))
-        try:
-            sup_set.remove(vco)
-        except KeyError:
-            pass
+        sup_set = copy.copy(vco.nn)
         print(f'sup_set = {sup_set}')
         for v in sup_set:
             print(f'v = {v.x}')
@@ -1066,7 +1060,7 @@ class Complex:
 
 
 
-    @lru_cache(maxsize=None)
+    #@lru_cache(maxsize=None)
     def split_edge(self, v1, v2):
         v1 = self.V[v1]
         v2 = self.V[v2]
@@ -1080,6 +1074,335 @@ class Complex:
         vc.connect(v1)
         vc.connect(v2)
         return vc
+
+
+
+    # %% Refinement
+    # % Refinement based on vector partitions
+    def refine_old(self, n=1, symmetry=None):
+        #TODO: Replace with while loop checking cache size instead?
+        if n is None:
+            try:
+                self.triangulated_vectors
+                self.refine_all()
+                return
+            except (AttributeError, KeyError):
+                self.triangulate(symmetry=symmetry)
+                return
+
+        nt = len(self.V.cache) + n  # Target number of total vertices
+        # In the outer while loop we iterate until we have added an extra `n`
+        # vertices to the complex:
+        #TODO: We can reduce the number of exception handling and exceptions to
+        #  StopIteration if we try to generate the initial objects first and
+        #  then refine only have the first few while loop runs
+        while len(self.V.cache) < nt:  # while loop 1
+            try:  # try 1
+                # Try to access triangulated_vectors, this should only be
+                # defined if an initial triangulation has already been performed
+                self.triangulated_vectors
+                # Try a usual iteration of the current generator, if it
+                # does not exist or is exhausted then produce a new generator
+                try:  # try 2
+                    next(self.rls)
+                except (AttributeError, StopIteration, KeyError):
+                    # In the initial refinement stage centroids are generated,
+                    # once the generator is exhausted, the routine generates
+                    # vertices from a self.refine_local_space initiated
+                    # generator (try 2 in the usual loop)
+                    try:  # try 3
+                        next(self.vcg)
+                    except (AttributeError, StopIteration, KeyError):
+                        # Try to access the next self.tvs yield in the second
+                        # stage refinement. If successful then produce a vertex,
+                        # the next while loop moves back to producing points in
+                        # try 2. If it does not exist or is exhausted, then we
+                        # have reached the end of a refinement generation and
+                        # we create a new tvs generator. Note that if the
+                        # centroid generator in try 3 is not exhausted yet then
+                        # it while generate to completion in the while loop
+                        #%%
+                        try:  # try 4
+                            vn_pool = next(self.tvs)
+                            vp = self.triangulated_vectors[0]
+                            self.rls = self.refine_local_space(*vp, vn_pool)
+                            next(self.rls)
+                        except (AttributeError, StopIteration, KeyError):
+                            #Note: This is a very long method, it occurs every
+                            # time the complex has been entirely refined and all
+                            # simplices have equal volume:
+                            vn_pool_sets = self.vtvs()
+                            self.tvs = self.tvs_gen(vn_pool_sets)
+                            self.vcg = self.vc_gen(vn_pool_sets)
+                            #self.V.print_out()  #TODO: Remove dev work
+                            next(self.vcg)
+                    #%%
+
+            except (AttributeError, KeyError):
+                # If an initial triangulation has not been completed, then
+                # we start/continue the initial triangulation targeting `nt`
+                # vertices, if nt is greater than the initial number of vertices
+                # then the refine routine will move back to try 1.
+                self.triangulate(nt, symmetry)
+        return
+
+    def refine_all_old(self, centroids=True):
+        """
+        Refine the entire domain of the current complex
+        :return:
+        """
+        tvs = copy.copy(self.triangulated_vectors)
+
+        try:
+            vn_pool_sets = self.vn_pool_sets
+        except (AttributeError, KeyError):
+            vn_pool_sets = []
+            for vp in tvs:
+                vn_pool_sets.append(self.vpool(*vp))
+
+        for i, vp in enumerate(tvs):
+            self.rls =self.refine_local_space(*vp, vpool=vn_pool_sets[i])
+            for i in self.rls:
+                i
+
+        # This adds a centroid to every new sub-domain generated and defined
+        # by self.triangulated_vectors, in addition the vertices ! to complete
+        # the triangulation
+        if centroids:
+            tvs = copy.copy(self.triangulated_vectors)
+            self.vn_pool_sets = []
+            for vp in tvs:
+                self.vn_pool_sets.append(self.vpool(*vp))
+            vcg = self.vc_gen(self.vn_pool_sets)
+            for vc in vcg:
+                print(f'vc = {vc}')
+                vc
+
+    def vtvs(self):
+        """
+        For every refinement generation, produce the `vpool` vertex clusters
+        that is used to generate centroid vertices (1st stage) and then produce
+        generators for the arguments to the `refine_local_space` method.
+        :return:
+        """
+        vn_pool_sets = []
+        for vp in self.triangulated_vectors:
+            vn_pool_sets.append(self.vpool(*vp))
+        return vn_pool_sets
+
+    def tvs_gen(self, vn_pool_sets):
+        """
+        A generator to yield vpool objects for a generation of
+        sub-triangulations. Preserving the original triangulated_vectors is
+        needed to ensure refinement works correctly.
+        :return:
+        """
+        for vn_pool in vn_pool_sets:
+            yield vn_pool
+
+        return
+
+    def vc_gen(self, vn_pool_sets):
+        """
+        Generates the centroids from every generation of sub-triangulations
+        :return:
+        """
+        for vp, vpool in zip(self.triangulated_vectors, vn_pool_sets):
+            vn_pool_sets.append(self.vpool(*vp))
+
+            origin, supremum = vp
+            # Initiate vertices in case they don't exist
+            vo = self.V[tuple(origin)]
+            vs = self.V[tuple(supremum)]
+            # Disconnect the origin and supremum
+            vo.disconnect(vs)
+            # Build centroid
+            # vca = (vo.x_a + vs.x_a) / 2.0
+            vca = (vs.x_a - vo.x_a) / 2.0 + vo.x_a
+            vc = self.V[tuple(vca)]
+
+            # Connect the origin and supremum to the centroid
+            # vo.disconnect(vs)
+            vc.connect(vo)
+            vc.connect(vs)
+            cvpool = copy.copy(vpool)
+            for v in cvpool:
+                v.connect(vc)
+                #TODO: Check
+                #v.connect(vo)
+                #v.connect(vs)
+                vn_pool = vpool - set([v])
+                #for vn in vpool:
+                #    v.connect(vn)
+
+
+
+            yield vc.x
+
+        return
+
+    def refine_local_space_old(self, origin, supremum, vpool=None, vc_i=False):
+        """
+        Refines the inside the hyperrectangle captured by the vector
+
+        #TODO: Ensure correct dimensions in input vectors
+
+        :param origin: vector origin tuple/list
+        :param supremum: vector supremum tuple/list
+        :param vc_i: bool, Generate centroid if not generated in outside loop
+                     (recommended to be set to True if the routine is called on
+                      a new domain)
+        :return:
+        """
+        if vpool is None:
+            vn_pool = self.vpool(origin, supremum)
+        else:
+            vn_pool = vpool
+
+        #%%
+        vot = tuple(origin)
+        vst = tuple(supremum)
+        # Initiate vertices in case they don't exist
+        vo = self.V[vot]
+        vs = self.V[vst]
+        #%%
+
+        # Disconnect the origin and supremum
+        vo.disconnect(vs)
+
+        # Build centroid  #TODO: Done in outer loop and no longer needed
+        # vca = (vo.x_a + vs.x_a) / 2.0
+        vca = (vs.x_a - vo.x_a) / 2.0 + vo.x_a
+        vc = self.V[tuple(vca)]
+
+        # Connect the origin and supremum  to the centroid
+        # vo.disconnect(vs)
+        vc.connect(vo)
+        vc.connect(vs)
+        #TODO: We need to update the centroid nn set to connect to everything to
+        #     ensure triangulation. Check if the following is consistent
+        #     UPDATE: It was found to be inconsistent since the vertices in
+        #     vpool is not connected to vc, there is potential to improve this
+        #     routine by improving parrallel connections in _vertex.py
+        #vc.nn.update(vpool)
+        for v in vpool:
+            v.connect(vc)
+        yield vc.x
+        # %%
+
+        vn_done = set()
+        cvn_pool = copy.copy(vn_pool)
+
+        for vn in cvn_pool:
+            # Disconnect with origin vertex
+            vn.disconnect(vo)
+
+            # Create the new vertex to connect to vo and von
+            vjt = (vn.x_a - vo.x_a) / 2.0 + vo.x_a
+            vj = self.V[tuple(vjt)]
+            vj.connect(vo)
+            vj.connect(vn)
+            # Connect the vertices to the centroid (vo is already connected)
+            vj.connect(vc)
+            vn.connect(vc)
+            yield vj.x
+
+            # Disconnect with supremum vertex
+            vn.disconnect(vs)
+
+            # Create the new vertex to connect to vs and vn
+            vkt = (vn.x_a - vs.x_a) / 2.0 + vs.x_a
+            vk = self.V[tuple(vkt)]
+            vk.connect(vs)
+            vk.connect(vn)
+            # Connect the vertices to the centroid (vo is already connected)
+            vk.connect(vc)
+            vn.connect(vc)
+            yield vk.x
+
+            # Add vn to vertices that have finished loop
+            vn_done.add(vn)
+
+            # Find intersecting neighbours
+            vn_pool = vn_pool - set([vn])
+            #print(f'vn_pool = {vn_pool}')
+            for vnn in vn_pool:
+                #NOTE: if vnn not vn, but might be faster to just leave out?
+                #NOTE 2: Every vertex is connected with every other vertex,
+                #        often the centroid is generated and connected again.
+                #TODO: Ease the issue in NOTE 2 using lru_caches
+
+                # Create the new vertex to connect to vn and vnn
+                vlt = (vnn.x_a - vn.x_a) / 2.0 + vn.x_a
+                vl = self.V[tuple(vlt)]
+                vl.connect(vnn)
+                vl.connect(vn)
+
+                # Connect the vertices to the centroid (vn and vnn
+                # is already connected)
+                vl.connect(vc)
+                #vnn.connect(vc)
+
+                # Yield a tuple
+                yield vl.x
+
+                # Disconnect old neighbours
+                vn.disconnect(vnn)
+
+            # Append the newly triangulated search spaces for future refinement
+            self.triangulated_vectors.append((vc.x, vn.x))
+
+        self.triangulated_vectors.append((vc.x, vo.x))
+        self.triangulated_vectors.append((vc.x, vs.x))
+
+        # Remove the current vector from the external container
+        self.triangulated_vectors.remove((origin, supremum))
+        # Complete the routine in the generator
+        yield vc.x
+        return
+
+    def vpool(self, origin, supremum):
+        vot = tuple(origin)
+        vst = tuple(supremum)
+        # Initiate vertices in case they don't exist
+        vo = self.V[vot]
+        vs = self.V[vst]
+
+        # Remove origin - supremum disconnect
+
+        # Find the lower/upper bounds of the refinement hyperrectangle
+        bl = list(vot)
+        bu = list(vst)
+        for i, (voi, vsi) in enumerate(zip(vot, vst)):
+            if bl[i] > vsi:
+                bl[i] = vsi
+            if bu[i] < voi:
+                bu[i] = voi
+
+        # TODO: These for loops can easily be replaced by numpy operations,
+        #      tests should be run to determine which method is faster.
+        #      NOTE: This is mostly done with sets/lists because we aren't sure
+        #            how well the numpy arrays will scale to thousands of
+        #             variables.
+        vn_pool = set()
+        vn_pool.update(vo.nn)
+        vn_pool.update(vs.nn)
+        cvn_pool = copy.copy(vn_pool)
+        for vn in cvn_pool:
+            for i, xi in enumerate(vn.x):
+                if bl[i] <= xi <= bu[i]:
+                    pass
+                else:
+                    try:
+                        vn_pool.remove(vn)
+                    except KeyError:
+                        pass  # NOTE: Not all neigbouds are in initial pool
+        return vn_pool
+
+
+
+
+
 
     # % Split symmetric generations
     def split_generation(self):
