@@ -728,37 +728,9 @@ class Complex:
                 try:  # try 2
                     next(self.rls)
                 except (AttributeError, StopIteration, KeyError):
-                    # In the initial refinement stage centroids are generated,
-                    # once the generator is exhausted, the routine generates
-                    # vertices from a self.refine_local_space initiated
-                    # generator (try 2 in the usual loop)
-                    try:  # try 3
-                        next(self.vcg)
-                    except (AttributeError, StopIteration, KeyError):
-                        # Try to access the next self.tvs yield in the second
-                        # stage refinement. If successful then produce a vertex,
-                        # the next while loop moves back to producing points in
-                        # try 2. If it does not exist or is exhausted, then we
-                        # have reached the end of a refinement generation and
-                        # we create a new tvs generator. Note that if the
-                        # centroid generator in try 3 is not exhausted yet then
-                        # it while generate to completion in the while loop
-                        #%%
-                        try:  # try 4
-                            vn_pool = next(self.tvs)
-                            vp = self.triangulated_vectors[0]
-                            self.rls = self.refine_local_space(*vp, vn_pool)
-                            next(self.rls)
-                        except (AttributeError, StopIteration, KeyError):
-                            #Note: This is a very long method, it occurs every
-                            # time the complex has been entirely refined and all
-                            # simplices have equal volume:
-                            vn_pool_sets = self.vtvs()
-                            self.tvs = self.tvs_gen(vn_pool_sets)
-                            self.vcg = self.vc_gen(vn_pool_sets)
-                            #self.V.print_out()  #TODO: Remove dev work
-                            next(self.vcg)
-                    #%%
+                    vp = self.triangulated_vectors[0]
+                    self.rls = self.refine_local_space(*vp, bounds=self.bounds)
+                    next(self.rls)
 
             except (AttributeError, KeyError):
                 # If an initial triangulation has not been completed, then
@@ -768,50 +740,79 @@ class Complex:
                 self.triangulate(nt, symmetry)
         return
 
-    def refine_all(self, centroids=True):
+    def refine_all(self, symmetry=None, centroids=True):
         """
         Refine the entire domain of the current complex
         :return:
         """
         tvs = copy.copy(self.triangulated_vectors)
 
-        try:
-            vn_pool_sets = self.vn_pool_sets
-        except (AttributeError, KeyError):
-            vn_pool_sets = []
-            for vp in tvs:
-                vn_pool_sets.append(self.vpool(*vp))
+        if 0:
+            try:
+                vn_pool_sets = self.vn_pool_sets
+            except (AttributeError, KeyError):
+                vn_pool_sets = []
+                for vp in tvs:
+                    vn_pool_sets.append(self.vpool(*vp))
 
-        for i, vp in enumerate(tvs):
-            self.rls =self.refine_local_space_c(*vp, vpool=vn_pool_sets[i])
-            for i in self.rls:
-                i
+        try:
+            self.triangulated_vectors
+            for i, vp in enumerate(tvs):
+                #self.rls =self.refine_local_space_c(*vp, vpool=vn_pool_sets[i])
+                self.rls =self.refine_local_space(*vp, bounds=self.bounds)
+                for i in self.rls:
+                    i
+        except (AttributeError, KeyError):
+            self.triangulate(symmetry=symmetry, centroid=centroids)
 
         # This adds a centroid to every new sub-domain generated and defined
         # by self.triangulated_vectors, in addition the vertices ! to complete
         # the triangulation
-        if centroids:
-            tvs = copy.copy(self.triangulated_vectors)
-            self.vn_pool_sets = []
-            for vp in tvs:
-                self.vn_pool_sets.append(self.vpool(*vp))
-            vcg = self.vc_gen(self.vn_pool_sets)
-            for vc in vcg:
-                print(f'vc = {vc}')
-                vc
+        if 0:
+            if centroids:
+                tvs = copy.copy(self.triangulated_vectors)
+                self.vn_pool_sets = []
+                for vp in tvs:
+                    self.vn_pool_sets.append(self.vpool(*vp))
+                vcg = self.vc_gen(self.vn_pool_sets)
+                for vc in vcg:
+                    print(f'vc = {vc}')
+                    vc
 
     def refine_local_space(self, origin, supremum, bounds, centroid=1,
                               printout=0):
+        print('...')
+        print('...')
+        print('...')
+        print('='*30)
+        print(f'origin = {origin}')
+        print(f'supremum = {supremum}')
+        print('='*30)
+        #TODO: Add new triangulated vectors
+        #TODO: Remove current triangulated vector
+        #TODO: Build centroids by intersection of v_origin.nn and v_s.nn ?
         vot = tuple(origin)
         vut = tuple(supremum)  # Hyperrectangle supremum
         vo = self.V[vot]  # initiate if doesn't exist yet
         vs = self.V[vut]
+        vco = self.split_edge(vo.x, vs.x)  # Split in case not centroid arg
+
+        # Find set of extreme vertices in current local space
+        #sup_set = vo.nn.union(vs.nn) #+ vo + vs
+        sup_set = vo.nn.intersection(vs.nn) #+ vo + vs
+        sup_set.update(set((vo, vs)))
+        try:
+            sup_set.remove(vco)
+        except KeyError:
+            pass
+        print(f'sup_set = {sup_set}')
+        for v in sup_set:
+            print(f'v = {v.x}')
 
         # Start by finding the old centroid of the new space:
         vcc = self.split_edge(vo.x, vs.x)
         # vcc should be connected to all other vertices, it is the origin of all
         # refining vertices
-
 
         # Cyclic group approach with second x_l --- x_u operation.
 
@@ -826,10 +827,12 @@ class Complex:
         a_vl[0] = vut[0]  # Update aN Origin
         a_vl = self.V[tuple(a_vl)]
         c_v = self.split_edge(vo.x, a_vl.x)
+
+
+
         yield c_v.x
         Ccx = [[c_v]]
         Cux = [[a_vl]]
-        #C1x = [[self.V[tuple(a_vo)]]]
         ab_C = []  # Container for a + b operations
 
         # Loop over remaining bounds
@@ -870,6 +873,11 @@ class Complex:
                     ba_vl = self.V[tuple(ba_vl)]
                     ba_vu = self.V[tuple(ba_vu)]
                     print(f'bc_vc.x = {bc_vc.x}')
+
+                    # Split the a + b edge of the initial triangulation:
+                    # 1 and 4
+                    self.split_edge(vectors[1].x, ba_vu.x)
+                    self.split_edge(b_vl.x, ba_vu.x)
 
                     # Connect aN cross pairs
                     bc_vc.connect(b_vl)
@@ -916,6 +924,11 @@ class Complex:
                         a_vu = self.V[tuple(a_vu)]
                         a_vc = self.split_edge(a_vl.x, a_vu.x)
 
+                        # Split the a + b edge of the initial triangulation:
+                        self.split_edge(vl.x, a_vu.x)
+                        #TODO: Can we recover the same vertex for one of the 3
+                        #      below?
+
                         # Build cN vertices for each lower-upper C3 group in N:
                         c_vl = self.split_edge(vl.x, a_vl.x)
                         c_vc = self.split_edge(vc.x, a_vc.x)
@@ -954,7 +967,6 @@ class Complex:
 
                         # Yield new points
                         yield a_vu.x
-
 
 
             except IndexError:
@@ -1009,23 +1021,50 @@ class Complex:
         except UnboundLocalError:
             pass
 
+        print(f'self.triangulated_vectors = {self.triangulated_vectors}')
+        try:
+            self.triangulated_vectors.remove((tuple(self.origin),
+                                              tuple(self.supremum)))
+        except ValueError:
+            pass
+
+        print(f'self.triangulated_vectors = {self.triangulated_vectors}')
+        # Add newly triangulated vectors:
+        for vs in sup_set:
+            self.triangulated_vectors.append((tuple(vco.x), tuple(vs.x)))
+
         # Extra yield to ensure that the triangulation is completed
-        if centroid:
-            vo = self.V[vot]
-            vs = self.V[vut]
-            # Disconnect the origin and supremum
-            vo.disconnect(vs)
-            # Build centroid
-            vc = self.split_edge(vot, vut)
-            # TODO: If not initial triangulation, we'll need to use a different
-            # container
-            for v in vo.nn:
-                v.connect(vc)
-            yield vc.x
-            return vc.x
-        else:
-            yield vut
-            return vut
+        if 1:
+            if centroid:
+                vcn_set = set()
+                for vs in sup_set:
+                    print('='*10)
+                    print(f'vs = {vs.x}')
+                    print(f'vco.x = {vco.x}')
+                    # Build centroid
+                    vcn = self.split_edge(vco.x, vs.x)
+                    vcn_set.add(vcn)
+                    print(f'vcn.x = {vcn.x}')
+                    # Find connections
+                    c_nn = vco.nn.intersection(vs.nn)  # + vo + vs
+                    #c_nn.remove(vcn)
+                    #TODO: Remove newly gener
+                    try:
+                        c_nn.remove(vcn_set)
+                    except KeyError:
+                        pass
+
+                    for vnn in c_nn:
+                        print(f'vnn = {vnn.x}')
+                        vcn.connect(vnn)
+
+                    print('=' * 10)
+                return vc.x
+            else:
+                yield vut
+                return vut
+
+
 
     @lru_cache(maxsize=None)
     def split_edge(self, v1, v2):
