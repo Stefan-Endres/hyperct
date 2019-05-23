@@ -826,7 +826,6 @@ class Complex:
         Ccx = [[c_v]]
         Cux = [[a_vl]]
         ab_C = []  # Container for a + b operations
-        old_ab_C = []
 
         # Loop over remaining bounds
         for i, x in enumerate(bounds[1:]):
@@ -872,60 +871,6 @@ class Complex:
                 self.split_edge(vectors[1].x, ba_vu.x)  # o-s
                 self.split_edge(b_vl.x, ba_vu.x)  # s-s
 
-                #%%
-                # TEST BLOCK
-                if 0:
-                    c_vc, vl, vu, a_vl, a_vu = vectors
-                    self.split_edge(vectors[1].x, a_vu.x)  # o-o
-
-                    ###
-                    self.split_edge(vl.x, vu.x)  # No effect
-                    self.split_edge(vl.x, a_vl.x)  # No effect
-                    self.split_edge(vl.x, a_vu.x)  # No effect
-
-                    self.split_edge(vu.x, vu.x)  # No effect
-                    self.split_edge(vu.x, a_vl.x)  # No effect
-                    self.split_edge(vu.x, a_vu.x)  # No effect
-
-                    self.split_edge(a_vl.x, a_vu.x)  # No effect
-
-                    # bc_vc, b_vl, b_vu, ba_vl, ba_vu
-                    self.split_edge(b_vl.x, b_vu.x)  # No effect
-                    self.split_edge(b_vl.x, b_vl.x)  # No effect
-                    self.split_edge(b_vl.x, ba_vu.x)  # No effect
-
-                    self.split_edge(b_vu.x, b_vu.x)  # No effect
-                    self.split_edge(b_vu.x, b_vl.x)  # No effect
-                    self.split_edge(b_vu.x, ba_vu.x)  # No effect
-
-                    self.split_edge(ba_vl.x, ba_vu.x)  # No effect
-
-                    ##
-                    self.split_edge(vl.x, b_vu.x)  # No effect
-                    self.split_edge(vl.x, b_vl.x)  # No effect
-                    self.split_edge(vl.x, ba_vu.x)  # No effect
-
-                    self.split_edge(vu.x, b_vu.x)  # No effect
-                    self.split_edge(vu.x, b_vl.x)  # No effect
-                    self.split_edge(vu.x, ba_vu.x)  # No effect
-
-                    self.split_edge(a_vl.x, ba_vu.x)  # No effect
-
-                    ##
-                    self.split_edge(b_vl.x, vu.x)  # No effect
-                    self.split_edge(b_vl.x, a_vl.x)  # No effect
-                    self.split_edge(b_vl.x, a_vu.x)  # No effect
-
-                    self.split_edge(b_vu.x, vu.x)  # No effect
-                    self.split_edge(b_vu.x, a_vl.x)  # No effect
-                    self.split_edge(b_vu.x, a_vu.x)  # No effect
-
-                    self.split_edge(ba_vl.x, a_vu.x)  # No effect
-
-
-
-                #%%
-
                 # Connect aN cross pairs
                 bc_vc.connect(b_vl)
                 bc_vc.connect(b_vu)
@@ -958,18 +903,7 @@ class Complex:
                 # Add new list of cross pairs
                 ab_C.append((bc_vc, b_vl, b_vu, ba_vl, ba_vu))
                 ab_C.append((d_bc_vc, d_b_vl, d_b_vu, d_ba_vl, d_ba_vu))
-                #%% TEST
-                if 1:
-                    pass
-                    #                     ab_C.append((vp[0], ab_v))
-                    #                     ab_C.append((b_v, ab_v))
-                    # vectors[1].x, ba_vu.x
-
-                    # ab_C.append((c_vc, vl, vu, a_vl, a_vu))
-                    #ab_C.append((d_bc_vc, vectors[1], vectors[2],
-                    #             d_ba_vl, d_ba_vu))  # BREAKS
-                    ab_C.append((d_bc_vc, vectors[1], b_vl, a_vu, ba_vu))  # BREAKS
-                    #ab_C.append()
+                ab_C.append((d_bc_vc, vectors[1], b_vl, a_vu, ba_vu))
 
 
             for j, (VL, VC, VU) in enumerate(zip(cCox, cCcx, cCux)):
@@ -987,14 +921,6 @@ class Complex:
                     self.split_edge(vl.x, a_vu.x)
                     self.split_edge(vl.x, vu.x)
 
-                    if 0:
-                        self.split_edge(vl.x, a_vl.x)  # !!!!! NOT  NO CHANGE
-                        self.split_edge(vl.x, a_vu.x)  # !!!!! NOT  NO CHANGE
-                        self.split_edge(vu.x, vl.x)  # !!!!! NOT  NO CHANGE
-                        self.split_edge(vu.x, a_vl.x)  # !!!!! NOT  NO CHANGE
-                        self.split_edge(vu.x, a_vu.x)  # !!!!! NOT  NO CHANGE
-                        self.split_edge(a_vl.x, a_vu.x)  # !!!!! NOT  NO CHANGE
-                        self.split_edge(a_vl.x, vu.x)  # !!! TEST  NO CHANGE
                     #TODO: Can we recover the same vertex for one of the 3
                     #      below?
 
@@ -1014,10 +940,6 @@ class Complex:
                     c_vc.connect(a_vu)
 
                     ab_C.append((c_vc, vl, vu, a_vl, a_vu))
-
-                    #%%
-                    old_ab_C.append((vl, a_vu))  # !!!!!!!
-                    # %%
 
                     # Update the containers
                     Cox[i + 1].append(vl)
@@ -1041,28 +963,6 @@ class Complex:
                     # Yield new points
                     yield a_vu.x
 
-
-
-            # Try to connect aN lower source of previous a + b
-            # operation with a aN vertex
-            if 0:
-                old_ab_Cc = copy.copy(old_ab_C)
-                for vp in old_ab_Cc:
-                    b_v = copy.copy(list(vp[0].x))
-                    ab_v = copy.copy(list(vp[1].x))
-                    b_v[i + 1] = vut[i + 1]
-                    ab_v[i + 1] = vut[i + 1]
-                    b_v = self.V[tuple(b_v)]  # b + vl
-                    ab_v = self.V[tuple(ab_v)]  # b + a_vl
-                    # Note o---o is already connected
-                    #vp[0].connect(ab_v)  # o-s
-                    #b_v.connect(ab_v)  # s-s
-                    self.split_edge(vp[0].x, ab_v.x)
-                    self.split_edge(b_v.x, ab_v.x)
-
-                    # Add new list of cross pairs
-                    old_ab_C.append((vp[0], ab_v))
-                    old_ab_C.append((b_v, ab_v))
 
             #except IndexError:
             #except IndexError:
