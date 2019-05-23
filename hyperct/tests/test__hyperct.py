@@ -27,20 +27,23 @@ def init_triangulation(n, gen, check, nn_checks=None, bounds=None):
         for i, v in enumerate(HC.V.cache):
             #numpy.testing.assert_equal(check[i], v)
             # Unordered check 1:
+            print(f'Test if generated v.x = {v} is in reference complex')
             numpy.testing.assert_equal(v in check, True)
 
         for i, v in enumerate(check):
             # Unordered check 2:
-            print(f'v = {v}')
+            print(f'Test if reference v.x = {v} is in generated complex')
             numpy.testing.assert_equal(v in HC.V.cache, True)
     else:
         for i, v in enumerate(HC.V.cache):
             #numpy.testing.assert_equal(check[i], v)
             # Unordered check 1:
+            print(f'Test if generated v.x = {v} is in reference complex')
             numpy.testing.assert_equal(v in check, True)
 
         for i, v in enumerate(check):
             # Unordered check 2:
+            print(f'Test if reference v.x = {v} is in generated complex')
             numpy.testing.assert_equal(v in HC.V.cache, True)
 
         #for i, v in enumerate(HC.V.cache):
@@ -62,6 +65,7 @@ def init_triangulation(n, gen, check, nn_checks=None, bounds=None):
     # Test if the vertex connections are correct
     if nn_checks is not None:
         for v in nn_checks:
+            print('-'*5)
             print(f'checking v.nn of v.x = {v}')
             nn_check = []
             for v2 in HC.V[v].nn:
