@@ -1380,7 +1380,12 @@ class TestRec(object):
                                                    (0.5, 6.95, -0.25, 4.0,
                                                     10.5)]}
 
-        init_triangulation(5, 0, check, nn_checks, bounds=[(0, 1), (3.9, 10), (-1.5, 1), (3, 5),
+        from decimal import Decimal
+        init_triangulation(5, 0, check, nn_checks,
+                           bounds=[(0.0, 1.0),
+                                   (3.9, 10.0),
+                                   (-1.5, 1.0),
+                                   (3.0, 5.0),
                                    (9.5, 11.5)])
 
     def test_4_2_5D_rec_splits(self):

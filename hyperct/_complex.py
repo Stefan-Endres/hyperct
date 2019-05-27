@@ -37,6 +37,7 @@ import copy
 import logging
 import os
 import itertools
+import decimal
 from abc import ABC, abstractmethod
 # Required modules:
 import numpy
@@ -801,8 +802,19 @@ class Complex:
 
         # Find set of extreme vertices in current local space
         sup_set = copy.copy(vco.nn)
+        uset = vo.nn.union(vs.nn)
+        uset.update(set((vo, vs)))
+        print(f'union')
+        for v in uset:
+            print(f'v = {v.x}')
+
+           # .update(set((vo, vs)
+
+        sup_set = sup_set.intersection(uset)
         # vcc should be connected to all other vertices, it is the origin of all
         # refining vertices
+
+        # TODO: If centroids not defined we should vpool all the vertices
 
         print(f'sup_set = {sup_set}')
         for v in sup_set:
@@ -1020,11 +1032,24 @@ class Complex:
             pass
 
         print(f'self.triangulated_vectors = {self.triangulated_vectors}')
+        print(f' (tuple(self.origin), tuple(self.supremum))'
+              f'= { (tuple(origin), tuple(supremum))}')
+        #self.triangulated_vectors.remove((tuple(self.origin),
+        #                                  tuple(self.supremum)))
         try:
-            self.triangulated_vectors.remove((tuple(self.origin),
-                                              tuple(self.supremum)))
+            self.triangulated_vectors.remove((tuple(origin),
+                                              tuple(supremum)))
         except ValueError:
-            pass
+            print('...')
+            print('...')
+            print('...')
+            print('REMOVING FAILED')
+            print(f' (tuple(self.origin), tuple(self.supremum))'
+                  f'= {(tuple(self.origin), tuple(self.supremum))}')
+            print('...')
+            print('...')
+            print('...')
+
 
         print(f'self.triangulated_vectors = {self.triangulated_vectors}')
         # Add newly triangulated vectors:
@@ -1035,6 +1060,8 @@ class Complex:
         if 1:
             if centroid:
                 vcn_set = set()
+                vcn_list = []
+                c_nn_lists = []
                 for vs in sup_set:
                     #print('='*10)
                     #print(f'vs = {vs.x}')
@@ -1042,9 +1069,9 @@ class Complex:
                     # Build centroid
                     vcn = self.split_edge(vco.x, vs.x)
                     vcn_set.add(vcn)
+                    vcn_list.append(vcn)
                     #print(f'vcn.x = {vcn.x}')
-
-                    if 0:
+                    if 1:
                         # Find connections
                         c_nn = vco.nn.intersection(vs.nn)  # + vo + vs
                         #c_nn.remove(vcn)
@@ -1053,14 +1080,25 @@ class Complex:
                             c_nn.remove(vcn_set)
                         except KeyError:
                             pass
+                        c_nn_lists.append(c_nn)
+
                     elif 1:
                         c_nn = self.vpool(vco.x, vs.x)
 
                     for vnn in c_nn:
                         #print(f'vnn = {vnn.x}')
+                        pass
+                        if 0:
+                            vcn.connect(vnn)
+                    # print('=' * 10)
+
+
+
+                for vcn, c_nn in zip(vcn_list, c_nn_lists):
+                    for vnn in c_nn:
+                        pass
                         vcn.connect(vnn)
 
-                    #print('=' * 10)
                 return vc.x
             else:
                 yield vut
@@ -1076,7 +1114,10 @@ class Complex:
         # Destroy original edge, if it exists:
         v1.disconnect(v2)
         # Compute vertex on centre of edge:
-        vct = (v2.x_a - v1.x_a) / 2.0 + v1.x_a
+        try:
+            vct = (v2.x_a - v1.x_a) / 2.0 + v1.x_a
+        except TypeError:  # Allow for decimal operations
+            vct = (v2.x_a - v1.x_a) / decimal.Decimal(2.0) + v1.x_a
         vc = self.V[tuple(vct)]
         # Connect to original 2 vertices to the new centre vertex
         vc.connect(v1)
@@ -2117,9 +2158,20 @@ class Complex:
                 dx1 = self.bounds[0][1] - self.bounds[0][0]
                 dx2 = self.bounds[1][1] - self.bounds[1][0]
 
-                self.arrow_width = (min(dx1, dx2) * 0.13
-                                    / (numpy.sqrt(len(self.V.cache))))
-                self.mutation_scale = 58.83484054145521 * self.arrow_width * 1.5
+                try:
+                    self.arrow_width = (min(dx1, dx2) * 0.13
+                                        / (numpy.sqrt(len(self.V.cache))))
+                except TypeError:  # Allow for decimal operations
+                    self.arrow_width = (min(dx1, dx2) * decimal.Decimal(0.13)
+                                        / decimal.Decimal(
+                                (numpy.sqrt(len(self.V.cache)))))
+
+                try:
+                    self.mutation_scale = 58.8348 * self.arrow_width * 1.5
+                except TypeError:  # Allow for decimal operations
+                    self.mutation_scale = (decimal.Decimal(58.8348)
+                                           * self.arrow_width
+                                           * decimal.Decimal(1.5))
 
             try:
                 self.ax_complex
