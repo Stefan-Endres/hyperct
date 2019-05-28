@@ -801,23 +801,37 @@ class Complex:
         vco = self.split_edge(vo.x, vs.x)  # Split in case not centroid arg
 
         # Find set of extreme vertices in current local space
-        sup_set = copy.copy(vco.nn)
-        uset = vo.nn.union(vs.nn)
-        uset.update(set((vo, vs)))
-        print(f'union')
-        for v in uset:
-            print(f'v = {v.x}')
+        if 0:
+            sup_set = copy.copy(vco.nn)
+            print(f'vco.nn ')
+            for v in vco.nn:
+                print(f'vco_nn = {v.x}')
+            uset = vo.nn.union(vs.nn)
+            uset.update(set((vo, vs)))
+            print(f'union')
+            for v in uset:
+                print(f'v = {v.x}')
 
-           # .update(set((vo, vs)
+               # .update(set((vo, vs)
 
-        sup_set = sup_set.intersection(uset)
-        # vcc should be connected to all other vertices, it is the origin of all
-        # refining vertices
+            sup_set = sup_set.intersection(uset)
+            # vcc should be connected to all other vertices, it is the origin of all
+            # refining vertices
 
-        # TODO: If centroids not defined we should vpool all the vertices
-
+            # TODO: If centroids not defined we should vpool all the vertices
+        elif 1:
+            sup_set = self.vpool(vo.x, vs.x)
+            sup_set.update(set((vo, vs)))
+            sup_set = sup_set.intersection(vco.nn)
+            try:
+                sup_set.remove(set((vco,)))
+            except KeyError:
+                pass
         print(f'sup_set = {sup_set}')
+        i = 0
         for v in sup_set:
+            i += 1
+            print(f'i = {i}')
             print(f'v = {v.x}')
 
         # Cyclic group approach with second x_l --- x_u operation.
@@ -1044,8 +1058,8 @@ class Complex:
             print('...')
             print('...')
             print('REMOVING FAILED')
-            print(f' (tuple(self.origin), tuple(self.supremum))'
-                  f'= {(tuple(self.origin), tuple(self.supremum))}')
+            print(f' (tuple(origin), tuple(supremum))'
+                  f'= {(tuple(origin), tuple(supremum))}')
             print('...')
             print('...')
             print('...')
@@ -1063,17 +1077,18 @@ class Complex:
                 vcn_list = []
                 c_nn_lists = []
                 for vs in sup_set:
-                    #print('='*10)
-                    #print(f'vs = {vs.x}')
+                    print('='*10)
+                    print(f'vs = {vs.x}')
                     #print(f'vco.x = {vco.x}')
                     # Build centroid
                     vcn = self.split_edge(vco.x, vs.x)
                     vcn_set.add(vcn)
                     vcn_list.append(vcn)
                     #print(f'vcn.x = {vcn.x}')
-                    if 1:
+                    if 0:
                         # Find connections
                         c_nn = vco.nn.intersection(vs.nn)  # + vo + vs
+                        #c_nn = vco.nn  # + vo + vs
                         #c_nn.remove(vcn)
                         #TODO: Remove newly gener
                         try:
@@ -1084,6 +1099,11 @@ class Complex:
 
                     elif 1:
                         c_nn = self.vpool(vco.x, vs.x)
+                        try:
+                            c_nn.remove(vcn_set)
+                        except KeyError:
+                            pass
+                        c_nn_lists.append(c_nn)
 
                     for vnn in c_nn:
                         #print(f'vnn = {vnn.x}')
@@ -1092,7 +1112,11 @@ class Complex:
                             vcn.connect(vnn)
                     # print('=' * 10)
 
-
+                for c_nn in c_nn_lists:
+                    try:
+                        c_nn.remove(vcn_set)
+                    except KeyError:
+                        pass
 
                 for vcn, c_nn in zip(vcn_list, c_nn_lists):
                     for vnn in c_nn:
@@ -1104,7 +1128,8 @@ class Complex:
                 yield vut
                 return vut
 
-
+        yield vut
+        return
 
     #@lru_cache(maxsize=None)
     def split_edge(self, v1, v2):
