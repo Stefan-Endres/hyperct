@@ -812,18 +812,9 @@ class Complex:
         sv = list(supremum)
         supremum = list(supremum)
         for i, vi in enumerate(origin):
-            print(f'i = {i}')
-            print(f'vi = {vi}')
-            print(f'ov[i] = {ov[i]}')
-            print(f'sv[i] = {sv[i]}')
             if ov[i] > sv[i]:
                 origin[i] = sv[i]
                 supremum[i] = ov[i]
-        print(f'ov = {ov}')
-        print(f'sv = {sv}')
-        print(f'origin = {origin}')
-        print(f'supremum = {supremum}')
-        print('='*100)
         #TODO: Add new triangulated vectors
         #TODO: Remove current triangulated vector
         #TODO: Build centroids by intersection of v_origin.nn and v_s.nn ?
@@ -835,40 +826,10 @@ class Complex:
         vco = self.split_edge(vo.x, vs.x)  # Split in case not centroid arg
 
         # Find set of extreme vertices in current local space
-        if 0:
-            sup_set = copy.copy(vco.nn)
-            print(f'vco.nn ')
-            for v in vco.nn:
-                print(f'vco_nn = {v.x}')
-            uset = vo.nn.union(vs.nn)
-            uset.update(set((vo, vs)))
-            print(f'union')
-            for v in uset:
-                print(f'v = {v.x}')
-
-               # .update(set((vo, vs)
-
-            sup_set = sup_set.intersection(uset)
-            # vcc should be connected to all other vertices, it is the origin of all
-            # refining vertices
-
-            # TODO: If centroids not defined we should vpool all the vertices
-        elif 0:
-            sup_set = self.vpool(vo.x, vs.x)
-            sup_set.update(set((vo, vs)))
-            sup_set = sup_set.intersection(vco.nn)
-            try:
-                sup_set.remove(set((vco,)))
-            except KeyError:
-                pass
-        elif 1:
-            sup_set = copy.copy(vco.nn)
-        #print(f'sup_set = {sup_set}')
+        sup_set = copy.copy(vco.nn)
         i = 0
         for v in sup_set:
             i += 1
-            #print(f'i = {i}')
-            #print(f'v = {v.x}')
 
         # Cyclic group approach with second x_l --- x_u operation.
 
