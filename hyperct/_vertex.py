@@ -114,7 +114,6 @@ class VertexScalarField(VertexBase):
             if numpy.isnan(self.f):
                 self.f = numpy.inf
 
-        self.fval = None
         self.check_min = True
         self.check_max = True
 
@@ -133,10 +132,11 @@ class VertexScalarField(VertexBase):
                 v._max = False
                 v.check_max = False
             # TEMPORARY
-                self.check_min = True
-                self.check_max = True
-                v.check_min = True
-                v.check_max = True
+            #TODO: WITHOUT THIS IT'S NOT UPDATING PROPERLY:
+            self.check_min = True
+            self.check_max = True
+            v.check_min = True
+            v.check_max = True
 
     def disconnect(self, v):
         if v in self.nn:
