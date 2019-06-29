@@ -1,11 +1,17 @@
 import collections
 from abc import ABC, abstractmethod
 import logging
-import numpy
+import numpy as np
+from functools import partial
+import multiprocessing as mp
+
+from hyperct._field import *
+
 """Vertex objects"""
 class VertexBase(ABC):
     def __init__(self, x, nn=None, index=None):
         self.x = x
+        self.hash = hash(self.x)  # Save precomputed hash
         #self.order = sum(x)  #TODO: Delete if we can't prove the order triangulation conjecture
 
         if nn is not None:
@@ -16,14 +22,14 @@ class VertexBase(ABC):
         self.index = index
 
     def __hash__(self):
-        return hash(self.x)
+        return self.hash
 
     def __getattr__(self, item):
         if item not in ['x_a']:
             raise AttributeError(f"{type(self)} object has no attribute "
                                  f"'{item}'")
-        elif item is 'x_a':
-            self.x_a = numpy.array(self.x)
+        if item is 'x_a':
+            self.x_a = np.array(self.x)
             return self.x_a
 
     @abstractmethod
@@ -82,7 +88,7 @@ class VertexScalarField(VertexBase):
         """
         :param x: tuple, vector of vertex coordinates
         :param field: function, a scalar field f: R^n --> R associated with
-    the geometry
+                      the geometry
         :param nn: list, optional, list of nearest neighbours
         :param index: int, optional, index of the vertex
         :param field_args: tuple, additional arguments to be passed to field
@@ -94,54 +100,35 @@ class VertexScalarField(VertexBase):
 
         # Note Vertex is only initiated once for all x so only
         # evaluated once
-        self.feasible = True
+        self.feasible = None
 
-        if g_cons is not None:
-            for g, args in zip(g_cons, g_cons_args):
-                if g(self.x_a, *args) < 0.0:
-                    self.f = numpy.inf
-                    self.feasible = False
-                    break
-
-        #TODO: add possible h_cons tolerance check
-
-        if self.feasible:
-            try: #TODO: Remove exception handling?
-                self.f = field(self.x_a, *field_args)
-            except TypeError:
-                #logging.warning(f"Field function not found at x = {self.x_a}")
-                self.f = numpy.inf
-            if numpy.isnan(self.f):
-                self.f = numpy.inf
+        # self.f is externally defined by the cache to allow parallel
+        # processing
+        #self.f = None  # None type that will break arithmetic operations unless
+                       # defined
 
         self.check_min = True
         self.check_max = True
 
-    def __hash__(self):
-        return hash(self.x)
 
     def connect(self, v):
         if v is not self and v not in self.nn:
             self.nn.add(v)
             v.nn.add(self)
 
-            if self.minimiser():
-                v._min = False
-                v.check_min = False
-            if self.maximiser():
-                v._max = False
-                v.check_max = False
-            # TEMPORARY
-            #TODO: WITHOUT THIS IT'S NOT UPDATING PROPERLY:
+            # Flags for checking homology properties:
             self.check_min = True
             self.check_max = True
             v.check_min = True
             v.check_max = True
 
+
     def disconnect(self, v):
         if v in self.nn:
             self.nn.remove(v)
             v.nn.remove(self)
+
+            # Flags for checking homology properties:
             self.check_min = True
             self.check_max = True
             v.check_min = True
@@ -208,6 +195,8 @@ class VertexCacheBase(object):
 
 class VertexCacheIndex(VertexCacheBase):
     def __init__(self):
+        #TODO: Allow for optional constraint arguments for non-linear
+        # triangulations
         super().__init__()
         self.Vertex = VertexCube
 
@@ -223,8 +212,10 @@ class VertexCacheIndex(VertexCacheBase):
             return self.cache[x]
 
 class VertexCacheField(VertexCacheBase):
-    def __init__(self, field, field_args=(), g_cons=None,
-                 g_cons_args=()):
+    def __init__(self, field=None, field_args=(), g_cons=None, g_cons_args=(),
+                 workers=None):
+        #TODO: Make a non-linear constraint cache with no scalar field
+        #TODO: add possible h_cons tolerance check
         super().__init__()
         self.index = -1
         self.Vertex = VertexScalarField
@@ -232,6 +223,29 @@ class VertexCacheField(VertexCacheBase):
         self.field_args = field_args
         self.g_cons = g_cons
         self.g_cons_args = g_cons_args
+        self.gpool = set()  # A set of tuples to process for feasibility
+
+        # Field processing objects
+        self.fpool = set()  # A set of tuples to process for scalar function
+        self.sfc_lock = False  # True if self.fpool is non-Empty
+
+        if workers == None:
+            self.process_gpool = self.proc_gpool
+            self.process_fpool = self.proc_fpool
+        else:
+            self.workers = workers
+            self.pool = mp.Pool(processes=workers)  #TODO: Move this pool to
+                                                    # the complex object
+            #elf.process_gpool = self.pproc_gpool
+            self.process_gpool = self.proc_gpool  #TODO: USE pproc
+            self.process_fpool = self.pproc_fpool
+
+        # Create a field cache object:
+        if 0:
+            if field is not None:
+                self.F = ScalarFieldCache(self, g_cons=g_cons,
+                                          g_cons_args=g_cons_args,
+                                          field=field, field_args=field_args)
 
     def __getitem__(self, x, nn=None): #TODO: Test to add optional nn argument?
         #NOTE: To use nn arg do ex. V.__getitem__((1,2,3), [3,4,7])
@@ -243,17 +257,98 @@ class VertexCacheField(VertexCacheBase):
                                field_args=self.field_args,
                                g_cons=self.g_cons, g_cons_args=self.g_cons_args)
 
-            self.cache[x] = xval
+            self.cache[x] = xval  # Define in cache
+            self.gpool.add(xval)  # Add to pool for processing feasibility
+            self.fpool.add(xval)  # Add to pool for processing field values
+            return self.cache[x]
 
-        # TODO: Check
-        if self.field is not None:
-            if self.g_cons is not None:
-                if xval.feasible:
-                    self.nfev += 1
+    def __getstate__(self):
+        self_dict = self.__dict__.copy()
+        del self_dict['pool']
+        return self_dict
+
+    def __iter__(self):
+        for v in self.cache:
+            yield self.cache[v]
+        return
+
+
+    def feasibility_check(self, v):
+        v.feasible = True
+        if self.g_cons is not None:
+            for g, args in zip(self.g_cons, self.g_cons_args):
+                print(f'g(v.x_a, *args)  = {g(v.x_a, *args) }')
+                if g(v.x_a, *args) < 0.0:
+                    v.f = np.inf
+                    v.feasible = False
+                    break
+
+
+    def compute_sfield(self, v):
+        if v.feasible:
+            try: #TODO: Remove exception handling?
+                v.f = self.field(v.x_a, *self.field_args)
+            except TypeError:
+                #logging.warning(f"Field function not found at x = {self.x_a}")
+                v.f = np.inf
+            if np.isnan(v.f):
+                v.f = np.inf
+
+    def proc_gpool(self):
+        print('proc_GPOOL'*50)
+        for v in self.gpool:
+            print(f'v = {v}')
+            self.feasibility_check(v)
+        # Clean the pool
+        self.gpool = set()
+
+    def pproc_gpool(self):
+        pass
+
+    def proc_fpool(self):
+        for vx in self.fpool:
+            self.compute_sfield(vx)
+        # Clean the pool
+        self.fpool = set()
+
+    #TODO: Make static method to possibly improve pickling speed
+    def pproc_fpool(self):
+        # Process the ! in parrallel
+        #F = self.pool.map(self.field, self.fpool)
+
+        #
+        fpool_l = []
+        for v in self.fpool:
+            if v.feasible:
+                fpool_l.append((v.x, *self.field_args))
             else:
-                self.nfev += 1
+                v.f = np.inf
 
-        return self.cache[x]
+        F = self.pool.starmap(self.field, fpool_l)  #TODO: Python 2.7 compat.
+
+
+        #F = self.pool.map(self.compute_sfield, self.fpool)
+
+        for vt, f in zip(fpool_l, F):
+            self[vt[0]].f = f  # set vertex object attribute v.f = f
+
+    def proc_minimisers(self, v):
+        """
+        Check for minimisers
+        :return:
+        """
+
+        if v.minimiser():
+            v2._min = False
+            v2.check_min = False
+        if v.maximiser():
+            v2._max = False
+            v2.check_max = False
+
+
+class FieldWraper(object):
+    def __init__(self):
+        pass
 
 if __name__ == '__main__':  # TODO: Convert these to unittests
     v1 = VertexCube((1,2,-3.3))
@@ -269,12 +364,10 @@ if __name__ == '__main__':  # TODO: Convert these to unittests
     #print(v1.x_a)
 
     def func(x):
-        import numpy
-        return numpy.sum((x - 3) ** 2) + 2.0 * (x[0] + 10)
+        return np.sum((x - 3) ** 2) + 2.0 * (x[0] + 10)
 
 
     def g_cons(x):  # (Requires n > 2)
-        import numpy
         # return x[0] - 0.5 * x[2] + 0.5
         return x[0]  # + x[2] #+ 0.5
 
@@ -285,12 +378,10 @@ if __name__ == '__main__':  # TODO: Convert these to unittests
     print(v1.x_a)
 
     def func(x):
-        import numpy
-        return numpy.sum((x - 3) ** 2) + 2.0 * (x[0] + 10)
+        return np.sum((x - 3) ** 2) + 2.0 * (x[0] + 10)
 
 
     def g_cons(x):  # (Requires n > 2)
-        import numpy
         # return x[0] - 0.5 * x[2] + 0.5
         return x[0]  # + x[2] #+ 0.5
 
