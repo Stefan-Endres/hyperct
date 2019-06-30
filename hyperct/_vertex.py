@@ -221,8 +221,11 @@ class VertexCacheField(VertexCacheBase):
         self.Vertex = VertexScalarField
         self.field = field
         self.field_args = field_args
+        self.wfield = FieldWraper(field, field_args)  # if workers is not None
+
         self.g_cons = g_cons
         self.g_cons_args = g_cons_args
+        self.wgcons = ConstraintWraper(g_cons, g_cons_args)
         self.gpool = set()  # A set of tuples to process for feasibility
 
         # Field processing objects
@@ -236,16 +239,9 @@ class VertexCacheField(VertexCacheBase):
             self.workers = workers
             self.pool = mp.Pool(processes=workers)  #TODO: Move this pool to
                                                     # the complex object
-            #elf.process_gpool = self.pproc_gpool
-            self.process_gpool = self.proc_gpool  #TODO: USE pproc
+            self.process_gpool = self.pproc_gpool
             self.process_fpool = self.pproc_fpool
 
-        # Create a field cache object:
-        if 0:
-            if field is not None:
-                self.F = ScalarFieldCache(self, g_cons=g_cons,
-                                          g_cons_args=g_cons_args,
-                                          field=field, field_args=field_args)
 
     def __getitem__(self, x, nn=None): #TODO: Test to add optional nn argument?
         #NOTE: To use nn arg do ex. V.__getitem__((1,2,3), [3,4,7])
@@ -273,82 +269,123 @@ class VertexCacheField(VertexCacheBase):
         return
 
 
+    def recompute_pools(self):
+        pass
+        #TODO: This will recompute pools to include vertices with missing info
+        #      and purge vertices that already have info computed. Only to be
+        #      run when loading data from hard drive disk
+
     def feasibility_check(self, v):
         v.feasible = True
-        if self.g_cons is not None:
-            for g, args in zip(self.g_cons, self.g_cons_args):
-                print(f'g(v.x_a, *args)  = {g(v.x_a, *args) }')
-                if g(v.x_a, *args) < 0.0:
-                    v.f = np.inf
-                    v.feasible = False
-                    break
+        for g, args in zip(self.g_cons, self.g_cons_args):
+            print(f'g(v.x_a, *args)  = {g(v.x_a, *args) }')
+            if g(v.x_a, *args) < 0.0:
+                v.f = np.inf
+                v.feasible = False
+                break
 
 
     def compute_sfield(self, v):
-        if v.feasible:
-            try: #TODO: Remove exception handling?
-                v.f = self.field(v.x_a, *self.field_args)
-            except TypeError:
-                #logging.warning(f"Field function not found at x = {self.x_a}")
-                v.f = np.inf
-            if np.isnan(v.f):
-                v.f = np.inf
+        try: #TODO: Remove exception handling?
+            v.f = self.field(v.x_a, *self.field_args)
+        except:  #TODO: except only various floating issues
+            #logging.warning(f"Field function not found at x = {self.x_a}")
+            v.f = np.inf
+        if np.isnan(v.f):
+            v.f = np.inf
 
     def proc_gpool(self):
         print('proc_GPOOL'*50)
-        for v in self.gpool:
-            print(f'v = {v}')
-            self.feasibility_check(v)
+        if self.g_cons is not None:
+            for v in self.gpool:
+                print(f'v = {v}')
+                self.feasibility_check(v)
         # Clean the pool
         self.gpool = set()
 
     def pproc_gpool(self):
-        pass
+        gpool_l = []
+        for v in self.gpool:
+            gpool_l.append(v.x_a)
+
+        G = self.pool.map(self.wgcons.gcons, gpool_l)
+        for v, g in zip(self.gpool, G):
+            v.feasible = g  # set vertex object attribute v.feasible = g (bool)
+
 
     def proc_fpool(self):
-        for vx in self.fpool:
-            self.compute_sfield(vx)
+        # TODO: do try check if v.f exists
+        for v in self.fpool:
+            if v.feasible:
+                self.compute_sfield(v)
         # Clean the pool
         self.fpool = set()
 
     #TODO: Make static method to possibly improve pickling speed
     def pproc_fpool(self):
-        # Process the ! in parrallel
-        #F = self.pool.map(self.field, self.fpool)
-
-        #
+        #TODO: Ensure that .f is not already computed? (it shouldn't be addable
+        #      to the self.fpool if it is).
+        self.wfield.func
         fpool_l = []
         for v in self.fpool:
             if v.feasible:
-                fpool_l.append((v.x, *self.field_args))
+                print(f'v.x_a = {v.x_a}')
+                fpool_l.append(v.x_a)
             else:
                 v.f = np.inf
+        F = self.pool.map(self.wfield.func, fpool_l)
+        for va, f in zip(fpool_l, F):
+            vt = tuple(va)
+            self[vt].f = f  # set vertex object attribute v.f = f
 
-        F = self.pool.starmap(self.field, fpool_l)  #TODO: Python 2.7 compat.
+        print(f'self.cache = {self.cache}')
 
-
-        #F = self.pool.map(self.compute_sfield, self.fpool)
-
-        for vt, f in zip(fpool_l, F):
-            self[vt[0]].f = f  # set vertex object attribute v.f = f
-
-    def proc_minimisers(self, v):
+    def proc_minimisers(self):
         """
         Check for minimisers
         :return:
         """
+        for v in self:
+            v.minimiser()
+            v.maximiser()
 
-        if v.minimiser():
-            v2._min = False
-            v2.check_min = False
-        if v.maximiser():
-            v2._max = False
-            v2.check_max = False
+        if 0:
+            if v.minimiser():
+                v2._min = False
+                v2.check_min = False
+            if v.maximiser():
+                v2._max = False
+                v2.check_max = False
 
+
+class ConstraintWraper(object):
+    def __init__(self, g_cons, g_cons_args):
+        self.g_cons = g_cons
+        self.g_cons_args = g_cons_args
+
+    def gcons(self, v_x_a):
+        vfeasible = True
+        for g, args in zip(self.g_cons, self.g_cons_args):
+            if g(v_x_a, *args) < 0.0:  #TODO: Add exception handling?
+                vfeasible = False
+                break
+        return vfeasible
 
 class FieldWraper(object):
-    def __init__(self):
-        pass
+    def __init__(self, field, field_args):
+        self.field = field
+        self.field_args = field_args
+
+    def func(self, v_x_a):
+        try:
+            v_f = self.field(v_x_a, *self.field_args)
+        except:  #TODO: except only various floating issues
+            # logging.warning(f"Field function not found at x = {self.x_a}")
+            v_f = np.inf
+        if np.isnan(v_f):
+            v_f = np.inf
+
+        return v_f
 
 if __name__ == '__main__':  # TODO: Convert these to unittests
     v1 = VertexCube((1,2,-3.3))
