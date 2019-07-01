@@ -37,6 +37,8 @@ import copy
 import logging
 import os
 import itertools
+import collections
+import json
 import decimal
 from abc import ABC, abstractmethod
 # Required modules:
@@ -57,7 +59,7 @@ except ImportError:
 else:
     matplotlib_available = True
 
-# Optional modules for plotting:
+# Optional modules for DEC:
 try:
     import clifford as cf
 except ImportError:
@@ -78,6 +80,7 @@ except ImportError:  # Python 2:
 
 # Module specific imports
 from hyperct._vertex import (VertexCacheIndex, VertexCacheField)
+from hyperct._field import (FieldCache, ScalarFieldCache)
 from hyperct._vertex_group import (Subgroup, Cell, Simplex)
 
 
@@ -85,7 +88,8 @@ from hyperct._vertex_group import (Subgroup, Cell, Simplex)
 class Complex:
     def __init__(self, dim, domain=None, sfield=None, sfield_args=(),
                  vfield=None, vfield_args=None,
-                 symmetry=None, g_cons=None, g_cons_args=()):
+                 symmetry=None, constraints=None,
+                 workers=None):
         """
         A base class for a simplicial complex described as a cache of vertices
         together with their connections.
@@ -123,8 +127,46 @@ class Complex:
         :param vfield_args: tuple, Additional arguments to be passed to sfield
         :param symmetry: If all the variables in the field are symmetric this
                 option will reduce complexity of the triangulation by O(n!)
-        :param g_cons: Constraint functions on the domain g: R^dim --> R^m
-        :param g_cons_args: tuple, Additional arguments to be passed to g_cons
+
+        constraints : dict or sequence of dict, optional
+            Constraints definition.
+            Function(s) ``R**n`` in the form::
+        
+                g(x) <= 0 applied as g : R^n -> R^m
+                h(x) == 0 applied as h : R^n -> R^p
+        
+            Each constraint is defined in a dictionary with fields:
+        
+                type : str
+                    Constraint type: 'eq' for equality, 'ineq' for inequality.
+                fun : callable
+                    The function defining the constraint.
+                jac : callable, optional
+                    The Jacobian of `fun` (only for SLSQP).
+                args : sequence, optional
+                    Extra arguments to be passed to the function and Jacobian.
+        
+            Equality constraint means that the constraint function result is to
+            be zero whereas inequality means that it is to be non-negative.constraints : dict or sequence of dict, optional
+            Constraints definition.
+            Function(s) ``R**n`` in the form::
+        
+                g(x) <= 0 applied as g : R^n -> R^m
+                h(x) == 0 applied as h : R^n -> R^p
+        
+            Each constraint is defined in a dictionary with fields:
+        
+                type : str
+                    Constraint type: 'eq' for equality, 'ineq' for inequality.
+                fun : callable
+                    The function defining the constraint.
+                jac : callable, optional
+                    The Jacobian of `fun` (unused).
+                args : sequence, optional
+                    Extra arguments to be passed to the function and Jacobian.
+        
+            Equality constraint means that the constraint function result is to
+            be zero whereas inequality means that it is to be non-negative.
         """
         self.dim = dim
 
@@ -144,9 +186,29 @@ class Complex:
         self.sfield_args = sfield_args
         self.vfield_args = vfield_args
 
-        # Constraint functions
-        self.g_cons = g_cons
-        self.g_cons_args = g_cons_args
+        # Process constraints
+        # Constraints
+        # Process constraint dict sequence:
+        if constraints is not None:
+            self.min_cons = constraints
+            self.g_cons = []
+            self.g_args = []
+            if (type(constraints) is not tuple) and (type(constraints)
+                                                     is not list):
+                constraints = (constraints,)
+
+            for cons in constraints:
+                if cons['type'] == 'ineq':
+                    self.g_cons.append(cons['fun'])
+                    try:
+                        self.g_args.append(cons['args'])
+                    except KeyError:
+                        self.g_args.append(())
+            self.g_cons = tuple(self.g_cons)
+            self.g_args = tuple(self.g_args)
+        else:
+            self.g_cons = None
+            self.g_args = None
 
         # Homology properties
         self.gen = 0
@@ -161,13 +223,24 @@ class Complex:
 
 
         # Cache of all vertices
-        if (sfield is not None) or (g_cons is not None):
-            self.V = VertexCacheField(field=sfield, field_args=sfield_args,
-                                      g_cons=g_cons, g_cons_args=g_cons_args)
+        if (sfield is not None) or (self.g_cons is not None):
+            # Initiate a vertex cache and an associated field cache, note that
+            # the field case is always initiated inside the vertex cache if an
+            # associated field scalar field is defined:
+            if sfield is not None:
+                self.V = VertexCacheField(field=sfield, field_args=sfield_args,
+                                          g_cons=self.g_cons,
+                                          g_cons_args=self.g_args,
+                                          workers=workers)
+            elif self.g_cons is not None:
+                self.V = VertexCacheField(field=sfield, field_args=sfield_args,
+                                          g_cons=self.g_cons,
+                                          g_cons_args=self.g_args,
+                                          workers=workers)
         else:
             self.V = VertexCacheIndex()
 
-        self.V_non_symm = []  # Lost of non-symmetric vertices
+        self.V_non_symm = []  # List of non-symmetric vertices
 
         if vfield is not None:
             logging.warning("Vector field applications have not been "
@@ -737,13 +810,15 @@ class Complex:
                 # does not exist or is exhausted then produce a new generator
                 try:  # try 2
                     #next(self.rls)
-                    print(f'next(self.rls) = {next(self.rls)}')
+                    #print(f'next(self.rls) = {next(self.rls)}')
+                    next(self.rls)
                 except (AttributeError, StopIteration, KeyError):
                     vp = self.triangulated_vectors[0]
-                    print(f'vp = {vp}')
+                    #print(f'vp = {vp}')
                     self.rls = self.refine_local_space(*vp, bounds=self.bounds)
                     # next(self.rls)
-                    print(f'next(self.rls) = {next(self.rls)}')
+                    #print(f'next(self.rls) = {next(self.rls)}')
+                    next(self.rls)
 
             except (AttributeError, KeyError):
                 # If an initial triangulation has not been completed, then
@@ -800,21 +875,21 @@ class Complex:
 
     def refine_local_space(self, origin, supremum, bounds, centroid=1,
                               printout=0):
-        #print('...')
-        #print('...')
-        #print('...')
-        print('='*100)
-        print(f'origin = {origin}')
-        print(f'supremum = {supremum}')
+        # Copy for later removal
+        #print(f'self.triangulated_vectors = {self.triangulated_vectors}')
+        origin_c = copy.copy(origin)
+        supremum_c = copy.copy(supremum)
+
         # Change the vector orientation so that it is only increasing
-        ov = list(origin)
-        origin = list(origin)
-        sv = list(supremum)
-        supremum = list(supremum)
-        for i, vi in enumerate(origin):
-            if ov[i] > sv[i]:
-                origin[i] = sv[i]
-                supremum[i] = ov[i]
+        if 1:
+            ov = list(origin)
+            origin = list(origin)
+            sv = list(supremum)
+            supremum = list(supremum)
+            for i, vi in enumerate(origin):
+                if ov[i] > sv[i]:
+                    origin[i] = sv[i]
+                    supremum[i] = ov[i]
         #TODO: Add new triangulated vectors
         #TODO: Remove current triangulated vector
         #TODO: Build centroids by intersection of v_origin.nn and v_s.nn ?
@@ -866,16 +941,16 @@ class Complex:
                 #a_vl = list(Cox[i][0].x)
                 t_a_vl = list(origin)
                 t_a_vl[i + 1] = vut[i + 1]
-                print(f'tuple(t_a_vl) = {tuple(t_a_vl)}')
-                print(f'tuple(t_a_vl) not in self.V.cache '
-                      f'= {tuple(t_a_vl) not in self.V.cache}')
+              #  print(f'tuple(t_a_vl) = {tuple(t_a_vl)}')
+              #  print(f'tuple(t_a_vl) not in self.V.cache '
+              #        f'= {tuple(t_a_vl) not in self.V.cache}')
                 if tuple(t_a_vl) not in self.V.cache:
                     raise IndexError  # Raise error to continue symmetric refine
                 t_a_vu = list(supremum)
                 t_a_vu[i + 1] = vut[i + 1]
-                print(f'tuple(a_vu) = {tuple(t_a_vu)}')
-                print(f'tuple(a_vu) not in self.V.cache '
-                      f'= {tuple(t_a_vu) not in self.V.cache}')
+               # print(f'tuple(a_vu) = {tuple(t_a_vu)}')
+               # print(f'tuple(a_vu) not in self.V.cache '
+               #       f'= {tuple(t_a_vu) not in self.V.cache}')
                 if tuple(t_a_vu) not in self.V.cache:
                     raise IndexError  # Raise error to continue symmetric refine
 
@@ -1035,28 +1110,29 @@ class Complex:
             except IndexError:
             #except IndexError:
             #TODO: Symmetries
-                print('.')
-                print('.')
-                print(f'Starting symmetry loop i = {i}')
+               # print('.')
+               # print('.')
+                #print(f'Starting symmetry loop i = {i}')
                 # Add new group N + aN group supremum, connect to all
                 # Get previous
                 vl = Cox[i][-1]
                 vc = Ccx[i][-1]
                 vu = Cux[i][-1]
                 a_vu = list(Cux[i][-1].x)
-                print(f'vl.x = {vl.x}')
-                print(f'vu.x = {vu.x}')
-                print(f'vc.x = {vc.x}')
-                print(f'a_vu.x = {vu.x}')
+               # print(f'vl.x = {vl.x}')
+               # print(f'vu.x = {vu.x}')
+                #print(f'vc.x = {vc.x}')
+                #print(f'a_vu.x = {vu.x}')
                 #a_vc[i + 1] = vut[i + 1]
                 a_vu[i + 1] = vut[i + 1]
                 a_vu = self.V[tuple(a_vu)]
+                yield a_vu.x
 
                 # Connect a_vs to vs (the nearest neighbour in N --- aN)
                 #a_vs.connect(vs)
                 c_vu = self.split_edge(vu.x, a_vu.x)
                 c_vu.connect(vco)
-                print(f'c_vu.x = {c_vu.x}')
+               # print(f'c_vu.x = {c_vu.x}')
                 yield c_vu.x
 
                 # a + b centroid
@@ -1120,8 +1196,10 @@ class Complex:
         #self.triangulated_vectors.remove((tuple(self.origin),
         #                                  tuple(self.supremum)))
         try:
-            self.triangulated_vectors.remove((tuple(origin),
-                                              tuple(supremum)))
+            #self.triangulated_vectors.remove((tuple(origin),
+             #                                 tuple(supremum)))
+            self.triangulated_vectors.remove((tuple(origin_c),
+                                              tuple(supremum_c)))
         except ValueError:
             print('...')
             print('...')
@@ -1134,11 +1212,12 @@ class Complex:
             print('...')
 
 
-        print(f'self.triangulated_vectors = {self.triangulated_vectors}')
+      #  print(f'self.triangulated_vectors = {self.triangulated_vectors}')
         # Add newly triangulated vectors:
         for vs in sup_set:
             self.triangulated_vectors.append((tuple(vco.x), tuple(vs.x)))
 
+      #  print(f'self.triangulated_vectors = {self.triangulated_vectors}')
         # Extra yield to ensure that the triangulation is completed
         if 1:
             if centroid:
@@ -1205,7 +1284,7 @@ class Complex:
         yield vut
         return
 
-    #@lru_cache(maxsize=None)
+    @lru_cache(maxsize=None)
     def split_edge(self, v1, v2):
         v1 = self.V[v1]
         v2 = self.V[v2]
@@ -2142,6 +2221,7 @@ class Complex:
         if self.dim == 1:
             if arrow_width is not None:
                 self.arrow_width = arrow_width
+                self.mutation_scale = 58.83484054145521 * self.arrow_width * 1.3
             else:  # heuristic
                 dx = self.bounds[0][1] - self.bounds[0][0]
                 self.arrow_width = (dx * 0.13
@@ -2262,12 +2342,12 @@ class Complex:
                                         / decimal.Decimal(
                                 (numpy.sqrt(len(self.V.cache)))))
 
-                try:
-                    self.mutation_scale = 58.8348 * self.arrow_width * 1.5
-                except TypeError:  # Allow for decimal operations
-                    self.mutation_scale = (decimal.Decimal(58.8348)
-                                           * self.arrow_width
-                                           * decimal.Decimal(1.5))
+            try:
+                self.mutation_scale = 58.8348 * self.arrow_width * 1.5
+            except TypeError:  # Allow for decimal operations
+                self.mutation_scale = (decimal.Decimal(58.8348)
+                                       * self.arrow_width
+                                       * decimal.Decimal(1.5))
 
             try:
                 self.ax_complex
@@ -2651,7 +2731,8 @@ class Complex:
 
             for i in range(xg.shape[0]):
                 for j in range(yg.shape[0]):
-                    Z[i, j] = func([xg[i, j], yg[i, j]], *func_args)
+                    Z[i, j] = func(numpy.array([xg[i, j], yg[i, j]]),
+                                   *func_args)
 
             self.plot_xg, self.plot_yg, self.plot_Z = xg, yg, Z
             return self.plot_xg, self.plot_yg, self.plot_Z
@@ -2807,7 +2888,7 @@ class Complex:
                  self.sfield_fm, Scalar field values corresponding to the
                                  vertices in self.vertices_fm
         """
-        #TODO: UNTESTED FOR DIMENSIONS HIGHER THAN 2
+        #TODO: UNTESindexTED FOR DIMENSIONS HIGHER THAN 2
         self.vertices_fm = []  # Vertices (A list of ob
         self.simplices_fm = []  # Faces
         self.simplices_fm_i = []
@@ -2913,19 +2994,70 @@ class Complex:
     #TODO: face_vertex_mesh
 
     # %% Data persistence
-    def save_complex(self, fn):
+    def save_complex(self, HC=None, fn='cdata.json'):
         """
         TODO: Save the complex to file using pickle
         https://stackoverflow.com/questions/4529815/saving-an-object-data-persistence
         :param fn: str, filename
         :return:
         """
-        pass
+        if HC == None:
+            HC = self
 
-    def load_complex(self, fn):
+        data = collections.OrderedDict()
+        HCckey = copy.copy(HC.V.cache)
+        print(f'HC.V.cache.keys() = {HC.V.cache.keys()}')
+        for v in HCckey:
+            print('.')
+            print(f'v = {v}')
+            print(f'type(v) = {type(v)}')
+            data[str(v)] = {}
+            print(f'HC.V[v].nn = {HC.V[v].nn}')
+            nn_keys = []
+            for v2 in HC.V[v].nn:
+                nn_keys.append(v2.x)
+
+            print(f'{nn_keys}')
+            data[str(v)]['nn'] = nn_keys
+            #print(f'vars(HC.V[str(v)]) = {vars(HC.V[str(v)])}')
+            print(f'vars(HC.V[v]) = {vars(HC.V[v])}')
+            for key in vars(HC.V[v]):
+                if key not in ['nn', 'x', 'x_a', 'hash']:
+                    #print(f'key = {key}')
+                    print(f'val = {vars(HC.V[v])[key]}')
+                    data[str(v)][key] = vars(HC.V[v])[key]
+                    if key == 'f':
+                        data[str(v)][key] = float(vars(HC.V[v])[key])
+
+        with open(fn, 'w') as fp:
+            json.dump(data, fp)
+
+        return
+
+    def load_complex(self, fn='cdata.json'):
         """
         TODO: Load the complex from file using pickle
         :param fn: str, filename
         :return:
         """
-        pass
+        logging.log('Loading complex data...')
+        with open(fn, 'r') as fp:
+            data = json.load(fp, object_pairs_hook=collections.OrderedDict)
+       # print(f'data = {data}')
+        logging.log('Complex data successfully loaded, building Python '
+                    'objects...')
+        for vt in data.keys():
+            v = self.V[eval(vt)]
+            for vnt in data[vt]['nn']:
+                v.connect(self.V[tuple(vnt)])
+
+            for key, value in data[vt].items():
+                if key not in ['nn']:
+                    setattr(v, key, value)
+                #print(f'val = {vars(data[v])[key]}')
+                #data[str(v)][key] = vars(data[v])[key]
+
+        logging("Complex cache constructions completed, purging pools...")
+        self.V.recompute_pools()
+        logging("Succesfully loaded complex to memory.")
+        #TODO: Clear f and g pools in HC.V
