@@ -1,6 +1,7 @@
 import collections
 from abc import ABC, abstractmethod
 import logging
+import copy
 import numpy as np
 from functools import partial
 import multiprocessing as mp
@@ -100,7 +101,7 @@ class VertexScalarField(VertexBase):
 
         # Note Vertex is only initiated once for all x so only
         # evaluated once
-        self.feasible = None
+        #self.feasible = None
 
         # self.f is externally defined by the cache to allow parallel
         # processing
@@ -274,6 +275,28 @@ class VertexCacheField(VertexCacheBase):
         #TODO: This will recompute pools to include vertices with missing info
         #      and purge vertices that already have info computed. Only to be
         #      run when loading data from hard drive disk
+        for v in self:
+            # Update function checks
+            try:
+                v.f
+                try:
+                    self.fpool.remove(v)
+                except KeyError:
+                    pass
+            except AttributeError:
+                self.fpool.add(v)
+
+            # Update feasibility checks
+            try:
+                v.feasible
+                try:
+                    self.gpool.remove(v)
+                except KeyError:
+                    pass
+            except AttributeError:
+                self.gpool.add(v)
+
+        return self.fpool, self.gpool
 
     def feasibility_check(self, v):
         v.feasible = True
