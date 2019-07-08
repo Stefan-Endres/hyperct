@@ -178,6 +178,12 @@ class VertexCacheBase(object):
         # compiler make this irrelevant or not?) and in addition whether or not
         # we have defined a field function.
 
+    def __iter__(self):
+        for v in self.cache:
+            yield self.cache[v]
+        return
+
+
     def size(self):
         """
         Returns the size of the vertex cache
@@ -233,6 +239,11 @@ class VertexCacheField(VertexCacheBase):
         self.fpool = set()  # A set of tuples to process for scalar function
         self.sfc_lock = False  # True if self.fpool is non-Empty
 
+        if g_cons == None:
+            self.proc_fpool = self.proc_fpool_nog
+        else:
+            self.proc_fpool = self.proc_fpool_g
+
         if workers == None:
             self.process_gpool = self.proc_gpool
             self.process_fpool = self.proc_fpool
@@ -263,12 +274,6 @@ class VertexCacheField(VertexCacheBase):
         self_dict = self.__dict__.copy()
         del self_dict['pool']
         return self_dict
-
-    def __iter__(self):
-        for v in self.cache:
-            yield self.cache[v]
-        return
-
 
     def recompute_pools(self):
         pass
@@ -318,10 +323,8 @@ class VertexCacheField(VertexCacheBase):
             v.f = np.inf
 
     def proc_gpool(self):
-        print('proc_GPOOL'*50)
         if self.g_cons is not None:
             for v in self.gpool:
-                print(f'v = {v}')
                 self.feasibility_check(v)
         # Clean the pool
         self.gpool = set()
@@ -336,13 +339,21 @@ class VertexCacheField(VertexCacheBase):
             v.feasible = g  # set vertex object attribute v.feasible = g (bool)
 
 
-    def proc_fpool(self):
+    def proc_fpool_nog(self):
         # TODO: do try check if v.f exists
         for v in self.fpool:
             if v.feasible:
                 self.compute_sfield(v)
         # Clean the pool
         self.fpool = set()
+
+    def proc_fpool_nog(self):
+        # TODO: do try check if v.f exists
+        for v in self.fpool:
+            self.compute_sfield(v)
+        # Clean the pool
+        self.fpool = set()
+
 
     #TODO: Make static method to possibly improve pickling speed
     def pproc_fpool(self):
