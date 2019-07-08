@@ -2261,12 +2261,12 @@ class Complex:
 
         return
 
-    @lru_cache(maxsize=None)
+    #@lru_cache(maxsize=None)  #TODO: Undo
     def generate_sub_cell_t1(self, origin, v_x):
         # TODO: Test if looping lists are faster
         return self.v_o - self.v_o * numpy.array(v_x)
 
-    @lru_cache(maxsize=None)
+    #@lru_cache(maxsize=None) #TODO: Undo
     def generate_sub_cell_t2(self, supremum, v_x):
         return self.v_s * numpy.array(v_x)
 
