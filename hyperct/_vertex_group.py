@@ -68,12 +68,13 @@ class Cell(VertexGroup):
     Contains a cell that is symmetric to the initial hypercube triangulation
     """
 
-    def __init__(self, p_gen, p_hgr, origin, supremum):
+    def __init__(self, p_gen, p_hgr, origin, supremum, generation_cycle=0):
         super(Cell, self).__init__(p_gen, p_hgr)
 
         self.origin = origin
         self.supremum = supremum
         self.centroid = None  # (Not always used)
+        self.generation_cycle = generation_cycle
         # TODO: self.bounds
 
 
