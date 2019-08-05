@@ -15,7 +15,7 @@ from hyperct._complex import *
 
 import pytest
 
-#logging.getLogger().setLevel(logging.INFO) #TODO: REMOVE
+logging.getLogger().setLevel(logging.INFO) #TODO: REMOVE
 
 def g_cons(x):  # (Requires n > 2)
     import numpy
@@ -38,13 +38,17 @@ gen = 2 # 7
 bounds = [(-100.0, 100.0), (-100.0, 100.0)]
 
 
-def test_triangulation(n=2, gen=0, bounds=None):
+def test_triangulation(n=2, gen=0, bounds=None, symmetry=None):
     # Generate new reference complex
     HC_ref = Complex(n, domain=bounds)
 
     # Load test data
-    path = os.path.join(os.path.dirname(__file__), 'test_data',
-                        f'test_{n + 1}_{gen + 1}_{n}D_cube_gen_{gen}.json')
+    if symmetry is None:
+        path = os.path.join(os.path.dirname(__file__), 'test_data',
+                            f'test_{n + 1}_{gen + 1}_{n}D_cube_gen_{gen}.json')
+    else:
+        path = os.path.join(os.path.dirname(__file__), 'test_data',
+                            f'test_{n + 1}_{gen + 1}_{n}D_symm_gen_{gen}.json')
 
     HC_ref.load_complex(fn=path)
 
@@ -56,7 +60,7 @@ def test_triangulation(n=2, gen=0, bounds=None):
         nn_checks[v.x] = [vnn.x for vnn in v.nn]
 
     # Generate new test complex
-    HC = Complex(n)
+    HC = Complex(n, domain=bounds, symmetry=symmetry)
     HC.triangulate()
     for i in range(gen):
         HC.refine_all()
@@ -101,7 +105,7 @@ def test_triangulation(n=2, gen=0, bounds=None):
                         gsv[i] = vi
                     if vi < osv[i]:
                         osv[i] = vi
-            print(f' Approximate triangulation reference vectors:'
+            logging.info(f' Approximate triangulation reference vectors:'
                   f' origin = {osv}'
                   f' supremum = {gsv}')
             tset = set()
@@ -115,14 +119,14 @@ def test_triangulation(n=2, gen=0, bounds=None):
                     if vi < osv[i]:
                         osv[i] = vi
                 if tuple(v) not in cset:
-                    print(f'{v} should not be in v.nn')
+                    logging.info(f'{v} should not be in v.nn')
 
-            print(f' Approximate triangulation vectors computed in test:'
+            logging.info(f' Approximate triangulation vectors computed in test:'
                   f' origin = {osv}'
                   f' supremum = {gsv}')
             for v in nn_c:
                 if tuple(v) not in tset:
-                    print(f'{v} missing from v.nn')
+                    logging.info(f'{v} missing from v.nn')
 
             raise(e)
 
@@ -169,7 +173,8 @@ class TestCube(object):
            testing 1 generation of subtriangulations"""
         test_triangulation(4, 1)
 
-    @unittest.skip("Skipping slow test")
+    #@unittest.skip("Skipping slow test")
+    @pytest.mark.slow
     def test_3_3_4D_cube_splits(self):
         """Test that the 4D cube subtriangulations has the correct vertices,
            testing 2 generations of subtriangulations"""
@@ -236,4 +241,7 @@ class TestCube(object):
         test_triangulation(11, 0)
 
 class TestSymmetry(object):
-    pass
+    def test_1_1_2D_symm_init(self):
+        """Test that the initial 2D symmetric cube has the correct vertices"""
+        symmetry = [0,]*2
+        test_triangulation(2, 0, symmetry=symmetry)

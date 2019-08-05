@@ -391,6 +391,9 @@ class Complex:
                             #NOTE: Only needed when there will be no more
                             #      symmetric points later on
 
+                if 1:
+                    vl = C0x[i][-1]
+                    ab_C.append((vl, a_vs))
                 # Yield a tuple
                 yield a_vs
 
@@ -1303,7 +1306,7 @@ class Complex:
     def refine_local_space(self, origin, supremum, bounds, centroid=1,
                               printout=0):
         # Copy for later removal
-        #print(f'self.triangulated_vectors = {self.triangulated_vectors}')
+        print(f'self.triangulated_vectors = {self.triangulated_vectors}')
         origin_c = copy.copy(origin)
         supremum_c = copy.copy(supremum)
 
@@ -1318,20 +1321,24 @@ class Complex:
                     origin[i] = sv[i]
                     supremum[i] = ov[i]
 
-        if 0:  #TODO: Fix for providing a symmetry check
-            ov = list(origin)
-            origin = list(origin)
-            sv = list(supremum)
-            supremum = list(supremum)
-            for i, vi in enumerate(origin):
-                if ov[i] > sv[i]:
-                    origin[i] = sv[i]
-                    supremum[i] = ov[i]
+        if 1:  #TODO: Fix for providing a symmetry check
+            s_ov = list(origin)
+            s_origin = list(origin)
+            s_sv = list(supremum)
+            s_supremum = list(supremum)
+            for i, vi in enumerate(s_origin):
+                if s_ov[i] > s_sv[i]:
+                    s_origin[i] = s_sv[i]
+                    s_supremum[i] = s_ov[i]
+
+            s_vot = tuple(s_origin)
+            s_vut = tuple(s_supremum)  # Hyperrectangle supremum
         #TODO: Add new triangulated vectors
         #TODO: Remove current triangulated vector
         #TODO: Build centroids by intersection of v_origin.nn and v_s.nn ?
         vot = tuple(origin)
         vut = tuple(supremum)  # Hyperrectangle supremum
+        #s_vut = tuple(s_supremum)  # Hyperrectangle supremum
         vo = self.V[vot]  # initiate if doesn't exist yet
         vs = self.V[vut]
         # Start by finding the old centroid of the new space:
@@ -1351,17 +1358,57 @@ class Complex:
         # these vertices as the entire complex grows. Bounds[0] has to be done
         # outside the loops before we have symmetric containers.
         #NOTE: This means that bounds[0][1] must always exist
-        Cox = [[self.V[vot]]]
+
         a_vl = copy.copy(list(origin))
         a_vl[0] = vut[0]  # Update aN Origin
-        a_vl = self.V[tuple(a_vl)]
+        if tuple(a_vl) not in self.V.cache:
+            if 0:
+                ov = list(origin)
+                origin = list(origin)
+                sv = list(supremum)
+                supremum = list(supremum)
+                for i, vi in enumerate(origin):
+                    if ov[i] > sv[i]:
+                        origin[i] = sv[i]
+                        supremum[i] = ov[i]
+            ###
+
+            #%%%
+            if 0:
+                ov = copy.copy(origin)
+                sv = copy.copy(supremum)
+                origin = sv
+                supremum = ov
+
+            #%%%
+            if 1:
+                #s_vut = tuple(s_supremum)  # Hyperrectangle supremum
+                vo = self.V[s_vot]  # initiate if doesn't exist yet
+                vs = self.V[s_vut]
+                # Start by finding the old centroid of the new space:
+                vco = self.split_edge(vo.x, vs.x)  # Split in case not centroid arg
+
+                # Find set of extreme vertices in current local space
+                sup_set = copy.copy(vco.nn)
+                i = 0
+                for v in sup_set:
+                    i += 1
+                Cox = [[self.V[vot]]]
+                a_vl = copy.copy(list(origin))
+                a_vl[0] = vut[0]  # Update aN Origin
+                a_vl = self.V[tuple(a_vl)]
+        else:
+            a_vl = self.V[tuple(a_vl)]
+
         c_v = self.split_edge(vo.x, a_vl.x)
         c_v.connect(vco)
         yield c_v.x
+        Cox = [[vo]]
         Ccx = [[c_v]]
         Cux = [[a_vl]]
         ab_C = []  # Container for a + b operations
 
+        print(f'bounds = {bounds}')
         # Loop over remaining bounds
         for i, x in enumerate(bounds[1:]):
             # Update lower and upper containers
@@ -1381,21 +1428,42 @@ class Complex:
               #  print(f'tuple(t_a_vl) = {tuple(t_a_vl)}')
               #  print(f'tuple(t_a_vl) not in self.V.cache '
               #        f'= {tuple(t_a_vl) not in self.V.cache}')
-                if tuple(t_a_vl) not in self.V.cache:
-                    raise IndexError  # Raise error to continue symmetric refine
-                t_a_vu = list(supremum)
-                t_a_vu[i + 1] = vut[i + 1]
-               # print(f'tuple(a_vu) = {tuple(t_a_vu)}')
-               # print(f'tuple(a_vu) not in self.V.cache '
-               #       f'= {tuple(t_a_vu) not in self.V.cache}')
-                if tuple(t_a_vu) not in self.V.cache:
-                    raise IndexError  # Raise error to continue symmetric refine
 
 
+                if 1:
+                    if tuple(t_a_vl) not in self.V.cache:
+                        raise IndexError  # Raise error to continue symmetric refine
+                    t_a_vu = list(supremum)
+                    t_a_vu[i + 1] = vut[i + 1]
+                   # print(f'tuple(a_vu) = {tuple(t_a_vu)}')
+                   # print(f'tuple(a_vu) not in self.V.cache '
+                   #       f'= {tuple(t_a_vu) not in self.V.cache}')
+                    if tuple(t_a_vu) not in self.V.cache:
+                        raise IndexError  # Raise error to continue symmetric refine
+
+
+                    #%% NO EFFECT
+                    if 0:
+                        s_t_a_vl = list(s_origin)
+                        s_t_a_vl[i + 1] = s_vut[i + 1]
+                        #  print(f'tuple(t_a_vl) = {tuple(t_a_vl)}')
+                        #  print(f'tuple(t_a_vl) not in self.V.cache '
+                        #        f'= {tuple(t_a_vl) not in self.V.cache}')
+                        if tuple(s_t_a_vl) not in self.V.cache:
+                            raise IndexError  # Raise error to continue symmetric refine
+                        s_t_a_vu = list(s_supremum)
+                        s_t_a_vu[i + 1] = s_vut[i + 1]
+                        # print(f'tuple(a_vu) = {tuple(t_a_vu)}')
+                        # print(f'tuple(a_vu) not in self.V.cache '
+                        #       f'= {tuple(t_a_vu) not in self.V.cache}')
+                        if tuple(s_t_a_vu) not in self.V.cache:
+                            raise IndexError  # Raise error to continue symmetric refine
+
+                    #%%
                 # Early try so that we don't have to copy the cache before
                 # moving on to next C1/C2: Try to add the operation of a new
                 # C2 product by accessing the upper bound
-                x[1]
+                #x[1]
                 # Copy lists for iteration
                 cCox = [x[:] for x in Cox[:i + 1]]
                 cCcx = [x[:] for x in Ccx[:i + 1]]
@@ -1474,6 +1542,13 @@ class Complex:
                     ab_C.append((c_vc, vl, vu, a_vl, a_vu))
 
                     c_vc, vl, vu, a_vl, a_vu = vectors
+                    if 0:  #DELETE:
+                        self.split_edge(vl.x, vu.x)
+                        self.split_edge(vl.x, a_vl.x)
+                        self.split_edge(vl.x, a_vu.x)
+                        self.split_edge(vu.x, a_vl.x)
+                        self.split_edge(vu.x, a_vu.x)
+                        self.split_edge(a_vl.x, a_vu.x)
                     # Add new list of cross pairs
                     ab_C.append((bc_vc, b_vl, b_vu, ba_vl, ba_vu))
                     ab_C.append((d_bc_vc, d_b_vl, d_b_vu, d_ba_vl, d_ba_vu))
@@ -1520,6 +1595,7 @@ class Complex:
                         c_vc.connect(c_vl)  # Connect cN group vertices
                         yield(c_vl.x)
                         c_vu = self.split_edge(vu.x, a_vu.x) # yield at end of loop
+
                         c_vu.connect(vco)
                         # Connect remaining cN group vertices
                         c_vc.connect(c_vu)  # Connect cN group vertices
@@ -1530,6 +1606,10 @@ class Complex:
                         #a_vc.connect(c_vl)
                         a_vc.connect(c_vc)
                         #a_vc.connect(c_vu)
+
+                        if 0: #DELETE
+                            self.split_edge(vu.x, a_vl.x)
+                            self.split_edge(c_vl.x, c_vu.x)
 
                         # Storage for connecting c + ac operations:
                         ab_C.append((c_vc, vl, vu, a_vl, a_vu))
@@ -1560,24 +1640,35 @@ class Complex:
                 #print(f'Starting symmetry loop i = {i}')
                 # Add new group N + aN group supremum, connect to all
                 # Get previous
+                print('.')
+                print('='*20)
+                print('.')
                 vl = Cox[i][-1]
                 vc = Ccx[i][-1]
                 vu = Cux[i][-1]
                 a_vu = list(Cux[i][-1].x)
-               # print(f'vl.x = {vl.x}')
-               # print(f'vu.x = {vu.x}')
-                #print(f'vc.x = {vc.x}')
-                #print(f'a_vu.x = {vu.x}')
+                print(f'vl.x = {vl.x}')
+                print(f'vu.x = {vu.x}')
+                print(f'vc.x = {vc.x}')
+
                 #a_vc[i + 1] = vut[i + 1]
-                a_vu[i + 1] = vut[i + 1]
+                #a_vu[i + 1] = vut[i + 1]
+                a_vu[i + 1] = s_vut[i + 1]
                 a_vu = self.V[tuple(a_vu)]
+                print(f'a_vu.x = {a_vu.x}')
+
+                if 1:  # New
+                    ab_v = self.split_edge(vl.x, a_vu.x)
+                    print(f'ab_v.x = {ab_v.x}')
+                    ab_v.connect(vu)
+
                 yield a_vu.x
 
                 # Connect a_vs to vs (the nearest neighbour in N --- aN)
                 #a_vs.connect(vs)
                 c_vu = self.split_edge(vu.x, a_vu.x)
                 c_vu.connect(vco)
-               # print(f'c_vu.x = {c_vu.x}')
+                print(f'c_vu.x = {c_vu.x}')
                 yield c_vu.x
 
                 # a + b centroid
@@ -1599,6 +1690,8 @@ class Complex:
                 for VL, VC in zip(cCox, cCcx):
                     for vl, vc in zip(VL, VC):
                         # TODO: Check not needed? (Checked in conenct
+                        if 1:  #TODO: No change in dim 1-3
+                            self.split_edge(vl.x, a_vu.x)
                         if vl is not a_vu:
                             pass
                             #vu.connect(a_vu)
@@ -2431,9 +2524,11 @@ class Complex:
 
         for d in range(self.dim + 1):
             det_A_jj = (-1)**d * sign_det_A_11
-            #TODO: Note taht scipy might be faster to add as an optional
+            #TODO: Note that scipy might be faster to add as an optional
             #      dependency
             sign_det_A_j0 = numpy.sign(numpy.linalg.det(numpy.delete(A_j0, d, 0)))
+            #TODO: Note if sign_det_A_j0 == then the point is coplanar to the
+            #      current simplex facet, so perhaps return True and attach?
             if det_A_jj == sign_det_A_j0:
                 continue
             else:
@@ -3058,7 +3153,7 @@ class Complex:
             if len(min_points) > 0:
                 iter_min = min_points.copy()
                 for ind, v in enumerate(iter_min):
-                    min_points[ind][1] = float(self.V[v[0]].f)
+                    min_points[ind][1] = float(self.V[v[0],].f)
 
                 ax = self.plot_min_points(ax,
                                           min_points,
