@@ -23,7 +23,7 @@ TODO: -Get rid of Complex.H (vertex group) structures
 
 TODO: -Check domains for degeneracy
 
-TODO: -Method to purge infeasible points
+TODO: -Method to purge infeasi44ble points
 
 FUTURE: Triangulate arbitrary domains other than n-cubes
 (ex. using delaunay and low disc. sampling subject to constraints, or by adding
@@ -1311,7 +1311,7 @@ class Complex:
         supremum_c = copy.copy(supremum)
 
         # Change the vector orientation so that it is only increasing
-        if 1:  #TODO: Fix for providing a symmetry check
+        if 0:  #TODO: Fix for providing a symmetry check
             ov = list(origin)
             origin = list(origin)
             sv = list(supremum)
