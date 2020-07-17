@@ -174,7 +174,7 @@ class TestCube(object):
         test_triangulation(4, 1)
 
     #@unittest.skip("Skipping slow test")
-    @pytest.mark.slow
+    #@pytest.mark.slow
     def test_3_3_4D_cube_splits(self):
         """Test that the 4D cube subtriangulations has the correct vertices,
            testing 2 generations of subtriangulations"""
@@ -190,7 +190,7 @@ class TestCube(object):
            testing 1 generation of subtriangulations"""
         test_triangulation(5, 1)
 
-    #@pytest.mark.slow
+    @pytest.mark.slow
     @unittest.skip("Skipping slow test")
     def test_4_3_5D_cube_splits(self):
         """Test that the 5D cube subtriangulations has the correct vertices,
