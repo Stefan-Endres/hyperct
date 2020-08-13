@@ -6,7 +6,7 @@ import numpy as np
 from functools import partial
 import multiprocessing as mp
 
-from hyperct._field import *
+#from hyperct._field import *
 
 """Vertex objects"""
 class VertexBase(ABC):
@@ -275,6 +275,12 @@ class VertexCacheField(VertexCacheBase):
         del self_dict['pool']
         return self_dict
 
+    def proc_pools(self):
+        if self.g_cons is not None:
+            self.process_gpool()
+        self.process_fpool()
+        self.proc_minimisers()
+
     def recompute_pools(self):
         pass
         #TODO: This will recompute pools to include vertices with missing info
@@ -306,7 +312,6 @@ class VertexCacheField(VertexCacheBase):
     def feasibility_check(self, v):
         v.feasible = True
         for g, args in zip(self.g_cons, self.g_cons_args):
-            print(f'g(v.x_a, *args)  = {g(v.x_a, *args) }')
             if g(v.x_a, *args) < 0.0:
                 v.f = np.inf
                 v.feasible = False
@@ -339,7 +344,7 @@ class VertexCacheField(VertexCacheBase):
             v.feasible = g  # set vertex object attribute v.feasible = g (bool)
 
 
-    def proc_fpool_nog(self):
+    def proc_fpool_g(self):
         # TODO: do try check if v.f exists
         for v in self.fpool:
             if v.feasible:
