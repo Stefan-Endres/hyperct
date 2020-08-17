@@ -3593,14 +3593,12 @@ class Complex:
         self.simplices_fm_i = []
 
         # TODO: Add in field
-
         for v in self.V.cache:  # Note that cache is an OrderedDict
             self.vertices_fm.append(v)
 
             #TODO: Should this not be outside the initial loop?
             simplex = (self.dim + 1) * [None]  # Predetermined simplex sizes
             simplex[0] = self.V[v]
-            build_simpl = simplex.copy()
 
             # indexed simplices
             simplex_i = (self.dim + 1) * [None]
@@ -3631,7 +3629,6 @@ class Complex:
 
                 if self.dim > 1:
                     for v3 in v2.nn:
-
                         # if v3 has a connection to v1, not in current simplex
                         # and not v1 itself:
                         if ((v3 in self.V[v].nn) and (v3 not in build_simpl_i)
@@ -3640,7 +3637,6 @@ class Complex:
                                 ind += 1
                                 # (if v2.index not in build_simpl_i) and v2.index in v2.nn
                                 build_simpl_i[ind] = v3.index
-
                             except IndexError:  # When the simplex is full
                                 # ind = 1 #TODO: Check
                                 # Append full simplex and create a new one
@@ -3657,7 +3653,7 @@ class Complex:
                                 if ((v3 in self.V[v].nn) and (
                                         v3 not in build_simpl_i)
                                         and (v3 is not self.V[v])):
-                                    build_simpl_i[2] = v3.index
+                                    build_simpl_i[2] = v3.index #TODO: Check missing index 1?
                                     ind = 2
 
                                 if self.dim == 2:  # Special case, for dim > 2
@@ -3686,7 +3682,8 @@ class Complex:
 
             # print(sl)
 
-            # Append the newly built simple
+            # Append the newly built simplex
+            self.simplices_fm.append(sl)
 
         return
 
@@ -3728,8 +3725,8 @@ class Complex:
                     if key == 'f':
                         data[str(v)][key] = float(vars(HC.V[v])[key])
                     if key == 'index':
-                        #data[str(v)][key] = int(vars(HC.V[v])[key])
-                        data[str(v)][key] = float(vars(HC.V[v])[key])
+                        data[str(v)][key] = int(vars(HC.V[v])[key])
+                        #data[str(v)][key] = float(vars(HC.V[v])[key])
 
         print(f'data = {data}')
         with open(fn, 'w') as fp:

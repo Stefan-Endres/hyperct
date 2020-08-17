@@ -47,8 +47,11 @@ def test_triangulation(n=2, gen=0, bounds=None, symmetry=None):
         path = os.path.join(os.path.dirname(__file__), 'test_data',
                             f'test_{n + 1}_{gen + 1}_{n}D_cube_gen_{gen}.json')
     else:
+        s = str()
+        for si in symmetry:
+            s += str(si)
         path = os.path.join(os.path.dirname(__file__), 'test_data',
-                            f'test_{n + 1}_{gen + 1}_{n}D_symm_gen_{gen}.json')
+            f'test_{n + 1}_{gen + 1}_{n}D_symm_gen_{gen}_s_{s}.json')
 
     HC_ref.load_complex(fn=path)
 
@@ -243,5 +246,145 @@ class TestCube(object):
 class TestSymmetry(object):
     def test_1_1_2D_symm_init(self):
         """Test that the initial 2D symmetric cube has the correct vertices"""
-        symmetry = [0,]*2
+        dim = 2
+        symmetry = [0, ] * dim
         test_triangulation(2, 0, symmetry=symmetry)
+
+    def test_1_2_2D_symm_splits(self):
+        """Test that the 2D cube subtriangulations has the correct vertices,
+           testing 1 generation of subtriangulations"""
+        dim = 2
+        symmetry = [0, ] * dim
+        test_triangulation(dim , 1, symmetry=symmetry)
+
+    def test_1_3_2D_symm_splits(self):
+        """Test that the 2D cube subtriangulations has the correct vertices,
+           testing 2 generation of subtriangulations"""
+        dim = 2
+        symmetry = [0, ] * dim
+        test_triangulation(dim, 2, symmetry=symmetry)
+
+    def test_2_1_3D_symm_init(self):
+        """Test that the initial 3D symmetric cube has the correct vertices"""
+        symmetry = [0,]*3
+        test_triangulation(3, 0, symmetry=symmetry)
+
+    def test_2_2_3D_symm_splits(self):
+        """Test that the 3D cube subtriangulations has the correct vertices,
+           testing 1 generation of subtriangulations"""
+        dim = 3
+        symmetry = [0, ] * dim
+        test_triangulation(dim , 1, symmetry=symmetry)
+
+    def test_2_3_3D_symm_splits(self):
+        """Test that the 3D cube subtriangulations has the correct vertices,
+           testing 2 generation of subtriangulations"""
+        dim = 3
+        symmetry = [0, ] * dim
+        test_triangulation(dim, 2, symmetry=symmetry)
+
+
+    def test_2_4_3D_psymm_init(self):
+        """Test that the initial 3D partial symmetric cube [0, 0, 2] has the
+        correct vertices"""
+        dim = 3
+        symmetry = [0, 0, 2]
+        test_triangulation(dim, 0, symmetry=symmetry)
+
+    def test_2_5_3D_psymm_splits(self):
+        """Test that the 3D partially symmetric [0, 0, 2] cube subtriangulations
+         has the correct vertices, testing 1 generation of subtriangulations"""
+        dim = 3
+        symmetry = [0, 0, 2]
+        test_triangulation(dim, 1, symmetry=symmetry)
+
+    def test_2_6_3D_psymm_splits(self):
+        """Test that the 3D partially symmetric [0, 0, 2] cube subtriangulations
+         has the correct vertices, testing 2 generation of subtriangulations"""
+        dim = 3
+        symmetry = [0, 0, 2]
+        test_triangulation(dim, 2, symmetry=symmetry)
+
+    def test_2_7_3D_psymm_init(self):
+        """Test that the initial 3D partial symmetric cube [0, 1, 1] has the
+        correct vertices"""
+        dim = 3
+        symmetry = [0, 1, 1]
+        test_triangulation(dim, 0, symmetry=symmetry)
+
+    def test_2_8_3D_psymm_splits(self):
+        """Test that the 3D partially symmetric [0, 1, 1] cube subtriangulations
+         has the correct vertices, testing 1 generation of subtriangulations"""
+        dim = 3
+        symmetry = [0, 1, 1]
+        test_triangulation(dim, 1, symmetry=symmetry)
+
+    def test_2_9_3D_psymm_splits(self):
+        """Test that the 3D partially symmetric [0, 1, 1] cube subtriangulations
+         has the correct vertices, testing 2 generation of subtriangulations"""
+        dim = 3
+        symmetry = [0, 1, 1]
+        test_triangulation(dim, 2, symmetry=symmetry)
+
+    def test_3_1_4D_symm_init(self):
+        """Test that the initial 4D symmetric cube has the correct vertices"""
+        symmetry = [0,]*4
+        test_triangulation(4, 0, symmetry=symmetry)
+
+    def test_3_2_4D_symm_splits(self):
+        """Test that the 4D cube subtriangulations has the correct vertices,
+           testing 1 generation of subtriangulations"""
+        dim = 4
+        symmetry = [0, ] * dim
+        test_triangulation(dim , 1, symmetry=symmetry)
+
+    def test_3_3_4D_symm_splits(self):
+        """Test that the 4D cube subtriangulations has the correct vertices,
+           testing 2 generation of subtriangulations"""
+        dim = 4
+        symmetry = [0, ] * dim
+        test_triangulation(dim, 2, symmetry=symmetry)
+
+    def test_2_7_3D_psymm_init(self):
+        """Test that the initial 3D partial symmetric cube [0, 0, 0, 3] has the
+        correct vertices"""
+        dim = 4
+        symmetry = [0, 0, 0, 3]
+        test_triangulation(dim, 0, symmetry=symmetry)
+
+    def test_2_8_3D_psymm_splits(self):
+        """Test that the 4D partially symmetric [0, 0, 0, 3] cube
+        subtriangulations has the correct vertices, testing 2 generation of
+        subtriangulations"""
+        dim = 4
+        symmetry = [0, 0, 0, 3]
+        test_triangulation(dim, 1, symmetry=symmetry)
+
+
+    def test_3_5_4D_psymm_splits(self):
+        """Test that the 4D partially symmetric [0, 0, 0, 3] cube
+        subtriangulations has the correct vertices, testing 2 generation of
+        subtriangulations"""
+        dim = 4
+        symmetry = [0, 0, 0, 3]
+        test_triangulation(dim, 2, symmetry=symmetry)
+
+    def test_4_1_5D_symm_init(self):
+        """Test that the initial 5D symmetric cube has the correct vertices"""
+        symmetry = [0,]*5
+        test_triangulation(5, 0, symmetry=symmetry)
+
+
+    def test_4_2_5D_symm_splits(self):
+        """Test that the 5D cube subtriangulations has the correct vertices,
+           testing 1 generation of subtriangulations"""
+        dim = 5
+        symmetry = [0, ] * dim
+        test_triangulation(dim, 1, symmetry=symmetry)
+
+    def test_4_3_5D_symm_splits(self):
+        """Test that the 5D cube subtriangulations has the correct vertices,
+           testing 2 generation of subtriangulations"""
+        dim = 5
+        symmetry = [0, ] * dim
+        test_triangulation(dim, 2, symmetry=symmetry)
