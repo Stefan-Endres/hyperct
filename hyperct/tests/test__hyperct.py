@@ -70,6 +70,7 @@ def test_triangulation(n=2, gen=0, bounds=None, symmetry=None):
 
     # Test that all the correct vertices are present
     for i, v in enumerate(HC.V.cache):
+        print(f'Test if generated v.x = {v} is in reference complex')
         logging.info(f'Test if generated v.x = {v} is in reference complex')
         numpy.testing.assert_equal(v in check, True)
         logging.info(f'Test passed')
@@ -176,8 +177,8 @@ class TestCube(object):
            testing 1 generation of subtriangulations"""
         test_triangulation(4, 1)
 
-    #@unittest.skip("Skipping slow test")
     #@pytest.mark.slow
+    @unittest.skip("Skipping slow test")
     def test_3_3_4D_cube_splits(self):
         """Test that the 4D cube subtriangulations has the correct vertices,
            testing 2 generations of subtriangulations"""
@@ -266,15 +267,16 @@ class TestSymmetry(object):
 
     def test_2_1_3D_symm_init(self):
         """Test that the initial 3D symmetric cube has the correct vertices"""
-        symmetry = [0,]*3
-        test_triangulation(3, 0, symmetry=symmetry)
+        dim = 3
+        symmetry = [0, ] * dim
+        test_triangulation(dim, 0, symmetry=symmetry)
 
     def test_2_2_3D_symm_splits(self):
         """Test that the 3D cube subtriangulations has the correct vertices,
            testing 1 generation of subtriangulations"""
         dim = 3
         symmetry = [0, ] * dim
-        test_triangulation(dim , 1, symmetry=symmetry)
+        test_triangulation(dim, 1, symmetry=symmetry)
 
     def test_2_3_3D_symm_splits(self):
         """Test that the 3D cube subtriangulations has the correct vertices,
@@ -345,14 +347,14 @@ class TestSymmetry(object):
         symmetry = [0, ] * dim
         test_triangulation(dim, 2, symmetry=symmetry)
 
-    def test_2_7_3D_psymm_init(self):
+    def test_3_4_4D_psymm_init(self):
         """Test that the initial 3D partial symmetric cube [0, 0, 0, 3] has the
         correct vertices"""
         dim = 4
         symmetry = [0, 0, 0, 3]
         test_triangulation(dim, 0, symmetry=symmetry)
 
-    def test_2_8_3D_psymm_splits(self):
+    def test_3_5_4D_psymm_splits(self):
         """Test that the 4D partially symmetric [0, 0, 0, 3] cube
         subtriangulations has the correct vertices, testing 2 generation of
         subtriangulations"""
@@ -361,7 +363,7 @@ class TestSymmetry(object):
         test_triangulation(dim, 1, symmetry=symmetry)
 
 
-    def test_3_5_4D_psymm_splits(self):
+    def test_3_6_4D_psymm_splits(self):
         """Test that the 4D partially symmetric [0, 0, 0, 3] cube
         subtriangulations has the correct vertices, testing 2 generation of
         subtriangulations"""
