@@ -68,6 +68,7 @@ def test_triangulation(n=2, gen=0, bounds=None, symmetry=None):
     for i in range(gen):
         HC.refine_all()
 
+    HC.V.print_out()
     # Test that all the correct vertices are present
     for i, v in enumerate(HC.V.cache):
         print(f'Test if generated v.x = {v} is in reference complex')

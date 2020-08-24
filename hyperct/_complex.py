@@ -25,6 +25,9 @@ TODO: -Check domains for degeneracy
 
 TODO: -Method to purge infeasible points
 
+TODO: -Add hash tables to store vector pair values in the ab_C container in
+       refine_local_space method
+
 FUTURE: Triangulate arbitrary domains other than n-cubes
 (ex. using delaunay and low disc. sampling subject to constraints, or by adding
      n-cubes and other geometries)
@@ -1530,8 +1533,9 @@ class Complex:
                 # %%
 
                 # TODO: SHOULD THIS BE MOVED OUTSIDE THE try ?
-                if 0:
+                if 1:
                     for vectors in s_ab_Cc:
+                        # s_ab_C.append([c_vc, vl, vu, a_vu])
                         bc_vc = list(vectors[0].x)
                         b_vl = list(vectors[1].x)
                         b_vu = list(vectors[2].x)
@@ -1556,10 +1560,18 @@ class Complex:
                         b_vl = self.V[tuple(b_vl)]
                         bc_vc.connect(b_vl)  # Connect aN cross pairs
                         d_bc_vc.connect(b_vl)  # Connect all to centroid
+
+
                         yield b_vl
                         b_vu = self.V[tuple(b_vu)]
                         bc_vc.connect(b_vu)  # Connect aN cross pairs
                         d_bc_vc.connect(b_vu)  # Connect all to centroid
+
+                        #TODO: Should be done in the cyclical loop somehow?
+                        b_vl_c = self.split_edge(b_vu.x, b_vl.x)
+                        bc_vc.connect(b_vl_c)
+                        ###
+
                         yield b_vu
                         #ba_vl = self.V[tuple(ba_vl)]
                         #bc_vc.connect(ba_vl)  # Connect aN cross pairs
@@ -1574,6 +1586,11 @@ class Complex:
                         # Split the a + b edge of the initial triangulation:
                         os_v = self.split_edge(vectors[1].x, ba_vu.x)  # o-s
                         ss_v = self.split_edge(b_vl.x, ba_vu.x)  # s-s
+
+                        #TODO: Should be done in the cyclical loop somehow?
+                        b_vu_c = self.split_edge(b_vu.x, ba_vu.x)
+                        bc_vc.connect(b_vu_c)
+                        ###
                         yield os_v.x  # often equal to vco, but not always
                         yield ss_v.x  # often equal to bc_vu, but not always
                         yield ba_vu
@@ -1715,6 +1732,12 @@ class Complex:
 
                 for j, (VL, VC, VU) in enumerate(zip(cCox, cCcx, cCux)):
                     for k, (vl, vc, vu) in enumerate(zip(VL, VC, VU)):
+                        print(f'Normal run')
+                        print(f'----------')
+                        print(f'vl = {vl.x}')
+                        print(f'vc = {vc.x}')
+                        print(f'vu = {vu.x}')
+                        print(f'----------')
                         # Build aN vertices for each lower-upper C3 group in N:
                         a_vl = list(vl.x)
                         a_vu = list(vu.x)
@@ -1788,76 +1811,95 @@ class Complex:
 
                     if 1:
                         #ab_Cc = copy.copy(ab_C)  # NOTE: We append ab_C in the
+
+
                         for vectors in ab_Cc:
                             print(f'vectors = {vectors}')
+                            # ab_C.append((c_vc, vl, vu, a_vl, a_vu))
                             # TODO: Make for loops instead of using variables
                             # ab_C.append((c_vc, vl, vu, a_vl, a_vu))
-                            bc_vc = list(vectors[0].x)
-                            b_vl = list(vectors[1].x)
-                            b_vu = list(vectors[2].x)
-                            #ba_vl = list(vectors[3].x)
+                        #    bc_vc = list(vectors[0].x)
+                            #b_vl = list(vectors[1].x)
+                            #b_vu = list(vectors[2].x)
+                            ba_vl = list(vectors[3].x)
                             ba_vu = list(vectors[4].x)
-                            bc_vc[i + 1] = vut[i + 1]
-                            b_vl[i + 1] = vut[i + 1]
-                            b_vu[i + 1] = vut[i + 1]
-                            #ba_vl[i + 1] = vut[i + 1]
+                        #    bc_vc[i + 1] = vut[i + 1]
+                            #b_vl[i + 1] = vut[i + 1]
+                            #b_vu[i + 1] = vut[i + 1]
+                            ba_vl[i + 1] = vut[i + 1]
                             ba_vu[i + 1] = vut[i + 1]
-                            bc_vc = self.V[tuple(bc_vc)]
-                            bc_vc.connect(vco)  # NOTE: Unneeded?
-                            yield bc_vc
+                        #    bc_vc = self.V[tuple(bc_vc)]
+                        #    bc_vc.connect(vco)  # NOTE: Unneeded?
+                        #    yield bc_vc
 
                             # Split to centre, call this centre group "d = 0.5*a"
-                            d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
-                            d_bc_vc.connect(bc_vc)
+                        #    d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
+                         #   d_bc_vc = self.split_edge(vectors[1].x, bc_vc.x)
+
+                            ba_vu = self.V[tuple(ba_vu)]
+                            yield ba_vu
+                            #    bc_vc.connect(ba_vu)  # Connect aN cross pairs
+                            #    d_bc_vc.connect(ba_vu)  # Connect all to centroid
+                            # Split the a + b edge of the initial triangulation:
+                            d_bc_vc = self.split_edge(vectors[1].x, ba_vu.x)  # o-s
+                            # ss_v = self.split_edge(b_vl.x, ba_vu.x)  # s-s
+                            # yield os_v.x  # often equal to vco, but not always
+                            # yield ss_v.x  # often equal to bc_vu, but not always
+                            yield ba_vu
+                        #    d_bc_vc.connect(bc_vc)
                             d_bc_vc.connect(vectors[1])  # Connect all to centroid
                             d_bc_vc.connect(vectors[2])  # Connect all to centroid
                             d_bc_vc.connect(vectors[3])  # Connect all to centroid
                             d_bc_vc.connect(vectors[4])  # Connect all to centroid
                             yield d_bc_vc.x
-                            b_vl = self.V[tuple(b_vl)]
-                            bc_vc.connect(b_vl)  # Connect aN cross pairs
-                            d_bc_vc.connect(b_vl)  # Connect all to centroid
-                            yield b_vl
-                            b_vu = self.V[tuple(b_vu)]
-                            bc_vc.connect(b_vu)  # Connect aN cross pairs
-                            d_bc_vc.connect(b_vu)  # Connect all to centroid
-                            yield b_vu
-                            #ba_vl = self.V[tuple(ba_vl)]
+                            #b_vl = self.V[tuple(b_vl)]
+                            #bc_vc.connect(b_vl)  # Connect aN cross pairs
+                            #d_bc_vc.connect(b_vl)  # Connect all to centroid
+                            #yield b_vl
+                            #b_vu = self.V[tuple(b_vu)]
+                            #bc_vc.connect(b_vu)  # Connect aN cross pairs
+                            #d_bc_vc.connect(b_vu)  # Connect all to centroid
+                            #yield b_vu
+                            ba_vl = self.V[tuple(ba_vl)]
                             #bc_vc.connect(ba_vl)  # Connect aN cross pairs
                             #d_bc_vc.connect(ba_vl)  # Connect all to centroid
                             if 0:  # Needed for 3D tests to pass
                                 self.split_edge(b_vu.x, ba_vl.x)
-                            #yield ba_vl
-                            ba_vu = self.V[tuple(ba_vu)]
-                            bc_vc.connect(ba_vu)  # Connect aN cross pairs
-                            d_bc_vc.connect(ba_vu)  # Connect all to centroid
+                            yield ba_vl
+                         #   ba_vu = self.V[tuple(ba_vu)]
+                        #    bc_vc.connect(ba_vu)  # Connect aN cross pairs
+                        #    d_bc_vc.connect(ba_vu)  # Connect all to centroid
                             # Split the a + b edge of the initial triangulation:
-                            os_v = self.split_edge(vectors[1].x, ba_vu.x)  # o-s
-                            ss_v = self.split_edge(b_vl.x, ba_vu.x)  # s-s
-                            yield os_v.x  # often equal to vco, but not always
-                            yield ss_v.x  # often equal to bc_vu, but not always
-                            yield ba_vu
+                            #os_v = self.split_edge(vectors[1].x, ba_vu.x)  # o-s
+                            #ss_v = self.split_edge(b_vl.x, ba_vu.x)  # s-s
+                            #yield os_v.x  # often equal to vco, but not always
+                            #yield ss_v.x  # often equal to bc_vu, but not always
+                            #yield ba_vu
 
                             # Split remaining to centre, call this centre group "d = 0.5*a"
-                            d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
-                            d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                            yield d_bc_vc.x
-                            d_b_vl = self.split_edge(vectors[1].x, b_vl.x)
-                            d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                            d_bc_vc.connect(d_b_vl)  # Connect dN cross pairs
-                            yield d_b_vl.x
-                            d_b_vu = self.split_edge(vectors[2].x, b_vu.x)
-                            d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                            d_bc_vc.connect(d_b_vu)  # Connect dN cross pairs
-                            yield d_b_vu.x
-                            #d_ba_vl = self.split_edge(vectors[3].x, ba_vl.x)
-                            d_bc_vc.connect(vco)  # NOTE: Unneeded?
+                        #    d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
+                        #    d_bc_vc.connect(vco)  # NOTE: Unneeded?
+                        #    yield d_bc_vc.x
+                            #d_b_vl = self.split_edge(vectors[1].x, b_vl.x)
+                        #    d_bc_vc.connect(vco)  # NOTE: Unneeded?
+                            #d_bc_vc.connect(d_b_vl)  # Connect dN cross pairs
+                            #yield d_b_vl.x
+                            #d_b_vu = self.split_edge(vectors[2].x, b_vu.x)
+                        #    d_bc_vc.connect(vco)  # NOTE: Unneeded?
+                            #d_bc_vc.connect(d_b_vu)  # Connect dN cross pairs
+                            #yield d_b_vu.x
+                            d_ba_vl = self.split_edge(vectors[3].x, ba_vl.x)
+                        #    d_bc_vc.connect(vco)  # NOTE: Unneeded?
                             #d_bc_vc.connect(d_ba_vl)  # Connect dN cross pairs
                             #yield d_ba_vl
                             d_ba_vu = self.split_edge(vectors[4].x, ba_vu.x)
-                            d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                            d_bc_vc.connect(d_ba_vu)  # Connect dN cross pairs
+
+                            d_ba_vc = self.split_edge(d_ba_vl.x, d_ba_vu.x)
+                        #    d_bc_vc.connect(vco)  # NOTE: Unneeded?
+                        #    d_bc_vc.connect(d_ba_vu)  # Connect dN cross pairs
+                            yield d_ba_vl
                             yield d_ba_vu
+                            yield d_ba_vc
 
                             # ab_C.append((c_vc, vl, vu, a_vl, a_vu))  # CHECK
 
@@ -1869,13 +1911,15 @@ class Complex:
                             if 1:
 
                                 comb = [vl, vu, a_vl, a_vu,
-                                        b_vl, b_vu, #ba_vl,
+                                        #b_vl,
+                                        #b_vu,
+                                        ba_vl,
                                         ba_vu]
                                 comb_iter = itertools.combinations(comb, 2)
                                 for vecs in comb_iter:
                                     self.split_edge(vecs[0].x, vecs[1].x)
 
-                            if 1:  # DELETE:
+                            if 0:  # DELETE:
                                 self.split_edge(vl.x, vu.x)
                                 self.split_edge(vl.x, a_vl.x)
                                 self.split_edge(vl.x, a_vu.x)
@@ -1884,8 +1928,8 @@ class Complex:
                                 self.split_edge(a_vl.x, a_vu.x)
                             # Add new list of cross pairs
                         #    ab_C.append((bc_vc, b_vl, b_vu, ba_vl, ba_vu))
-                        #    ab_C.append((d_bc_vc, d_b_vl, d_b_vu, d_ba_vl, d_ba_vu))
-                            ab_C.append((d_bc_vc, vectors[1], b_vl, a_vu, ba_vu))
+                            #ab_C.append((d_bc_vc, d_b_vl, d_b_vu, d_ba_vl, d_ba_vu))
+                            #ab_C.append((d_bc_vc, vectors[1], b_vl, a_vu, ba_vu))
                     #    ab_C.append((d_bc_vc, vu, b_vu, a_vl, ba_vl))
                         #TODO: ADD SYMMETRIC List
 
@@ -1915,6 +1959,7 @@ class Complex:
                         yield a_vl.x
                         # Split the a + b edge of the initial triangulation:
                         c_vc = self.split_edge(vl.x, a_vu.x)
+                        print(f'c_vc = {c_vc.x}')
                         self.split_edge(vl.x, vu.x)  # Equal to vc
                         c_vc.connect(vco)
                         c_vc.connect(vc)
@@ -1982,6 +2027,9 @@ class Complex:
 
                         # Yield new points
                      #   a_vu.connect(self.V[vut])
+
+                        s_ab_C.append([c_vc, vl, vu, a_vu])
+
                         yield a_vu.x
 
 
@@ -2286,6 +2334,38 @@ class Complex:
             pass
 
         yield vut
+        return
+
+    def refine_star(self, v):
+        """
+        Refine the star domain of a vertex v
+        :param v:
+        :return:
+        """
+        # Copy lists before iteration
+        vnn = copy.copy(v.nn)
+        v1nn = []
+        for v1 in vnn:
+            v1nn.append(copy.copy(v1.nn))
+
+
+        if 0:
+            for v1, v1nn in zip(vnn, v1nn):
+                vnnu = v1nn.intersection(vnn)
+                print(f'vnnu = {vnnu}')
+                print(f'v1.x = {v1.x}')
+                print(f'v1.x = {v1.x}')
+
+                comb_iter = itertools.combinations(vnnu, self.dim )
+                for s in comb_iter:
+                    print(f's = {s}')
+                    for v2 in s:
+                        v_v1 = self.split_edge(v.x, v1.x)
+                        v1_v2 = self.split_edge(v1.x, v2.x)
+                        v_v1.connect(v)
+                        v1_v2.connect(v)
+                        v_v1.connect(v1_v2)
+
         return
 
     @lru_cache(maxsize=None)
