@@ -25,6 +25,10 @@ class VertexBase(ABC):
     def __hash__(self):
         return self.hash
 
+    def __mul__(self, v2):
+        s = SimplexOrdered([self, v2])
+        return s
+
     def __getattr__(self, item):
         if item not in ['x_a']:
             raise AttributeError(f"{type(self)} object has no attribute "
@@ -32,6 +36,7 @@ class VertexBase(ABC):
         if item == 'x_a':
             self.x_a = np.array(self.x)
             return self.x_a
+
 
     @abstractmethod
     def connect(self, v):
@@ -122,7 +127,6 @@ class VertexScalarField(VertexBase):
             self.check_max = True
             v.check_min = True
             v.check_max = True
-
 
     def disconnect(self, v):
         if v in self.nn:
@@ -297,13 +301,20 @@ class VertexCacheField(VertexCacheBase):
 
         if workers == None:
             self.process_gpool = self.proc_gpool
-            self.process_fpool = self.proc_fpool
+            #self.process_fpool = self.proc_fpool
+            if g_cons == None:
+                self.process_fpool = self.proc_fpool_nog
+            else:
+                self.process_fpool = self.proc_fpool_g
         else:
             self.workers = workers
             self.pool = mp.Pool(processes=workers)  #TODO: Move this pool to
                                                     # the complex object
             self.process_gpool = self.pproc_gpool
-            self.process_fpool = self.pproc_fpool
+            if g_cons == None:
+                self.process_fpool = self.pproc_fpool_nog
+            else:
+                self.process_fpool = self.pproc_fpool_g
 
 
     def __getitem__(self, x, nn=None): #TODO: Test to add optional nn argument?
@@ -323,10 +334,14 @@ class VertexCacheField(VertexCacheBase):
 
     def __getstate__(self):
         self_dict = self.__dict__.copy()
-        del self_dict['pool']
+        try:  #TODO: Reason for this?
+            del self_dict['pool']
+        except KeyError:
+            pass
+        
         return self_dict
 
-    def proc_pools(self):
+    def process_pools(self):
         if self.g_cons is not None:
             self.process_gpool()
         self.process_fpool()
@@ -368,10 +383,10 @@ class VertexCacheField(VertexCacheBase):
                 v.feasible = False
                 break
 
-
     def compute_sfield(self, v):
         try: #TODO: Remove exception handling?
             v.f = self.field(v.x_a, *self.field_args)
+            self.nfev += 1
         except:  #TODO: except only various floating issues
             #logging.warning(f"Field function not found at x = {self.x_a}")
             v.f = np.inf
@@ -394,7 +409,6 @@ class VertexCacheField(VertexCacheBase):
         for v, g in zip(self.gpool, G):
             v.feasible = g  # set vertex object attribute v.feasible = g (bool)
 
-
     def proc_fpool_g(self):
         # TODO: do try check if v.f exists
         for v in self.fpool:
@@ -410,16 +424,14 @@ class VertexCacheField(VertexCacheBase):
         # Clean the pool
         self.fpool = set()
 
-
     #TODO: Make static method to possibly improve pickling speed
-    def pproc_fpool(self):
+    def pproc_fpool_g(self):
         #TODO: Ensure that .f is not already computed? (it shouldn't be addable
         #      to the self.fpool if it is).
         self.wfield.func
         fpool_l = []
         for v in self.fpool:
             if v.feasible:
-                print(f'v.x_a = {v.x_a}')
                 fpool_l.append(v.x_a)
             else:
                 v.f = np.inf
@@ -428,7 +440,17 @@ class VertexCacheField(VertexCacheBase):
             vt = tuple(va)
             self[vt].f = f  # set vertex object attribute v.f = f
 
-        print(f'self.cache = {self.cache}')
+    def pproc_fpool_nog(self):
+        #TODO: Ensure that .f is not already computed? (it shouldn't be addable
+        #      to the self.fpool if it is).
+        self.wfield.func
+        fpool_l = []
+        for v in self.fpool:
+            fpool_l.append(v.x_a)
+        F = self.pool.map(self.wfield.func, fpool_l)
+        for va, f in zip(fpool_l, F):
+            vt = tuple(va)
+            self[vt].f = f  # set vertex object attribute v.f = f
 
     def proc_minimisers(self):
         """
