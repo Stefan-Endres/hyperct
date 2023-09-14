@@ -48,6 +48,10 @@ import itertools
 import json
 import decimal
 
+from memory_profiler import profile
+
+
+
 from abc import ABC, abstractmethod
 # Required modules:
 import numpy
@@ -97,7 +101,6 @@ class Complex:
     def __init__(self, dim, domain=None, sfield=None, sfield_args=(),
                  vfield=None, vfield_args=None,
                  symmetry=None, constraints=None,
-                 constraints_args=None, #TODO: Add
                  workers=None):
         """
         A base class for a simplicial complex described as a cache of vertices
@@ -215,6 +218,7 @@ class Complex:
                         self.g_args.append(())
             self.g_cons = tuple(self.g_cons)
             self.g_args = tuple(self.g_args)
+
         else:
             self.g_cons = None
             self.g_args = None
@@ -229,7 +233,6 @@ class Complex:
         # When a cell is sub-generated it is removed from this list
 
         self.H = []  # Storage structure of vertex groups #TODO: Dated?
-
 
         # Cache of all vertices
         if (sfield is not None) or (self.g_cons is not None):
@@ -269,7 +272,6 @@ class Complex:
                        printout=False):
         #TODO: Connect every vertex with the supremum before yielding
         #TODO: Change self.origin and self. supremum to local origin
-        vol = list(origin)
         vot = tuple(origin)
         vut = tuple(supremum)  # Hyperrectangle supremum
         self.V[vot]
@@ -296,21 +298,8 @@ class Complex:
         #C1x = [[self.V[tuple(a_vo)]]]
         ab_C = []  # Container for a + b operations
 
-        print(f'bounds = {bounds}')
         # Loop over remaining bounds
         for i, x in enumerate(bounds[1:]):
-            print(f'C0x = {C0x}')
-            for ind, V in enumerate(C0x):
-                 print(f'ind = {ind}')
-                 for v in V:
-                     print(f'v.x = {v.x}')
-            print(f'-')
-            print(f'C1x = {C1x}')
-            for ind, V in enumerate(C1x):
-                 print(f'ind = {ind}')
-                 for v in V:
-                     print(f'v.x = {v.x}')
-            print(f'-')
             # Update lower and upper containers
             C0x.append([])
             C1x.append([])
@@ -385,147 +374,79 @@ class Complex:
                     ab_C.append((b_v, ab_v))
 
             except IndexError:
-                if 0:
-                    # Add new group N + aN group supremum, connect to all
-                    # Get previous
-                    vs = C1x[i][-1]
-                    a_vs = list(C1x[i][-1].x)
-                    a_vs[i + 1] = vut[i + 1]
-                    a_vs = self.V[tuple(a_vs)]
+                #TODO: The above routine works for symm inits, so maybe test if
+                # vl exists and then work from there?
+                # Copy lists for iteration
+                # cC0x = [x[:] for x in C0x[:i + 1]]
+                cC0x = C0x[i]
+                cC1x = C1x[i]
+                VL, VU = cC0x, cC1x
+                for k, (vl, vu) in enumerate(zip(VL, VU)):
+                    print(f'vl = {vl.x}')
+                    print(f'vu = {vu.x}')
+                    # Build aN vertices for each lower-upper pair in N:
+                    a_vu = list(vu.x)
+                    a_vu[i + 1] = vut[i + 1]
 
-                    # Connect a_vs to vs (the nearest neighbour in N --- aN)
-                    a_vs.connect(vs)
+                    # Connect vertices in N to corresponding vertices
+                    # in aN:
+                    a_vu = self.V[tuple(a_vu)]
+                    # Connect vertices in N to corresponding vertices
+                    # in aN:
+                    vu.connect(a_vu)
+                    # Connect new vertex pair in aN:
+                    # a_vl.connect(a_vu)
+                    # Connect lower pair to upper (triangulation
+                    # operation of a + b (two arbitrary operations):
+                    vl.connect(a_vu)
+                    ab_C.append((vl, a_vu))
 
-                    # Update the containers (only 2 new entries)
-                    C0x[i + 1].append(vs)
-                    C1x[i + 1].append(a_vs)
+                    #TODO: LOOK AT THIS AGAIN:
+                    # Update the containers
+                    #C0x[i + 1].append(vl)
+                    C0x[i + 1].append(vu)
+                    # C1x[i + 1].append(a_vl)
+                    C1x[i + 1].append(a_vu)
 
-                    # Loop over lower containers. Connect lower pair to a_vs
-                    # triangulation operation of a + b (two arbitrary operations):
-                    cC0x = [x[:] for x in C0x[:i + 1]]
-                    for j, VL in enumerate(cC0x):
-                        for k, vl in enumerate(VL):
-                            if vl is not a_vs:
-                                vl.connect(a_vs)
-                                #NOTE: Only needed when there will be no more
-                                #      symmetric points later on
+                    # Update old containers
+                    # C0x[j].append(a_vl)
+                    # C1x[j].append(a_vu)
 
-                    if 1:
-                        vl = C0x[i][-1]
-                        ab_C.append((vl, a_vs))
-                    # Yield a tuple
-                    yield a_vs
-
-                if 1:
-                    print(f'===')
-                    print(f'i = {i}')
-                    print(f'dim = {i + 1}')
-                    print(f'===')
-                    #TODO: The above routine works for symm inits, so maybe test if
-                    # vl exists and then work from there?
-
-                    # Copy lists for iteration
-                    # cC0x = [x[:] for x in C0x[:i + 1]]
-                    #cC0x = C0x[i]
-                    cC0x = C0x[i]
-                    # cC1x = [x[:] for x in C1x[:i + 1]]
-                    #cC1x = C1x[i]
-                    cC1x = C1x[i]
-                    VL, VU = cC0x, cC1x
-                    #for j, (VL, VU) in enumerate(zip(cC0x, cC1x)):
-                    for k, (vl, vu) in enumerate(zip(VL, VU)):
-                        print(f'vl = {vl.x}')
-                        print(f'vu = {vu.x}')
-                        # Build aN vertices for each lower-upper pair in N:
-                        #a_vl = list(vl.x)
-                        a_vu = list(vu.x)
-                        # a_vl[i + 1] = vut[i + 1]
-                        a_vu[i + 1] = vut[i + 1]
-                        # a_vl = self.V[tuple(a_vl)]
-
-                        # Connect vertices in N to corresponding vertices
-                        # in aN:
-                        # vl.connect(a_vl)
-
-                        # yield a_vl.x
-
-                        a_vu = self.V[tuple(a_vu)]
-
-                        print(f'a_vu = {a_vu.x}')
-
-                        # Connect vertices in N to corresponding vertices
-                        # in aN:
-                        vu.connect(a_vu)
-
-                        # Connect new vertex pair in aN:
-                        # a_vl.connect(a_vu)
-
-                        # Connect lower pair to upper (triangulation
-                        # operation of a + b (two arbitrary operations):
-                        vl.connect(a_vu)
-                        ab_C.append((vl, a_vu))
-
-                        #TODO: LOOK AT THIS AGAIN:
-                        # Update the containers
-                        #C0x[i + 1].append(vl)
-                        C0x[i + 1].append(vu)
-                        # C1x[i + 1].append(a_vl)
-                        C1x[i + 1].append(a_vu)
-
-                        # Update old containers
-                        # C0x[j].append(a_vl)
-                        # C1x[j].append(a_vu)
-
-                        # Yield new points
-                        a_vu.connect(self.V[vut])
-                        yield a_vu.x
-
-                    if 0:
-                        a_vs = self.V[vut]
-                        cC0x = [x[:] for x in C0x[:i + 1]]
-                        for j, VL in enumerate(cC0x):
-                            for k, vl in enumerate(VL):
-                                if vl is not a_vs:
-                                    vl.connect(a_vs)
-
+                    # Yield new points
+                    a_vu.connect(self.V[vut])
+                    yield a_vu.x
                     #TODO: Need to replicate last cube once?
+                    # Try to connect aN lower source of previous a + b
+                    # operation with a aN vertex
+                    ab_Cc = copy.copy(ab_C)
+                    for vp in ab_Cc:
+                        for v in vp:
+                            print(f'vp = {v.x}')
 
-                    if 1:
-                        # Try to connect aN lower source of previous a + b
-                        # operation with a aN vertex
-                        ab_Cc = copy.copy(ab_C)
-                        for vp in ab_Cc:
-                            for v in vp:
-                                print(f'vp = {v.x}')
+                        print(f'-')
+                        if vp[1].x[i] == vut[i]:
+                       #     b_v = list(vp[0].x)
+                            ab_v = list(vp[1].x)
+                        #    b_v[i + 1] = vut[i + 1]
+                            ab_v[i + 1] = vut[i + 1]
+                            print(f'ab_v = {ab_v}')
+                        #    b_v = self.V[tuple(b_v)]  # b + vl
+                            ab_v = self.V[tuple(ab_v)]  # b + a_vl
+                            # Note o---o is already connected
+                            vp[0].connect(ab_v)  # o-s
+                        #    b_v.connect(ab_v)  # s-s
 
-                            print(f'-')
-                            if vp[1].x[i] == vut[i]:
-                           #     b_v = list(vp[0].x)
-                                ab_v = list(vp[1].x)
-                            #    b_v[i + 1] = vut[i + 1]
-                                ab_v[i + 1] = vut[i + 1]
-                                print(f'ab_v = {ab_v}')
-                            #    b_v = self.V[tuple(b_v)]  # b + vl
-                                ab_v = self.V[tuple(ab_v)]  # b + a_vl
-                                # Note o---o is already connected
-                                vp[0].connect(ab_v)  # o-s
-                            #    b_v.connect(ab_v)  # s-s
-
-                                # Add new list of cross pairs
-                                ab_C.append((vp[0], ab_v))
-                           #     ab_C.append((b_v, ab_v))
-
+                            # Add new list of cross pairs
+                            ab_C.append((vp[0], ab_v))
+                       #     ab_C.append((b_v, ab_v))
 
             # Printing
             if printout:
                 print("=" * 19)
                 print("Current symmetry group:")
                 print("=" * 19)
-                # for v in self.C0():
-                #   v.print_out()
                 for v in self.V.cache:
                     self.V[v].print_out()
-
                 print("=" * 19)
 
 
@@ -681,201 +602,6 @@ class Complex:
 
         return
 
-    def triangulate_p(self, domain=None, n=None, symm=None, printout=False):
-        """
-
-        :param n: Limited number of points to generate
-
-        :
-
-        Triangulate a domain in [x_l, x_u]^dim \in R^dim specified by bounds and
-        constraints.
-
-        If domain is None the default domain is the hyperrectangle [0, 1]^dim
-
-        FUTURE: Currently only hyperrectangle domains are possible. In the
-                future we'd like to define more complex domains.
-        """
-        # Generate n-cube here:
-        self.H.append([])
-        self.n_cube(symmetry=self.symmetry, printout=printout)
-
-        # TODO: Assign functions to a the complex instead
-        if self.symmetry:
-            self.generation_cycle = 1
-            # self.centroid = self.C0()[-1].x
-            # self.C0.centroid = self.centroid
-        else:
-            self.add_centroid()
-
-        # Build initial graph
-        self.graph_map()
-
-        if self.domain is not None:
-            # Delete the vertices generated during n_cube
-            # del(self.V)
-            #TODO: We need a method with using the field for non-cube bounds
-            self.V = VertexCacheField(field=self.sfield,
-                                      field_args=self.sfield_args,
-                                      g_cons=self.g_cons,
-                                      g_cons_args=self.g_args)
-            # TODO: Find a way not to delete the entire vertex cache in situations
-            # where this method is used to triangulate the domain together with
-            # other in place connections. ex simply move n_cube to if statement
-            # and use a temporary cache
-
-            # Construct the initial spatial vector
-            origin = []  # origin of complex domain vector
-            supremum = []  # supremum of complex domain vector
-            for i, (lb, ub) in enumerate(self.domain):
-                origin.append(lb)
-                supremum.append(ub)
-                # x_a[i] = x_a[i] * (ub - lb) + lb
-            # del(self.C0)
-            self.origin = tuple(origin)
-            self.supremum = tuple(supremum)
-            # self.C0 =
-            self.construct_hypercube(self.origin, self.supremum, 0, 0)
-
-            # TODO: Find new C0 by looping through C_0 and checking if v in Cnew
-            #      Then delete unused C0 and set Cnew to C_0
-
-            # x_a = numpy.array(x, dtype=float)
-            # if self.domain is not None:
-            #    for i, (lb, ub) in enumerate(self.domain):
-            #        x_a[i] = x_a[i] * (ub - lb) + lb
-        else:
-            self.H[0].append(self.C0)
-
-        # TODO: Create a self.n_cube_finite to generate an initial complex for
-        # a finite number of points.
-
-        if (self.sfield is not None) or (self.g_cons is not None):
-            #self.hgr = self.C0.homology_group_rank()
-            self.hgrd = 0  # Complex group rank differential
-            self.hgr = self.C0.hg_n
-
-    def n_cube(self, symmetry=False, printout=False):
-        """
-        Generate the simplicial triangulation of the n dimensional hypercube
-        containing 2**n vertices
-        """
-        # TODO: Check for loaded data and load if available
-        import numpy
-        #origin = list(numpy.zeros(self.dim, dtype='bool_'))
-        origin = list(numpy.zeros(self.dim, dtype='float_'))
-        #origin = list(numpy.zeros(self.dim, dtype='uint8'))
-        self.origin = origin
-        #supremum = list(numpy.ones(self.dim, dtype='bool_'))
-        supremum = list(numpy.ones(self.dim, dtype='float_'))
-        #supremum = list(numpy.ones(self.dim, dtype='uint8'))
-        self.supremum = supremum
-
-        # tuple versions for indexing
-        origintuple = tuple(origin)
-        supremumtuple = tuple(supremum)
-
-        x_parents = [origintuple]
-
-        if symmetry:
-            self.C0 = Simplex(0, 0, 0, self.dim)  # Initial cell object
-            self.C0.add_vertex(self.V[origintuple])
-
-            i_s = 0
-            self.perm_symmetry(i_s, x_parents, origin)
-            self.C0.add_vertex(self.V[supremumtuple])
-        else:
-            self.C0 = Cell(0, 0, origin, supremum)  # Initial cell object
-            self.C0.add_vertex(self.V[origintuple])
-            self.C0.add_vertex(self.V[supremumtuple])
-
-            i_parents = []
-            self.perm(i_parents, x_parents, origin)
-
-        if printout:
-            print("Initial hyper cube:")
-            for v in self.C0():
-                v.print_out()
-
-    def n_rec(self):
-        raise NotImplementedError("To implement this simply run n_cube then "
-                                  "create a new self.C0 based on the n_cube"
-                                  "results.")
-
-    def perm(self, i_parents, x_parents, xi):
-        # TODO: Cut out of for if outside linear constraint cutting planes
-        xi_t = tuple(xi)
-
-        # Construct required iterator
-        iter_range = [x for x in range(self.dim) if x not in i_parents]
-
-        for i in iter_range:
-            i2_parents = copy.copy(i_parents)
-            i2_parents.append(i)
-            xi2 = copy.copy(xi)
-            xi2[i] = 1
-            # Make new vertex list a hashable tuple
-            xi2_t = tuple(xi2)
-            # Append to cell
-            self.C0.add_vertex(self.V[xi2_t])
-            # Connect neighbours and vice versa
-            # Parent point
-            self.V[xi2_t].connect(self.V[xi_t])
-
-            # Connect all family of simplices in parent containers
-            for x_ip in x_parents:
-                self.V[xi2_t].connect(self.V[x_ip])
-
-            x_parents2 = copy.copy(x_parents)
-            x_parents2.append(xi_t)
-
-            # Permutate
-            self.perm(i2_parents, x_parents2, xi2)
-
-    def perm_symmetry(self, i_s, x_parents, xi):
-        # TODO: Cut out of for if outside linear constraint cutting planes
-        xi_t = tuple(xi)
-        xi2 = copy.copy(xi)
-        xi2[i_s] = 1
-        # Make new vertex list a hashable tuple
-        xi2_t = tuple(xi2)
-        # Append to cell
-        self.C0.add_vertex(self.V[xi2_t])
-        # Connect neighbours and vice versa
-        # Parent point
-        self.V[xi2_t].connect(self.V[xi_t])
-
-        # Connect all family of simplices in parent containers
-        for x_ip in x_parents:
-            self.V[xi2_t].connect(self.V[x_ip])
-
-        x_parents2 = copy.copy(x_parents)
-        x_parents2.append(xi_t)
-
-        i_s += 1
-        if i_s == self.dim:
-            return
-        # Permutate
-        self.perm_symmetry(i_s, x_parents2, xi2)
-
-    def add_centroid(self):
-        """Split the central edge between the origin and supremum of
-        a cell and add the new vertex to the complex"""
-        self.centroid = list(
-            (numpy.array(self.origin) + numpy.array(self.supremum)) / 2.0)
-        self.C0.add_vertex(self.V[tuple(self.centroid)])
-        self.C0.centroid = self.centroid
-
-        # Disconnect origin and supremum
-        self.V[tuple(self.origin)].disconnect(self.V[tuple(self.supremum)])
-
-        # Connect centroid to all other vertices
-        for v in self.C0():
-            self.V[tuple(self.centroid)].connect(self.V[tuple(v.x)])
-
-        self.centroid_added = True
-        return
-
     # %% Construct incidence array:
     def incidence(self):
         """
@@ -1007,421 +733,6 @@ class Complex:
                     vc
         return
 
-    def refine_local_space_old(self, origin, supremum, bounds, centroid=1,
-                              printout=0):
-        # Copy for later removal
-        #print(f'self.triangulated_vectors = {self.triangulated_vectors}')
-        origin_c = copy.copy(origin)
-        supremum_c = copy.copy(supremum)
-
-        # Change the vector orientation so that it is only increasing
-        if 0:  #TODO: Fix for providing a symmetry check
-            ov = list(origin)
-            origin = list(origin)
-            sv = list(supremum)
-            supremum = list(supremum)
-            for i, vi in enumerate(origin):
-                if ov[i] > sv[i]:
-                    origin[i] = sv[i]
-                    supremum[i] = ov[i]
-        #TODO: Add new triangulated vectors
-        #TODO: Remove current triangulated vector
-        #TODO: Build centroids by intersection of v_origin.nn and v_s.nn ?
-        vot = tuple(origin)
-        vut = tuple(supremum)  # Hyperrectangle supremum
-        vo = self.V[vot]  # initiate if doesn't exist yet
-        vs = self.V[vut]
-        # Start by finding the old centroid of the new space:
-        vco = self.split_edge(vo.x, vs.x)  # Split in case not centroid arg
-
-        # Find set of extreme vertices in current local space
-        sup_set = copy.copy(vco.nn)
-        i = 0
-        for v in sup_set:
-            i += 1
-
-        # Cyclic group approach with second x_l --- x_u operation.
-
-        # These containers store the "lower" and "upper" vertices
-        # corresponding to the origin or supremum of every C2 group.
-        # It has the structure of `dim` times embedded lists each containing
-        # these vertices as the entire complex grows. Bounds[0] has to be done
-        # outside the loops before we have symmetric containers.
-        #NOTE: This means that bounds[0][1] must always exist
-        Cox = [[self.V[vot]]]
-        a_vl = copy.copy(list(origin))
-        a_vl[0] = vut[0]  # Update aN Origin
-        a_vl = self.V[tuple(a_vl)]
-        c_v = self.split_edge(vo.x, a_vl.x)
-        c_v.connect(vco)
-        yield c_v.x
-        Ccx = [[c_v]]
-        Cux = [[a_vl]]
-        ab_C = []  # Container for a + b operations
-
-        # Loop over remaining bounds
-        for i, x in enumerate(bounds[1:]):
-            # Update lower and upper containers
-            Cox.append([])
-            Ccx.append([])
-            Cux.append([])
-            # try to access a second bound (if not, C1 is symmetric)
-            try:
-                #TODO: Check if a_v vertices exists to know if symmetric refinement
-                #      We need to test if the lower , raise error if it is
-                #(0, 33) in HC.V.cache
-                #vs = Cox[i][0]
-                #a_vl = list(C0x[i][-1].x)
-                #a_vl = list(Cox[i][0].x)
-                t_a_vl = list(origin)
-                t_a_vl[i + 1] = vut[i + 1]
-              #  print(f'tuple(t_a_vl) = {tuple(t_a_vl)}')
-              #  print(f'tuple(t_a_vl) not in self.V.cache '
-              #        f'= {tuple(t_a_vl) not in self.V.cache}')
-                if tuple(t_a_vl) not in self.V.cache:
-                    raise IndexError  # Raise error to continue symmetric refine
-                t_a_vu = list(supremum)
-                t_a_vu[i + 1] = vut[i + 1]
-               # print(f'tuple(a_vu) = {tuple(t_a_vu)}')
-               # print(f'tuple(a_vu) not in self.V.cache '
-               #       f'= {tuple(t_a_vu) not in self.V.cache}')
-                if tuple(t_a_vu) not in self.V.cache:
-                    raise IndexError  # Raise error to continue symmetric refine
-
-
-                # Early try so that we don't have to copy the cache before
-                # moving on to next C1/C2: Try to add the operation of a new
-                # C2 product by accessing the upper bound
-                x[1]
-                # Copy lists for iteration
-                cCox = [x[:] for x in Cox[:i + 1]]
-                cCcx = [x[:] for x in Ccx[:i + 1]]
-                cCux = [x[:] for x in Cux[:i + 1]]
-                # Try to connect aN lower source of previous a + b
-                # operation with a aN vertex
-                ab_Cc = copy.copy(ab_C)
-                # TODO: SHOULD THIS BE MOVED OUTSIDE THE try ?
-                for vectors in ab_Cc:
-                    #TODO: Make for loops instead of using variables
-                    bc_vc = list(vectors[0].x)
-                    b_vl = list(vectors[1].x)
-                    b_vu = list(vectors[2].x)
-                    ba_vl = list(vectors[3].x)
-                    ba_vu = list(vectors[4].x)
-                    bc_vc[i + 1] = vut[i + 1]
-                    b_vl[i + 1] = vut[i + 1]
-                    b_vu[i + 1] = vut[i + 1]
-                    ba_vl[i + 1] = vut[i + 1]
-                    ba_vu[i + 1] = vut[i + 1]
-                    bc_vc = self.V[tuple(bc_vc)]
-                    bc_vc.connect(vco)  # NOTE: Unneeded?
-                    yield bc_vc
-
-                    # Split to centre, call this centre group "d = 0.5*a"
-                    d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
-                    d_bc_vc.connect(bc_vc)
-                    d_bc_vc.connect(vectors[1])  # Connect all to centroid
-                    d_bc_vc.connect(vectors[2])  # Connect all to centroid
-                    d_bc_vc.connect(vectors[3])  # Connect all to centroid
-                    d_bc_vc.connect(vectors[4])  # Connect all to centroid
-                    yield d_bc_vc.x
-                    b_vl = self.V[tuple(b_vl)]
-                    bc_vc.connect(b_vl)  # Connect aN cross pairs
-                    d_bc_vc.connect(b_vl)  # Connect all to centroid
-                    yield b_vl
-                    b_vu = self.V[tuple(b_vu)]
-                    bc_vc.connect(b_vu)  # Connect aN cross pairs
-                    d_bc_vc.connect(b_vu)  # Connect all to centroid
-                    yield b_vu
-                    ba_vl = self.V[tuple(ba_vl)]
-                    bc_vc.connect(ba_vl)  # Connect aN cross pairs
-                    d_bc_vc.connect(ba_vl)  # Connect all to centroid
-                    yield ba_vl
-                    ba_vu = self.V[tuple(ba_vu)]
-                    bc_vc.connect(ba_vu)  # Connect aN cross pairs
-                    d_bc_vc.connect(ba_vu)  # Connect all to centroid
-                    # Split the a + b edge of the initial triangulation:
-                    os_v = self.split_edge(vectors[1].x, ba_vu.x)  # o-s
-                    ss_v = self.split_edge(b_vl.x, ba_vu.x)  # s-s
-                    yield os_v.x  # often equal to vco, but not always
-                    yield ss_v.x  # often equal to bc_vu, but not always
-                    yield ba_vu
-
-                    # Split remaining to centre, call this centre group "d = 0.5*a"
-                    d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
-                    d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                    yield d_bc_vc.x
-                    d_b_vl = self.split_edge(vectors[1].x, b_vl.x)
-                    d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                    d_bc_vc.connect(d_b_vl)  # Connect dN cross pairs
-                    yield d_b_vl.x
-                    d_b_vu = self.split_edge(vectors[2].x, b_vu.x)
-                    d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                    d_bc_vc.connect(d_b_vu)  # Connect dN cross pairs
-                    yield d_b_vu.x
-                    d_ba_vl = self.split_edge(vectors[3].x, ba_vl.x)
-                    d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                    d_bc_vc.connect(d_ba_vl)  # Connect dN cross pairs
-                    yield d_ba_vl
-                    d_ba_vu = self.split_edge(vectors[4].x, ba_vu.x)
-                    d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                    d_bc_vc.connect(d_ba_vu)  # Connect dN cross pairs
-                    yield d_ba_vu
-
-                    # Add new list of cross pairs
-                    ab_C.append((bc_vc, b_vl, b_vu, ba_vl, ba_vu))
-                    ab_C.append((d_bc_vc, d_b_vl, d_b_vu, d_ba_vl, d_ba_vu))
-                    ab_C.append((d_bc_vc, vectors[1], b_vl, a_vu, ba_vu))
-
-                for j, (VL, VC, VU) in enumerate(zip(cCox, cCcx, cCux)):
-                    for k, (vl, vc, vu) in enumerate(zip(VL, VC, VU)):
-                        # Build aN vertices for each lower-upper C3 group in N:
-                        a_vl = list(vl.x)
-                        a_vu = list(vu.x)
-                        a_vl[i + 1] = vut[i + 1]
-                        a_vu[i + 1] = vut[i + 1]
-                        a_vl = self.V[tuple(a_vl)]
-                        a_vu = self.V[tuple(a_vu)]
-                        # Note, build (a + vc) later for consistent yields
-
-                        # Split the a + b edge of the initial triangulation:
-                        #self.split_edge(vl.x, a_vu.x)
-                        c_vc = self.split_edge(vl.x, a_vu.x)
-                        self.split_edge(vl.x, vu.x)  # Equal to vc
-
-                        # Build cN vertices for each lower-upper C3 group in N:
-                        #c_vc = self.split_edge(vc.x, a_vc.x)  # computed earlier
-                        c_vc.connect(vco)
-                        c_vc.connect(vc)
-                        c_vc.connect(vl)  # Connect c + ac operations
-                        c_vc.connect(vu)  # Connect c + ac operations
-                        c_vc.connect(a_vl)  # Connect c + ac operations
-                        c_vc.connect(a_vu)  # Connect c + ac operations
-
-                        yield(c_vc.x)
-
-                        c_vl = self.split_edge(vl.x, a_vl.x)
-                        c_vl.connect(vco)
-                        c_vc.connect(c_vl)  # Connect cN group vertices
-                        yield(c_vl.x)
-                        c_vu = self.split_edge(vu.x, a_vu.x) # yield at end of loop
-                        c_vu.connect(vco)
-                        # Connect remaining cN group vertices
-                        c_vc.connect(c_vu)  # Connect cN group vertices
-                        yield (c_vu.x)
-
-                        a_vc = self.split_edge(a_vl.x, a_vu.x)  # is (a + vc) ?
-                        a_vc.connect(vco)
-                        #a_vc.connect(c_vl)
-                        a_vc.connect(c_vc)
-                        #a_vc.connect(c_vu)
-
-                        # Storage for connecting c + ac operations:
-                        ab_C.append((c_vc, vl, vu, a_vl, a_vu))
-
-                        # Update the containers
-                        Cox[i + 1].append(vl)
-                        Cox[i + 1].append(vc)
-                        Cox[i + 1].append(vu)
-                        Ccx[i + 1].append(c_vl)
-                        Ccx[i + 1].append(c_vc)
-                        Ccx[i + 1].append(c_vu)
-                        Cux[i + 1].append(a_vl)
-                        Cux[i + 1].append(a_vc)
-                        Cux[i + 1].append(a_vu)
-
-                        # Update old containers
-                        Cox[j].append(c_vl)  # !
-                        Cox[j].append(a_vl)
-                        Ccx[j].append(c_vc)  # !
-                        Ccx[j].append(a_vc)  # !
-                        Cux[j].append(c_vu)  # !
-                        Cux[j].append(a_vu)
-
-                        # Yield new points
-                        yield(a_vc.x)
-
-
-            except IndexError:
-            #except IndexError:
-            #TODO: Symmetries
-               # print('.')
-               # print('.')
-                #print(f'Starting symmetry loop i = {i}')
-                # Add new group N + aN group supremum, connect to all
-                # Get previous
-                vl = Cox[i][-1]
-                vc = Ccx[i][-1]
-                vu = Cux[i][-1]
-                a_vu = list(Cux[i][-1].x)
-               # print(f'vl.x = {vl.x}')
-               # print(f'vu.x = {vu.x}')
-                #print(f'vc.x = {vc.x}')
-                #print(f'a_vu.x = {vu.x}')
-                #a_vc[i + 1] = vut[i + 1]
-                a_vu[i + 1] = vut[i + 1]
-                a_vu = self.V[tuple(a_vu)]
-                yield a_vu.x
-
-                # Connect a_vs to vs (the nearest neighbour in N --- aN)
-                #a_vs.connect(vs)
-                c_vu = self.split_edge(vu.x, a_vu.x)
-                c_vu.connect(vco)
-               # print(f'c_vu.x = {c_vu.x}')
-                yield c_vu.x
-
-                # a + b centroid
-                c_vc = self.split_edge(vl.x, a_vu.x)
-                c_vc.connect(vco)
-                c_vc.connect(c_vu)
-                c_vc.connect(vc)
-
-                # Update the containers (only 3 new entries)
-                Cox[i + 1].append(vu)
-                Ccx[i + 1].append(c_vu)
-                Cux[i + 1].append(a_vu)
-                yield c_vc.x
-
-                # Loop over lower containers. Connect lower pair to a_vs
-                # triangulation operation of a + b (two arbitrary operations):
-                cCox = [x[:] for x in Cox[:i + 1]]
-                cCcx = [x[:] for x in Ccx[:i + 1]]
-                for VL, VC in zip(cCox, cCcx):
-                    for vl, vc in zip(VL, VC):
-                        # TODO: Check not needed? (Checked in conenct
-                        if vl is not a_vu:
-                            pass
-                            #vu.connect(a_vu)
-                           # c_vc = self.split_edge(vl.x, a_vu.x)
-                           # c_vc.connect(vco)
-                           # yield c_vc.x
-                            #NOTE: Only needed when there will be no more
-                            #      symmetric points later on
-
-                # Yield a tuple
-                yield c_vu.x
-
-
-
-            # Printing
-            if printout:
-                print("=" * 19)
-                print("Current symmetry group:")
-                print("=" * 19)
-                # for v in self.C0():
-                #   v.print_out()
-                for v in self.V.cache:
-                    self.V[v].print_out()
-
-                print("=" * 19)
-
-
-        # Clean class trash
-        try:
-            del C0x
-            del cC0x
-            del C1x
-            del cC1x
-            del ab_C
-            del ab_Cc
-        except UnboundLocalError:
-            pass
-
-        #print(f'self.triangulated_vectors = {self.triangulated_vectors}')
-        #print(f' (tuple(self.origin), tuple(self.supremum))'
-        #      f'= { (tuple(origin), tuple(supremum))}')
-        #self.triangulated_vectors.remove((tuple(self.origin),
-        #                                  tuple(self.supremum)))
-        try:
-            #self.triangulated_vectors.remove((tuple(origin),
-             #                                 tuple(supremum)))
-            self.triangulated_vectors.remove((tuple(origin_c),
-                                              tuple(supremum_c)))
-        except ValueError:
-            print('...')
-            print('...')
-            print('...')
-            print('REMOVING FAILED')
-            print(f' (tuple(origin), tuple(supremum))'
-                  f'= {(tuple(origin), tuple(supremum))}')
-            print('...')
-            print('...')
-            print('...')
-
-
-      #  print(f'self.triangulated_vectors = {self.triangulated_vectors}')
-        # Add newly triangulated vectors:
-        for vs in sup_set:
-            self.triangulated_vectors.append((tuple(vco.x), tuple(vs.x)))
-
-      #  print(f'self.triangulated_vectors = {self.triangulated_vectors}')
-        # Extra yield to ensure that the triangulation is completed
-        if 1:
-            if centroid:
-                vcn_set = set()
-                vcn_list = []
-                c_nn_lists = []
-                for vs in sup_set:
-                    #print('='*10)
-                    #print(f'vs = {vs.x}')
-                    #print(f'vco.x = {vco.x}')
-                    # Build centroid
-                    if 0:
-                        vcn = self.split_edge(vco.x, vs.x)
-                        vcn_set.add(vcn)
-                        vcn_list.append(vcn)
-                    #print(f'vcn.x = {vcn.x}')
-                        # Find connections
-                        c_nn = vco.nn.intersection(vs.nn)  # + vo + vs
-                        #c_nn = vco.nn  # + vo + vs
-                        #c_nn.remove(vcn)
-                        #c_nn.update(set((vco, vs)))
-                        c_nn_lists.append(c_nn)
-
-                    elif 1:
-                        c_nn = self.vpool(vco.x, vs.x)
-                        try:
-                            c_nn.remove(vcn_set)
-                        except KeyError:
-                            pass
-                        c_nn_lists.append(c_nn)
-
-                for c_nn in c_nn_lists:
-                    try:
-                        c_nn.remove(vcn_set)
-                    except KeyError:
-                        pass
-
-                if 0:
-                    for vcn, c_nn in zip(vcn_list, c_nn_lists):
-                        for vnn in c_nn:
-                            pass
-                            vcn.connect(vnn)
-                elif 1:
-                    for vs, c_nn in zip(sup_set, c_nn_lists):
-                        # Build centroid
-                        vcn = self.split_edge(vco.x, vs.x)
-                        vcn_set.add(vcn)
-                        try:  # Shouldn't be needed?
-                            c_nn.remove(vcn_set)
-                        except KeyError:
-                            pass
-
-                        for vnn in c_nn:
-                            vcn.connect(vnn)
-
-                        #print(f'vcn.x = {vcn.x}')
-                        yield vcn.x
-
-                #yield vcn.x
-                #return vc.x
-            else:
-                pass
-
-        yield vut
-        return
-
-
     def refine_local_space(self, origin, supremum, bounds, centroid=1,
                               printout=0):
         # Copy for later removal
@@ -1494,19 +805,17 @@ class Complex:
                 t_a_vl[i + 1] = vut[i + 1]
 
                 # New: lists are used anyway, so copy all
-                if 1:
-                    # %%
-                    # Copy lists for iteration
-                    cCox = [x[:] for x in Cox[:i + 1]]
-                    cCcx = [x[:] for x in Ccx[:i + 1]]
-                    cCux = [x[:] for x in Cux[:i + 1]]
-                    # Try to connect aN lower source of previous a + b
-                    # operation with a aN vertex
-                    ab_Cc = copy.copy(ab_C)  # NOTE: We append ab_C in the
-                    # (VL, VC, VU) for-loop, but we use the copy of the list in the
-                    # ab_Cc for-loop.
-                    s_ab_Cc = copy.copy(s_ab_C)
-
+                # %%
+                # Copy lists for iteration
+                cCox = [x[:] for x in Cox[:i + 1]]
+                cCcx = [x[:] for x in Ccx[:i + 1]]
+                cCux = [x[:] for x in Cux[:i + 1]]
+                # Try to connect aN lower source of previous a + b
+                # operation with a aN vertex
+                ab_Cc = copy.copy(ab_C)  # NOTE: We append ab_C in the
+                # (VL, VC, VU) for-loop, but we use the copy of the list in the
+                # ab_Cc for-loop.
+                s_ab_Cc = copy.copy(s_ab_C)
 
                 #%%
                 # Early try so that we don't have to copy the cache before
@@ -1519,119 +828,90 @@ class Complex:
                 if tuple(t_a_vu) not in self.V.cache:
                     raise IndexError  # Raise error to continue symmetric refine
 
-                #%% # New: lists are used anyway, so copy all
-                if 0:
-                    # Copy lists for iteration
-                    cCox = [x[:] for x in Cox[:i + 1]]
-                    cCcx = [x[:] for x in Ccx[:i + 1]]
-                    cCux = [x[:] for x in Cux[:i + 1]]
-                    # Try to connect aN lower source of previous a + b
-                    # operation with a aN vertex
-                    ab_Cc = copy.copy(ab_C)  # NOTE: We append ab_C in the
-                    # (VL, VC, VU) for-loop, but we use the copy of the list in the
-                    # ab_Cc for-loop.
-                    s_ab_Cc = copy.copy(s_ab_C)
-                # %%
-
                 # TODO: SHOULD THIS BE MOVED OUTSIDE THE try ?
-                if 1:
-                    for vectors in s_ab_Cc:
-                        # s_ab_C.append([c_vc, vl, vu, a_vu])
-                        bc_vc = list(vectors[0].x)
-                        b_vl = list(vectors[1].x)
-                        b_vu = list(vectors[2].x)
-                        ba_vu = list(vectors[3].x)
+                for vectors in s_ab_Cc:
+                    # s_ab_C.append([c_vc, vl, vu, a_vu])
+                    bc_vc = list(vectors[0].x)
+                    b_vl = list(vectors[1].x)
+                    b_vu = list(vectors[2].x)
+                    ba_vu = list(vectors[3].x)
 
-                        bc_vc[i + 1] = vut[i + 1]
-                        b_vl[i + 1] = vut[i + 1]
-                        b_vu[i + 1] = vut[i + 1]
-                        ba_vu[i + 1] = vut[i + 1]
+                    bc_vc[i + 1] = vut[i + 1]
+                    b_vl[i + 1] = vut[i + 1]
+                    b_vu[i + 1] = vut[i + 1]
+                    ba_vu[i + 1] = vut[i + 1]
 
-                        bc_vc = self.V[tuple(bc_vc)]
-                        bc_vc.connect(vco)  # NOTE: Unneeded?
-                        yield bc_vc
+                    bc_vc = self.V[tuple(bc_vc)]
+                    bc_vc.connect(vco)  # NOTE: Unneeded?
+                    yield bc_vc
 
-                        # Split to centre, call this centre group "d = 0.5*a"
-                        d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
-                        d_bc_vc.connect(bc_vc)
-                        d_bc_vc.connect(vectors[1])  # Connect all to centroid
-                        d_bc_vc.connect(vectors[2])  # Connect all to centroid
-                        d_bc_vc.connect(vectors[3])  # Connect all to centroid
-                        yield d_bc_vc.x
-                        b_vl = self.V[tuple(b_vl)]
-                        bc_vc.connect(b_vl)  # Connect aN cross pairs
-                        d_bc_vc.connect(b_vl)  # Connect all to centroid
+                    # Split to centre, call this centre group "d = 0.5*a"
+                    d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
+                    d_bc_vc.connect(bc_vc)
+                    d_bc_vc.connect(vectors[1])  # Connect all to centroid
+                    d_bc_vc.connect(vectors[2])  # Connect all to centroid
+                    d_bc_vc.connect(vectors[3])  # Connect all to centroid
+                    yield d_bc_vc.x
+                    b_vl = self.V[tuple(b_vl)]
+                    bc_vc.connect(b_vl)  # Connect aN cross pairs
+                    d_bc_vc.connect(b_vl)  # Connect all to centroid
 
 
-                        yield b_vl
-                        b_vu = self.V[tuple(b_vu)]
-                        bc_vc.connect(b_vu)  # Connect aN cross pairs
-                        d_bc_vc.connect(b_vu)  # Connect all to centroid
+                    yield b_vl
+                    b_vu = self.V[tuple(b_vu)]
+                    bc_vc.connect(b_vu)  # Connect aN cross pairs
+                    d_bc_vc.connect(b_vu)  # Connect all to centroid
 
-                        #TODO: Should be done in the cyclical loop somehow?
-                        b_vl_c = self.split_edge(b_vu.x, b_vl.x)
-                        bc_vc.connect(b_vl_c)
-                        ###
+                    #TODO: Should be done in the cyclical loop somehow?
+                    b_vl_c = self.split_edge(b_vu.x, b_vl.x)
+                    bc_vc.connect(b_vl_c)
+                    ###
 
-                        yield b_vu
-                        #ba_vl = self.V[tuple(ba_vl)]
-                        #bc_vc.connect(ba_vl)  # Connect aN cross pairs
-                        #d_bc_vc.connect(ba_vl)  # Connect all to centroid
-                        #if 1:  # Needed for 3D tests to pass
-                        #    self.split_edge(b_vu.x, ba_vl.x)
-                        #yield ba_vl
+                    yield b_vu
+                    ba_vu = self.V[tuple(ba_vu)]
+                    bc_vc.connect(ba_vu)  # Connect aN cross pairs
+                    d_bc_vc.connect(ba_vu)  # Connect all to centroid
 
-                        ba_vu = self.V[tuple(ba_vu)]
-                        bc_vc.connect(ba_vu)  # Connect aN cross pairs
-                        d_bc_vc.connect(ba_vu)  # Connect all to centroid
-                        # Split the a + b edge of the initial triangulation:
-                        os_v = self.split_edge(vectors[1].x, ba_vu.x)  # o-s
-                        ss_v = self.split_edge(b_vl.x, ba_vu.x)  # s-s
+                    # Split the a + b edge of the initial triangulation:
+                    os_v = self.split_edge(vectors[1].x, ba_vu.x)  # o-s
+                    ss_v = self.split_edge(b_vl.x, ba_vu.x)  # s-s
 
-                        #TODO: Should be done in the cyclical loop somehow?
-                        b_vu_c = self.split_edge(b_vu.x, ba_vu.x)
-                        bc_vc.connect(b_vu_c)
-                        ###
-                        yield os_v.x  # often equal to vco, but not always
-                        yield ss_v.x  # often equal to bc_vu, but not always
-                        yield ba_vu
+                    #TODO: Should be done in the cyclical loop somehow?
+                    b_vu_c = self.split_edge(b_vu.x, ba_vu.x)
+                    bc_vc.connect(b_vu_c)
+                    yield os_v.x  # often equal to vco, but not always
+                    yield ss_v.x  # often equal to bc_vu, but not always
+                    yield ba_vu
+                    # Split remaining to centre, call this centre group "d = 0.5*a"
+                    d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
+                    d_bc_vc.connect(vco)  # NOTE: Unneeded?
+                    yield d_bc_vc.x
+                    d_b_vl = self.split_edge(vectors[1].x, b_vl.x)
+                    d_bc_vc.connect(vco)  # NOTE: Unneeded?
+                    d_bc_vc.connect(d_b_vl)  # Connect dN cross pairs
+                    yield d_b_vl.x
+                    d_b_vu = self.split_edge(vectors[2].x, b_vu.x)
+                    d_bc_vc.connect(vco)  # NOTE: Unneeded?
+                    d_bc_vc.connect(d_b_vu)  # Connect dN cross pairs
+                    yield d_b_vu.x
+                    d_ba_vu = self.split_edge(vectors[3].x, ba_vu.x)
+                    d_bc_vc.connect(vco)  # NOTE: Unneeded?
+                    d_bc_vc.connect(d_ba_vu)  # Connect dN cross pairs
+                    yield d_ba_vu
 
-                        # Split remaining to centre, call this centre group "d = 0.5*a"
-                        d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
-                        d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                        yield d_bc_vc.x
-                        d_b_vl = self.split_edge(vectors[1].x, b_vl.x)
-                        d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                        d_bc_vc.connect(d_b_vl)  # Connect dN cross pairs
-                        yield d_b_vl.x
-                        d_b_vu = self.split_edge(vectors[2].x, b_vu.x)
-                        d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                        d_bc_vc.connect(d_b_vu)  # Connect dN cross pairs
-                        yield d_b_vu.x
-                        #d_ba_vl = self.split_edge(vectors[3].x, ba_vl.x)
-                        #d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                        #d_bc_vc.connect(d_ba_vl)  # Connect dN cross pairs
-                        #yield d_ba_vl
-                        d_ba_vu = self.split_edge(vectors[3].x, ba_vu.x)
-                        d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                        d_bc_vc.connect(d_ba_vu)  # Connect dN cross pairs
-                        yield d_ba_vu
-
-                        if 1:
-                            from itertools import combinations
-                            # comb = [c_vc, vl, vu, a_vl, a_vu,
-                            #       bc_vc, b_vl, b_vu, ba_vl, ba_vu]
-                            comb = [vl, vu, a_vu,
-                                    b_vl, b_vu, ba_vu]
-                            comb_iter = combinations(comb, 2)
-                            for vecs in comb_iter:
-                                self.split_edge(vecs[0].x, vecs[1].x)
-                        # Add new list of cross pairs
-                        #ab_C.append((bc_vc, b_vl, b_vu, ba_vl, ba_vu))
-                        #ab_C.append((d_bc_vc, d_b_vl, d_b_vu, d_ba_vl, d_ba_vu))
-                        ab_C.append((d_bc_vc, vectors[1], b_vl, a_vu, ba_vu))
-                        ab_C.append((d_bc_vc, vl, b_vl, a_vu, ba_vu))  # = prev
-                        #ab_C.append((d_bc_vc, vu, b_vu, a_vl, ba_vl))
+                    # comb = [c_vc, vl, vu, a_vl, a_vu,
+                    #       bc_vc, b_vl, b_vu, ba_vl, ba_vu]
+                    comb = [vl, vu, a_vu,
+                            b_vl, b_vu, ba_vu]
+                    comb_iter = itertools.combinations(comb, 2)
+                    for vecs in comb_iter:
+                        self.split_edge(vecs[0].x, vecs[1].x)
+                    # Add new list of cross pairs
+                    #ab_C.append((bc_vc, b_vl, b_vu, ba_vl, ba_vu))
+                    #ab_C.append((d_bc_vc, d_b_vl, d_b_vu, d_ba_vl, d_ba_vu))
+                    ab_C.append((d_bc_vc, vectors[1], b_vl, a_vu, ba_vu))
+                    ab_C.append((d_bc_vc, vl, b_vl, a_vu, ba_vu))  # = prev
+                    #ab_C.append((d_bc_vc, vu, b_vu, a_vl, ba_vl))
 
                 # TODO: SHOULD THIS BE MOVED OUTSIDE THE try ?
                 for vectors in ab_Cc:
@@ -1669,8 +949,7 @@ class Complex:
                     ba_vl = self.V[tuple(ba_vl)]
                     bc_vc.connect(ba_vl)  # Connect aN cross pairs
                     d_bc_vc.connect(ba_vl)  # Connect all to centroid
-                    if 1:  # Needed for 3D tests to pass
-                        self.split_edge(b_vu.x, ba_vl.x)
+                    self.split_edge(b_vu.x, ba_vl.x)
                     yield ba_vl
                     ba_vu = self.V[tuple(ba_vu)]
                     bc_vc.connect(ba_vu)  # Connect aN cross pairs
@@ -1681,7 +960,6 @@ class Complex:
                     yield os_v.x  # often equal to vco, but not always
                     yield ss_v.x  # often equal to bc_vu, but not always
                     yield ba_vu
-
                     # Split remaining to centre, call this centre group "d = 0.5*a"
                     d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
                     d_bc_vc.connect(vco)  # NOTE: Unneeded?
@@ -1707,24 +985,12 @@ class Complex:
 
                     c_vc, vl, vu, a_vl, a_vu = vectors
 
-                    # NEW: Try to split all possible combinations of new edges
-                    # FIXED 4D TESTS!
-                    # SLOW AS FUCK THOUGH!
-                    if 1:
+                    comb = [vl, vu, a_vl, a_vu,
+                            b_vl, b_vu, ba_vl, ba_vu]
+                    comb_iter = itertools.combinations(comb, 2)
+                    for vecs in comb_iter:
+                        self.split_edge(vecs[0].x, vecs[1].x)
 
-                        comb = [vl, vu, a_vl, a_vu,
-                                b_vl, b_vu, ba_vl, ba_vu]
-                        comb_iter = itertools.combinations(comb, 2)
-                        for vecs in comb_iter:
-                            self.split_edge(vecs[0].x, vecs[1].x)
-
-                    if 1:  #DELETE:
-                        self.split_edge(vl.x, vu.x)
-                        self.split_edge(vl.x, a_vl.x)
-                        self.split_edge(vl.x, a_vu.x)
-                        self.split_edge(vu.x, a_vl.x)
-                        self.split_edge(vu.x, a_vu.x)
-                        self.split_edge(a_vl.x, a_vu.x)
                     # Add new list of cross pairs
                     ab_C.append((bc_vc, b_vl, b_vu, ba_vl, ba_vu))
                     ab_C.append((d_bc_vc, d_b_vl, d_b_vu, d_ba_vl, d_ba_vu))
@@ -1733,12 +999,6 @@ class Complex:
 
                 for j, (VL, VC, VU) in enumerate(zip(cCox, cCcx, cCux)):
                     for k, (vl, vc, vu) in enumerate(zip(VL, VC, VU)):
-                        print(f'Normal run')
-                        print(f'----------')
-                        print(f'vl = {vl.x}')
-                        print(f'vc = {vc.x}')
-                        print(f'vu = {vu.x}')
-                        print(f'----------')
                         # Build aN vertices for each lower-upper C3 group in N:
                         a_vl = list(vl.x)
                         a_vu = list(vu.x)
@@ -1747,11 +1007,9 @@ class Complex:
                         a_vl = self.V[tuple(a_vl)]
                         a_vu = self.V[tuple(a_vu)]
                         # Note, build (a + vc) later for consistent yields
-
                         # Split the a + b edge of the initial triangulation:
                         c_vc = self.split_edge(vl.x, a_vu.x)
                         self.split_edge(vl.x, vu.x)  # Equal to vc
-
                         # Build cN vertices for each lower-upper C3 group in N:
                         c_vc.connect(vco)
                         c_vc.connect(vc)
@@ -1759,9 +1017,7 @@ class Complex:
                         c_vc.connect(vu)  # Connect c + ac operations
                         c_vc.connect(a_vl)  # Connect c + ac operations
                         c_vc.connect(a_vu)  # Connect c + ac operations
-
                         yield(c_vc.x)
-
                         c_vl = self.split_edge(vl.x, a_vl.x)
                         c_vl.connect(vco)
                         c_vc.connect(c_vl)  # Connect cN group vertices
@@ -1811,11 +1067,7 @@ class Complex:
                     # vl exists and then work from there?
 
                     if 1:
-                        #ab_Cc = copy.copy(ab_C)  # NOTE: We append ab_C in the
-
-
                         for vectors in ab_Cc:
-                            print(f'vectors = {vectors}')
                             # ab_C.append((c_vc, vl, vu, a_vl, a_vu))
                             # TODO: Make for loops instead of using variables
                             # ab_C.append((c_vc, vl, vu, a_vl, a_vu))
@@ -2033,230 +1285,6 @@ class Complex:
 
                         yield a_vu.x
 
-
-
-                if 0:
-                    for vectors in ab_Cc:
-                        #TODO: Make for loops instead of using variables
-                        bc_vc = list(vectors[0].x)
-                        b_vl = list(vectors[1].x)
-                        b_vu = list(vectors[2].x)
-                        #ba_vl = list(vectors[3].x)
-                        ba_vu = list(vectors[4].x)
-                        bc_vc[i + 1] = vut[i + 1]
-                        b_vl[i + 1] = vut[i + 1]
-                        b_vu[i + 1] = vut[i + 1]
-                        #ba_vl[i + 1] = vut[i + 1]
-                        ba_vu[i + 1] = vut[i + 1]
-                        bc_vc = self.V[tuple(bc_vc)]
-                        bc_vc.connect(vco)  # NOTE: Unneeded?
-                        yield bc_vc
-
-                        # Split to centre, call this centre group "d = 0.5*a"
-                        d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
-                        d_bc_vc.connect(bc_vc)
-                        d_bc_vc.connect(vectors[1])  # Connect all to centroid
-                        d_bc_vc.connect(vectors[2])  # Connect all to centroid
-                        d_bc_vc.connect(vectors[3])  # Connect all to centroid
-                        d_bc_vc.connect(vectors[4])  # Connect all to centroid
-                        yield d_bc_vc.x
-                        b_vl = self.V[tuple(b_vl)]
-                        bc_vc.connect(b_vl)  # Connect aN cross pairs
-                        d_bc_vc.connect(b_vl)  # Connect all to centroid
-                        yield b_vl
-                        b_vu = self.V[tuple(b_vu)]
-                        bc_vc.connect(b_vu)  # Connect aN cross pairs
-                        d_bc_vc.connect(b_vu)  # Connect all to centroid
-                        yield b_vu
-                        #ba_vl = self.V[tuple(ba_vl)]
-                        #bc_vc.connect(ba_vl)  # Connect aN cross pairs
-                        #d_bc_vc.connect(ba_vl)  # Connect all to centroid
-                        #if 1:  # Needed for 3D tests to pass
-                        #    self.split_edge(b_vu.x, ba_vl.x)
-                        #yield ba_vl
-                        ba_vu = self.V[tuple(ba_vu)]
-                        bc_vc.connect(ba_vu)  # Connect aN cross pairs
-                        d_bc_vc.connect(ba_vu)  # Connect all to centroid
-                        # Split the a + b edge of the initial triangulation:
-                        os_v = self.split_edge(vectors[1].x, ba_vu.x)  # o-s
-                        ss_v = self.split_edge(b_vl.x, ba_vu.x)  # s-s
-                        yield os_v.x  # often equal to vco, but not always
-                        yield ss_v.x  # often equal to bc_vu, but not always
-                        yield ba_vu
-
-                        # Split remaining to centre, call this centre group "d = 0.5*a"
-                        d_bc_vc = self.split_edge(vectors[0].x, bc_vc.x)
-                        d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                        yield d_bc_vc.x
-                        d_b_vl = self.split_edge(vectors[1].x, b_vl.x)
-                        d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                        d_bc_vc.connect(d_b_vl)  # Connect dN cross pairs
-                        yield d_b_vl.x
-                        d_b_vu = self.split_edge(vectors[2].x, b_vu.x)
-                        d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                        d_bc_vc.connect(d_b_vu)  # Connect dN cross pairs
-                        yield d_b_vu.x
-                        #d_ba_vl = self.split_edge(vectors[3].x, ba_vl.x)
-                        d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                        #d_bc_vc.connect(d_ba_vl)  # Connect dN cross pairs
-                        #yield d_ba_vl
-                        d_ba_vu = self.split_edge(vectors[4].x, ba_vu.x)
-                        d_bc_vc.connect(vco)  # NOTE: Unneeded?
-                        d_bc_vc.connect(d_ba_vu)  # Connect dN cross pairs
-                        yield d_ba_vu
-
-                        #ab_C.append((c_vc, vl, vu, a_vl, a_vu))  # CHECK
-
-                        c_vc, vl, vu, a_vl, a_vu = vectors
-
-                        # NEW: Try to split all possible combinations of new edges
-                        # FIXED 4D TESTS!
-                        # SLOW AS FUCK THOUGH!
-                        if 1:
-
-                            #comb = [vl, vu, a_vl, a_vu,
-                           #         b_vl, b_vu, ba_vl, ba_vu]
-                            comb = [vl, vu, a_vu,
-                                    b_vl, b_vu, ba_vu]
-                            comb_iter = itertools.combinations(comb, 2)
-                            for vecs in comb_iter:
-                                self.split_edge(vecs[0].x, vecs[1].x)
-
-                        if 1:  #DELETE:
-                            self.split_edge(vl.x, vu.x)
-                            self.split_edge(vl.x, a_vl.x)
-                            self.split_edge(vl.x, a_vu.x)
-                            self.split_edge(vu.x, a_vl.x)
-                            self.split_edge(vu.x, a_vu.x)
-                            self.split_edge(a_vl.x, a_vu.x)
-                        # Add new list of cross pairs
-                        #ab_C.append((bc_vc, b_vl, b_vu, ba_vl, ba_vu))
-                        #ab_C.append((d_bc_vc, d_b_vl, d_b_vu, d_ba_vl, d_ba_vu))
-                        ab_C.append((d_bc_vc, vectors[1], b_vl, a_vu, ba_vu))
-                       # ab_C.append((d_bc_vc, vu, b_vu, a_vl, ba_vl))
-
-                    for j, (VL, VC, VU) in enumerate(zip(cCox, cCcx, cCux)):
-                        for k, (vl, vc, vu) in enumerate(zip(VL, VC, VU)):
-                            # Build aN vertices for each lower-upper C3 group in N:
-                            #a_vl = list(vl.x)
-                            a_vu = list(vu.x)
-                            #a_vl[i + 1] = vut[i + 1]
-                            a_vu[i + 1] = vut[i + 1]
-                            #a_vl = self.V[tuple(a_vl)]
-                            a_vu = self.V[tuple(a_vu)]
-                            # Note, build (a + vc) later for consistent yields
-
-                            # Split the a + b edge of the initial triangulation:
-                            c_vc = self.split_edge(vl.x, a_vu.x)
-                            self.split_edge(vl.x, vu.x)  # Equal to vc
-
-                            # Build cN vertices for each lower-upper C3 group in N:
-                            c_vc.connect(vco)
-                            c_vc.connect(vc)
-                            c_vc.connect(vl)  # Connect c + ac operations
-                            c_vc.connect(vu)  # Connect c + ac operations
-                            #c_vc.connect(a_vl)  # Connect c + ac operations
-                            c_vc.connect(a_vu)  # Connect c + ac operations
-
-                            yield(c_vc.x)
-
-                            #c_vl = self.split_edge(vl.x, a_vl.x)
-                            #c_vl.connect(vco)
-                            #c_vc.connect(c_vl)  # Connect cN group vertices
-                            #yield(c_vl.x)
-                            c_vu = self.split_edge(vu.x, a_vu.x) # yield at end of loop
-                            c_vu.connect(vco)
-                            # Connect remaining cN group vertices
-                            #c_vc.connect(c_vu)  # Connect cN group vertices
-                            #yield (c_vu.x)
-
-                            #a_vc = self.split_edge(a_vl.x, a_vu.x)  # is (a + vc) ?
-                            #a_vc.connect(vco)
-                            #a_vc.connect(c_vc)
-
-                            # Storage for connecting c + ac operations:
-                            ab_C.append((c_vc, vl, vu, a_vl, a_vu))
-
-                            # Update the containers
-                            Cox[i + 1].append(vl)
-                            Cox[i + 1].append(vc)
-                            Cox[i + 1].append(vu)
-                            #Ccx[i + 1].append(c_vl)
-                        #    Ccx[i + 1].append(c_vc)
-                            #Ccx[i + 1].append(c_vu)
-                            #Cux[i + 1].append(a_vl)
-                            #Cux[i + 1].append(a_vc)
-                        #    Cux[i + 1].append(a_vu)
-
-                            # Update old containers
-                        #    Cox[j].append(c_vl)  # !
-                            #Cox[j].append(a_vl)
-                        #    Ccx[j].append(c_vc)  # !
-                            #Ccx[j].append(a_vc)  # !
-                            #Cux[j].append(c_vu)  # !
-                        #    Cux[j].append(a_vu)
-
-                            # Yield new points
-                            yield(a_vu.x)
-
-                # Old
-                if 0:
-                    # Add new group N + aN group supremum, connect to all
-                    # Get previous
-                    vl = Cox[i][-1]
-                    vc = Ccx[i][-1]
-                    vu = Cux[i][-1]
-                    a_vu = list(Cux[i][-1].x)
-                    a_vu[i + 1] = vut[i + 1]
-                    a_vu = self.V[tuple(a_vu)]
-                    if 1:  # New
-                        ab_v = self.split_edge(vl.x, a_vu.x)
-                        print(f'ab_v.x = {ab_v.x}')
-                        ab_v.connect(vu)
-
-                    yield a_vu.x
-
-                    # Connect a_vs to vs (the nearest neighbour in N --- aN)
-                    #a_vs.connect(vs)
-                    c_vu = self.split_edge(vu.x, a_vu.x)
-                    c_vu.connect(vco)
-                    print(f'c_vu.x = {c_vu.x}')
-                    yield c_vu.x
-
-                    # a + b centroid
-                    c_vc = self.split_edge(vl.x, a_vu.x)
-                    c_vc.connect(vco)
-                    c_vc.connect(c_vu)
-                    c_vc.connect(vc)
-
-                    # Update the containers (only 3 new entries)
-                    Cox[i + 1].append(vu)
-                    Ccx[i + 1].append(c_vu)
-                    Ccx[i + 1].append(c_vc)  # New
-                    Cux[i + 1].append(a_vu)
-                    yield c_vc.x
-
-                    # Loop over lower containers. Connect lower pair to a_vs
-                    # triangulation operation of a + b (two arbitrary operations):
-                    cCox = [x[:] for x in Cox[:i + 1]]
-                    cCcx = [x[:] for x in Ccx[:i + 1]]
-
-                    s_ab_C.append([c_vc, vl, vu, a_vu])
-
-                    #TODO: Do we need this for dim >3 ?
-                    for VL, VC in zip(cCox, cCcx):
-                        for vl, vc in zip(VL, VC):
-                            # TODO: Check not needed? (Checked in conenct
-                            if 0:  #TODO: No change in dim 1-3
-                                self.split_edge(vl.x, a_vu.x)
-                            if vl is not a_vu:
-                                pass
-                    #TODO: Do we need a "for vectors in s_ab_Cc: " loop when
-                    #      the current variable is symmetric
-
-                    # Yield a tuple
-                    yield c_vu.x
-
             # Printing
             if printout:
                 print("=" * 19)
@@ -2337,75 +1365,33 @@ class Complex:
         yield vut
         return
 
-    def refine_star(self, v):
+    def refine_star_old(self, v):
         """
         Refine the star domain of a vertex v
         :param v:
         :return:
         """
-        if 1:
-            # Copy lists before iteration
-            vnn = copy.copy(v.nn)
-            v1nn = []
-            d_v0v1_set = set()
-            for v1 in vnn:
-                v1nn.append(copy.copy(v1.nn))
+        # Copy lists before iteration
+        vnn = copy.copy(v.nn)
+        v1nn = []
+        d_v0v1_set = set()
+        for v1 in vnn:
+            v1nn.append(copy.copy(v1.nn))
 
-            for v1, v1nn in zip(vnn, v1nn):
-                print('-')
-                print(f'v1.x = {v1.x}')
-                vnnu = v1nn.intersection(vnn)
-                print(f'vnnu = {vnnu}')
+        for v1, v1nn in zip(vnn, v1nn):
+            print('-')
+            print(f'v1.x = {v1.x}')
+            vnnu = v1nn.intersection(vnn)
+            print(f'vnnu = {vnnu}')
 
-                d_v0v1 = self.split_edge(v.x, v1.x)
-                for o_d_v0v1 in d_v0v1_set:
-                    d_v0v1.connect(o_d_v0v1)
-                d_v0v1_set.add(d_v0v1)
-                for v2 in vnnu:
-                    print(f'v2 = {v2}')
-                    #d_v0v1.connect(v2)
-                    d_v1v2 = self.split_edge(v1.x, v2.x)
-                    d_v0v1.connect(d_v1v2)
-                    #v.connect(d_v1v2)
-
-        if 0:
-            # Copy lists before iteration
-            vnn = copy.copy(v.nn)
-            v1nn = []
-            for v1 in vnn:
-                v1nn.append(copy.copy(v1.nn))
-
-            for v1, v1nn in zip(vnn, v1nn):
-                print('-')
-                print(f'v1.x = {v1.x}')
-                vnnu = v1nn.intersection(vnn)
-                print(f'vnnu = {vnnu}')
-
-                d_v0v1 = self.split_edge(v.x, v1.x)
-                for v2 in vnnu:
-                    print(f'v2 = {v2}')
-                    #d_v0v1.connect(v2)
-                    d_v1v2 = self.split_edge(v1.x, v2.x)
-                    d_v0v1.connect(d_v1v2)
-                    v.connect(d_v1v2)
-
-        if 0:
-            for v1, v1nn in zip(vnn, v1nn):
-                vnnu = v1nn.intersection(vnn)
-                print(f'vnnu = {vnnu}')
-                print(f'v1.x = {v1.x}')
-                print(f'v1.x = {v1.x}')
-
-                comb_iter = itertools.combinations(vnnu, self.dim )
-                for s in comb_iter:
-                    print(f's = {s}')
-                    for v2 in s:
-                        v_v1 = self.split_edge(v.x, v1.x)
-                        v1_v2 = self.split_edge(v1.x, v2.x)
-                        v_v1.connect(v)
-                        v1_v2.connect(v)
-                        v_v1.connect(v1_v2)
-
+            d_v0v1 = self.split_edge(v.x, v1.x)
+            for o_d_v0v1 in d_v0v1_set:
+                d_v0v1.connect(o_d_v0v1)
+            d_v0v1_set.add(d_v0v1)
+            for v2 in vnnu:
+                print(f'v2 = {v2}')
+                d_v1v2 = self.split_edge(v1.x, v2.x)
+                d_v0v1.connect(d_v1v2)
         return
 
     @lru_cache(maxsize=None)
@@ -2427,108 +1413,15 @@ class Complex:
         vc.connect(v2)
         return vc
 
+    def cut_g(self):
+        self.V.process_pools()
+        for v in self.V:
+            #print(f'v.feasible = {v.feasible}')
+            if not v.feasible:
+                self.V.remove(v)
 
     # %% Refinement
     # % Refinement based on vector partitions
-    def refine_old(self, n=1, symmetry=None):
-        #TODO: Replace with while loop checking cache size instead?
-        if n is None:
-            try:
-                self.triangulated_vectors
-                self.refine_all()
-                return
-            except (AttributeError, KeyError):
-                self.triangulate(symmetry=symmetry)
-                return
-
-        nt = len(self.V.cache) + n  # Target number of total vertices
-        # In the outer while loop we iterate until we have added an extra `n`
-        # vertices to the complex:
-        #TODO: We can reduce the number of exception handling and exceptions to
-        #  StopIteration if we try to generate the initial objects first and
-        #  then refine only have the first few while loop runs
-        while len(self.V.cache) < nt:  # while loop 1
-            try:  # try 1
-                # Try to access triangulated_vectors, this should only be
-                # defined if an initial triangulation has already been performed
-                self.triangulated_vectors
-                # Try a usual iteration of the current generator, if it
-                # does not exist or is exhausted then produce a new generator
-                try:  # try 2
-                    next(self.rls)
-                except (AttributeError, StopIteration, KeyError):
-                    # In the initial refinement stage centroids are generated,
-                    # once the generator is exhausted, the routine generates
-                    # vertices from a self.refine_local_space initiated
-                    # generator (try 2 in the usual loop)
-                    try:  # try 3
-                        next(self.vcg)
-                    except (AttributeError, StopIteration, KeyError):
-                        # Try to access the next self.tvs yield in the second
-                        # stage refinement. If successful then produce a vertex,
-                        # the next while loop moves back to producing points in
-                        # try 2. If it does not exist or is exhausted, then we
-                        # have reached the end of a refinement generation and
-                        # we create a new tvs generator. Note that if the
-                        # centroid generator in try 3 is not exhausted yet then
-                        # it while generate to completion in the while loop
-                        #%%
-                        try:  # try 4
-                            vn_pool = next(self.tvs)
-                            vp = self.triangulated_vectors[0]
-                            self.rls = self.refine_local_space(*vp, vn_pool)
-                            next(self.rls)
-                        except (AttributeError, StopIteration, KeyError):
-                            #Note: This is a very long method, it occurs every
-                            # time the complex has been entirely refined and all
-                            # simplices have equal volume:
-                            vn_pool_sets = self.vtvs()
-                            self.tvs = self.tvs_gen(vn_pool_sets)
-                            self.vcg = self.vc_gen(vn_pool_sets)
-                            #self.V.print_out()  #TODO: Remove dev work
-                            next(self.vcg)
-                    #%%
-
-            except (AttributeError, KeyError):
-                # If an initial triangulation has not been completed, then
-                # we start/continue the initial triangulation targeting `nt`
-                # vertices, if nt is greater than the initial number of vertices
-                # then the refine routine will move back to try 1.
-                self.triangulate(nt, symmetry)
-        return
-
-    def refine_all_old(self, centroids=True):
-        """
-        Refine the entire domain of the current complex
-        :return:
-        """
-        tvs = copy.copy(self.triangulated_vectors)
-
-        try:
-            vn_pool_sets = self.vn_pool_sets
-        except (AttributeError, KeyError):
-            vn_pool_sets = []
-            for vp in tvs:
-                vn_pool_sets.append(self.vpool(*vp))
-
-        for i, vp in enumerate(tvs):
-            self.rls =self.refine_local_space(*vp, vpool=vn_pool_sets[i])
-            for i in self.rls:
-                i
-
-        # This adds a centroid to every new sub-domain generated and defined
-        # by self.triangulated_vectors, in addition the vertices ! to complete
-        # the triangulation
-        if centroids:
-            tvs = copy.copy(self.triangulated_vectors)
-            self.vn_pool_sets = []
-            for vp in tvs:
-                self.vn_pool_sets.append(self.vpool(*vp))
-            vcg = self.vc_gen(self.vn_pool_sets)
-            for vc in vcg:
-                print(f'vc = {vc}')
-                vc
-
     def vtvs(self):
         """
         For every refinement generation, produce the `vpool` vertex clusters
@@ -3026,8 +1919,6 @@ class Complex:
             else:
                 return
 
-
-
         self.V[v_x]
         found_nn = False
         S_rows = []
@@ -3169,6 +2060,124 @@ class Complex:
             pass
             # Distance computation
 
+    def refine_star(self, v):
+        """
+        Refine the star domain of a vertex v
+        :param v:
+        :return:
+        """
+        if 1:
+            # Copy lists before iteration
+            vnn = copy.copy(v.nn)
+            v1nn = []
+            d_v0v1_set = set()
+            for v1 in vnn:
+                v1nn.append(copy.copy(v1.nn))
+
+            for v1, v1nn in zip(vnn,
+                                v1nn):  # TODO: What the fuck " v1nn in zip(vnn, v1nn)"  ????
+                vnnu = v1nn.intersection(vnn)
+
+                d_v0v1 = self.split_edge(v.x, v1.x)
+                d_v0v1_set.add(d_v0v1)
+
+                for v2 in vnnu:
+                    d_v1v2 = self.split_edge(v1.x, v2.x)
+                    d_v0v1.connect(d_v1v2)
+
+            # Connect d_v0v1_set
+            v1nn = []
+            v2nn = []
+            d_v0v1_list = list(d_v0v1_set)  # need ordered here
+            for v2 in d_v0v1_list:
+                v1nn.append(copy.copy(v2.nn))
+                v2nn.append(copy.copy(v2.nn))
+            for v1, v1n in zip(d_v0v1_list, v1nn):
+                for v2, v2n in zip(d_v0v1_list, v2nn):
+                    if v1 is not v2:
+                        nset = v1n.intersection(v2n) - set([v])
+                        if len(nset) > 0:
+                            pass
+                            v1.connect(v2)
+
+        if 0:
+            # Copy lists before iteration
+            vnn = copy.copy(v.nn)
+            v1nn = []
+            for v1 in vnn:
+                v1nn.append(copy.copy(v1.nn))
+
+            for v1, v1nn in zip(vnn, v1nn):
+                print('-')
+                print(f'v1.x = {v1.x}')
+                vnnu = v1nn.intersection(vnn)
+                print(f'vnnu = {vnnu}')
+
+                d_v0v1 = self.split_edge(v.x, v1.x)
+                for v2 in vnnu:
+                    print(f'v2 = {v2}')
+                    # d_v0v1.connect(v2)
+                    d_v1v2 = self.split_edge(v1.x, v2.x)
+                    d_v0v1.connect(d_v1v2)
+                    v.connect(d_v1v2)
+
+        if 0:
+            for v1, v1nn in zip(vnn, v1nn):
+                vnnu = v1nn.intersection(vnn)
+                print(f'vnnu = {vnnu}')
+                print(f'v1.x = {v1.x}')
+                print(f'v1.x = {v1.x}')
+
+                comb_iter = itertools.combinations(vnnu, self.dim)
+                for s in comb_iter:
+                    print(f's = {s}')
+                    for v2 in s:
+                        v_v1 = self.split_edge(v.x, v1.x)
+                        v1_v2 = self.split_edge(v1.x, v2.x)
+                        v_v1.connect(v)
+                        v1_v2.connect(v)
+                        v_v1.connect(v1_v2)
+
+        return
+    
+    def refine_all_star(self, exclude=set()):
+        """
+        Refine the star domain of all vertices
+        :param v: VertexObject
+        :param exclude: set, exclude subdividing any neighbours in this set
+        :return:
+        """
+        # Vcopy = copy.copy(self.HC.V)
+        V0l = list(self.V)
+        V0nn = []
+        V1nn = []
+        for ind, v in enumerate(V0l):
+            V0nn.append(copy.copy(list(v.nn)))
+            V1nn.append([])
+            for v1 in v.nn:
+                V1nn[ind].append(copy.copy(list(v1.nn)))
+
+        ind = -1
+        for v, vnn in zip(V0l, V0nn):
+            ind += 1
+            d_v0v1_set = set()
+            # d_v1v2_set = set()  # Only used to track new vertices
+            for v1, v1nn in zip(vnn, V1nn[ind]):
+                v1nn = set(v1nn)
+                vnnu = v1nn.intersection(vnn)
+                d_v0v1 = self.split_edge(v.x, v1.x)
+                # d_v0v1_set.add(d_v0v1)
+                for v2 in vnnu:
+                    pass
+                    d_v1v2 = self.split_edge(v1.x, v2.x)
+                    d_v0v1.connect(d_v1v2)
+                    # d_v1v2_set.add(d_v1v2)  # Only used to track new vertices
+
+        # Vnew = d_v0v1_set.union(d_v1v2_set)
+        # print(f'Vnew = {Vnew}')
+        # print(f'len(Vnew) = {len(Vnew)}')
+        return  # Vnew
+    
     def boundary(self, V=None):
         """
         Compute the boundary of a set of vertices
@@ -3260,7 +2269,7 @@ class Complex:
                 if len(v.nn) == 0:
                     pass#self.V.remove(v)
 
-    def boundary_d(self, V=None):
+    def boundary_d_old(self, V=None):
         """
         Compute the boundary self.boundary and then delete all vertices
         not in the boundary of V. Faster than boundary, but does not preserve
@@ -3279,6 +2288,162 @@ class Complex:
                     if v3 == v:
                         pass
 
+    def boundary_d(self, V=None):
+        """
+        Compute the boundary self.boundary and then delete all vertices
+        not in the boundary of V. Faster than boundary, but does not preserve
+        pruned vertices.
+
+        :param V:
+        :return: dV, boundary set of V
+        """
+        from itertools import combinations
+        dV = set()  # Known boundary vertices
+        iV = set()  # Known inner vertices
+        for v in V:
+        #    print(f'-')
+        #    print(f'v.x = {v.x}')
+            s_pool = []
+            s_it = combinations(v.nn, self.dim)
+            valid_s = []
+            for s in s_it:
+                #snn = set()
+                snn = set()
+                #print(f's = {s}')
+                s_it_valid = True
+                for v2 in s:
+                    #snn = snn.union(v2.nn - set([v])) 
+                    #snn = snn.union(v2.nn - set([v]))
+                    for v3 in s:
+                        if v3 is not v2:
+                            if v2 in v3.nn:
+                                pass 
+                            else:
+                                s_it_valid = False
+                #snn = snn.intersection(v.nn)
+                #print(f'len(snn) = {len(snn)}')
+                #snn = snn - set(s)
+                #print(f'snn = {snn}')
+                #print(f'len(snn) - s = {len(snn)}')
+                #if len(snn) == 0:
+                #    valid_s.append(s)
+                if s_it_valid:
+                        valid_s.append(s)
+        #    print(f'valid_s = {valid_s}')
+        #    print(f'len(valid_s) = {len(valid_s)}')
+            
+            # Now parse through
+            for s in valid_s:
+                snn = set(s[0].nn)
+                for v2 in s[1:]:
+                    snn = snn.intersection(v2.nn)
+                
+                snn = snn - set(s) - set([v])
+                #print(f'snn = {snn}')
+                if len(snn) == 0:
+                    for v2 in s:
+                        dV.add(v2)
+        
+        #print(f'dV = {dV}')
+        #print(f'len(dV) = {len(dV)}')
+
+        # Delete all vertices not in V:
+        cV = copy.copy(self.V)
+        #for v in dV:
+       #     print(f'v in dV = {v.x}')
+            
+        for v in cV:
+            #print(f'v = {v.x} in dV = {v in dV}')
+            if not (v in dV):
+                self.V.remove(v)
+                    #for v 
+            #for v2 in v_nn:
+            #    v2_nn = copy.copy(v.nn)
+           #    for v3 in v2_nn:
+            #        if v3 == v:
+            #            pass
+
+    def boundary_d2(self, V=None):
+        """
+        Compute the boundary self.boundary and then delete all vertices
+        not in the boundary of V. Faster than boundary, but does not preserve
+        pruned vertices.
+
+        :param V:
+        :return: dV, boundary set of V
+        """
+        from itertools import combinations
+        dV = set()  # Known boundary vertices
+        iV = set()  # Known inner vertices
+        vlist = []
+        for v in V:
+            vlist.append(v)
+
+        for v in vlist:
+            #    print(f'-')
+            #    print(f'v.x = {v.x}')
+            s_pool = []
+            s_it = combinations(v.nn, self.dim)
+            valid_s = []
+            for s in s_it:
+                # snn = set()
+                snn = set()
+                # print(f's = {s}')
+                s_it_valid = True
+                for v2 in s:
+                    # snn = snn.union(v2.nn - set([v]))
+                    # snn = snn.union(v2.nn - set([v]))
+                    for v3 in s:
+                        if v3 is not v2:
+                            if v2 in v3.nn:
+                                pass
+                            else:
+                                s_it_valid = False
+                # snn = snn.intersection(v.nn)
+                # print(f'len(snn) = {len(snn)}')
+                # snn = snn - set(s)
+                # print(f'snn = {snn}')
+                # print(f'len(snn) - s = {len(snn)}')
+                # if len(snn) == 0:
+                #    valid_s.append(s)
+                if s_it_valid:
+                    valid_s.append(s)
+            #    print(f'valid_s = {valid_s}')
+            #    print(f'len(valid_s) = {len(valid_s)}')
+
+            # Now parse through
+            for s in valid_s:
+                snn = set(s[0].nn)
+                for v2 in s[1:]:
+                    snn = snn.intersection(v2.nn)
+
+                snn = snn - set(s) - set([v])
+                # print(f'snn = {snn}')
+                if len(snn) == 0:
+                    for v2 in s:
+                        dV.add(v2)
+                else:
+                    for v2 in s:
+                        self.V.remove(v2)
+        # print(f'dV = {dV}')
+        # print(f'len(dV) = {len(dV)}')
+
+        # Delete all vertices not in V:
+        cV = copy.copy(self.V)
+        # for v in dV:
+        #     print(f'v in dV = {v.x}')
+
+        if 0:
+            for v in cV:
+                # print(f'v = {v.x} in dV = {v in dV}')
+                if not (v in dV):
+                    self.V.remove(v)
+                    # for v
+            # for v2 in v_nn:
+            #    v2_nn = copy.copy(v.nn)
+        #    for v3 in v2_nn:
+        #        if v3 == v:
+        #            pass
     # %% Discrete differential geometry
     def clifford(self, dim, q=''):
         """
@@ -4086,21 +3251,33 @@ class Complex:
         Construct v-v incidence array
         :return: self.incidence_structure
         """
-        if self.centroid_added:
-            self.incidence_structure = numpy.zeros([2 ** self.dim + 1,
-                                                    2 ** self.dim + 1],
-                                         dtype=int)
-        else:
-            self.incidence_structure = numpy.zeros([2 ** self.dim,
-                                                    2 ** self.dim],
-                                         dtype=int)
 
-        for v in self.V.cache:
-            for v2 in self.V[v].nn:
-                self.incidence_structure[self.V[v].index, v2.index] = 1
+        self.incidence_structure = numpy.zeros([self.V.size(), self.V.size()], dtype=int)
+
+        for v in self.V:
+            for v2 in v.nn:
+                self.incidence_structure[v.index, v2.index] = 1
 
         return self.incidence_structure
 
+    def incidence_array_directed(self):
+        """
+        Construct v-v incidence array
+        Complex must be supplied with sfield and directed
+        :return: self.incidence_structure
+        """
+
+        self.incidence_structure = numpy.zeros([self.V.size(), self.V.size()], dtype=int)
+
+        for v in self.V:
+            for v2 in v.nn:
+                if v.f <= v2.f:
+                    self.incidence_structure[v.index, v2.index] = 1
+                else:
+                    self.incidence_structure[v.index, v2.index] = -1
+
+        return self.incidence_structure
+        
     def v_array(self, cache=None, vset=None):
         """
         Build a numpy array from a cache of vertices or a set of vertex objects

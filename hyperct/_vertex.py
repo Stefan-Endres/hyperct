@@ -10,6 +10,7 @@ import multiprocessing as mp
 
 """Vertex objects"""
 class VertexBase(ABC):
+
     def __init__(self, x, nn=None, index=None):
         self.x = x
         self.hash = hash(self.x)  # Save precomputed hash
@@ -26,8 +27,9 @@ class VertexBase(ABC):
         return self.hash
 
     def __mul__(self, v2):
-        s = SimplexOrdered([self, v2])
-        return s
+        pass
+        #s = SimplexOrdered([self, v2])
+        #return s
 
     def __getattr__(self, item):
         if item not in ['x_a']:
@@ -183,25 +185,41 @@ class VertexCacheBase(object):
         # we have defined a field function.
 
     def __iter__(self):
-        for v in self.cache:
-            yield self.cache[v]
+        # We use the following iterator to allow for mutation of self.cache
+        iterator = range(len(self.cache))
+        items = list(self.cache.items())
+        for ind in iterator:
+            yield items[ind][1]
+            #try:
+            #    yield items[ind][1]
+            #except KeyError:
+            #    continue
+
+        # Alternative:
+        #for v in self.cache:
+        #    yield self.cache[v]
         return
 
     def move(self, v, x):
         """
         Move a vertex object v to a new set of coordinates x
 
+        NOTE: You might to recompute f and g pools depending on your application
+
         :param v: Vertex object to move
         :param x: tuple, new coordinates
         :return:
         """
+        #TODO: Instead of using pop try to retain order in list
+        # (This turns out to be impractically expensive, requiring iteration
+        # of the entire cache)
         self.cache.pop(v.x)
 
         # Note that we need to remove the object from the nn sets since the hash
         # value is changed although the object stays the same.
         vn = copy.copy(v.nn)
-        for vn in vn:
-            v.disconnect(vn)
+        for vn_i in vn:
+            v.disconnect(vn_i)
 
         v.x = x
         v.hash = hash(x)
@@ -212,9 +230,8 @@ class VertexCacheBase(object):
 
         self.cache[x] = v
         # Reconnect new hashes
-        vn = copy.copy(v.nn)
-        for vn in vn:
-            v.connect(vn)
+        for vn_i in vn:
+            v.connect(vn_i)
 
         return self.cache[x]
 
@@ -246,6 +263,61 @@ class VertexCacheBase(object):
         :return:
         """
         return self.index + 1
+
+    def merge_all(self, cdist):
+        """
+        Merge all within the Euclidean norm cdist
+
+        TODO: Use other distants metrics (requires dependencies)
+
+        #NOTE: Appears to work, but re
+        :param v:
+        :param cdist: float, vertices less than this distance will be merged
+        :return:
+        """
+        # Detect candidate pairs for merging
+        merge_pairs = set()
+        merge_pairs_l = []
+
+        for v in self:
+            # for v2 in v.nn:  # NOTE: Can't use nn, because v2 not always in v.nn
+            for v2 in self:
+                if v is v2:
+                    continue
+                dist = np.linalg.norm(v.x_a - v2.x_a)
+                if dist < cdist:
+                    #TODO: Something here is not right
+                    if (frozenset({v, v2}) in merge_pairs) or (frozenset({v2, v}) in merge_pairs):
+                        continue
+                    else:
+                        merge_pairs_l.append((v, v2))
+                        merge_pairs.add(frozenset({v, v2}))
+
+        #print(f'merge_pairs = {merge_pairs}')
+        for vp in merge_pairs_l:
+            #self.merge_pair(vp)
+            try:
+                self.merge_pair(vp)
+            except KeyError:
+                pass  # pairs have possibly aleady been removed
+
+    def merge_pair(self, vp):
+        """
+        Merge the vertex pair vp into a single vertex
+        :param vp:
+        :return:
+        """
+        #TODO: Maybe this union operation is the shit part and we should be
+        #      doing a loop of .connect operations instead?
+        #      NOTE: YES I think this is the issue, try it...
+        for vn in vp[1].nn:
+            vp[0].connect(vn)
+
+        self.remove(vp[1])
+
+        #TODO: Remove vp[1] from all neighbours? Remove should do this already
+        #      But what about the neighbours of vp[0]?
+
 
     def print_out(self):
         headlen = len(f"Vertex cache of size: {len(self.cache)}:")

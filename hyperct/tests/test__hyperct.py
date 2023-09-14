@@ -9,8 +9,6 @@ logging.getLogger().setLevel(logging.INFO)
 
 import os
 import logging
-import unittest
-
 from hyperct._complex import *
 
 import pytest
@@ -179,7 +177,7 @@ class TestCube(object):
         test_triangulation(4, 1)
 
     #@pytest.mark.slow
-    @unittest.skip("Skipping slow test")
+    @pytest.mark.skip("Skipping slow test")
     def test_3_3_4D_cube_splits(self):
         """Test that the 4D cube subtriangulations has the correct vertices,
            testing 2 generations of subtriangulations"""
@@ -196,51 +194,51 @@ class TestCube(object):
         test_triangulation(5, 1)
 
     @pytest.mark.slow
-    @unittest.skip("Skipping slow test")
+    @pytest.mark.skip("Skipping slow test")
     def test_4_3_5D_cube_splits(self):
         """Test that the 5D cube subtriangulations has the correct vertices,
            testing 2 generations of subtriangulations"""
         test_triangulation(5, 2)
 
 
-    @unittest.skip("Skipping slow test")
+    @pytest.mark.skip("Skipping slow test")
     def test_5_1_6D_cube_init(self):
         "Test that the initial 6D cube has the correct vertices"
         test_triangulation(6, 0)
 
-    @unittest.skip("Skipping slow test")
+    @pytest.mark.skip("Skipping slow test")
     def test_5_2_6D_cube_splits(self):
         """Test that the 6D cube subtriangulations has the correct vertices,
            testing 1 generation of subtriangulations"""
         test_triangulation(6, 1)
 
-    @unittest.skip("Skipping slow test")
+    @pytest.mark.skip("Skipping slow test")
     def test_6_1_7D_cube_init(self):
         "Test that the initial 7D cube has the correct vertices"
         test_triangulation(7, 0)
 
-    @unittest.skip("Skipping slow test")
+    @pytest.mark.skip("Skipping slow test")
     def test_6_2_7D_cube_splits(self):
         """Test that the 7D cube subtriangulations has the correct vertices,
            testing 1 generation of subtriangulations"""
         test_triangulation(7, 1)
 
-    @unittest.skip("Skipping slow test")
+    @pytest.mark.skip("Skipping slow test")
     def test_7_1_8D_cube_init(self):
         "Test that the initial 8D cube has the correct vertices"
         test_triangulation(8, 0)
 
-    @unittest.skip("Skipping slow test")
+    @pytest.mark.skip("Skipping slow test")
     def test_8_1_9D_cube_init(self):
         "Test that the initial 9D cube has the correct vertices"
         test_triangulation(9, 0)
 
-    @unittest.skip("Skipping slow test")
+    @pytest.mark.skip("Skipping slow test")
     def test_9_1_10D_cube_init(self):
         "Test that the initial 10D cube has the correct vertices"
         test_triangulation(10, 0)
 
-    @unittest.skip("Skipping slow test")
+    @pytest.mark.skip("Skipping slow test")
     def test_99_1_11D_cube_init(self):
         "Test that the initial 11D cube has the correct vertices"
         test_triangulation(11, 0)
