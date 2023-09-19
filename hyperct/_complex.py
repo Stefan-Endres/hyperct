@@ -2846,7 +2846,6 @@ class Complex:
                 try:
                     self.ax_surface
                 except:
-                    #self.ax_surface = self.fig_surface.gca(projection='3d')
                     self.ax_surface = self.fig_surface.add_subplot(projection='3d')
 
                 # Add a plot of the field function.
@@ -2876,10 +2875,19 @@ class Complex:
 
 
         elif self.dim == 3:
+            #try:
+            #    self.ax_complex
+            #except:
+            #    self.ax_complex = Axes3D(self.fig_complex)
+
+            try:
+                self.fig_complex
+            except AttributeError:
+                self.fig_complex = pyplot.figure()
             try:
                 self.ax_complex
             except:
-                self.ax_complex = Axes3D(self.fig_complex)
+                self.ax_complex = self.fig_complex.add_subplot(projection='3d')
 
             min_points = []
             for v in self.V.cache:
@@ -3002,15 +3010,20 @@ class Complex:
             # Plot edges
             z = []
             for v in self.V.cache:
-                ax.plot(v, self.V[v].f, '.', color=color_e,
-                        markersize=pointsize)
-                z.append(self.V[v].f)
-                for v2 in self.V[v].nn:
-                    ax.plot([v, v2.x],
-                            [self.V[v].f, v2.f],
-                            color=color_e)
+                if directed:
+                    ax.plot(v, self.V[v].f, '.', color=color_e,
+                            markersize=pointsize)
+                    z.append(self.V[v].f)
+                else:
+                    ax.plot(v, 0.0, '.', color=color_e,
+                            markersize=pointsize)
+                    z.append(0.0)
 
+                for v2 in self.V[v].nn:
                     if directed:
+                        ax.plot([v, v2.x],
+                                [self.V[v].f, v2.f],
+                                color=color_e)
                         if self.V[v].f > v2.f:  # direct V2 --> V1
                             x1_vec = [float(self.V[v].x[0]), self.V[v].f]
                             x2_vec = [float(v2.x[0]), v2.f]
@@ -3020,7 +3033,10 @@ class Complex:
                                                         proj_dim=2,
                                                         color=color_e)
                             ax.add_artist(a)
-
+                    else:
+                        ax.plot([v, v2.x],
+                                [0.0, 0.0],
+                                color=color_e)
             ax.set_xlabel('$x$')
             ax.set_ylabel('$f$')
 
@@ -3040,14 +3056,17 @@ class Complex:
             # Plot edges
             z = []
             for v in self.V.cache:
-                z.append(self.V[v].f)
+                if directed:
+                    z.append(self.V[v].f)
+                else:
+                    z.append(0.0)
                 for v2 in self.V[v].nn:
-                    ax.plot([v[0], v2.x[0]],
-                            [v[1], v2.x[1]],
-                            [self.V[v].f, v2.f],
-                            color=color_e)
-
                     if directed:
+                        ax.plot([v[0], v2.x[0]],
+                                [v[1], v2.x[1]],
+                                [self.V[v].f, v2.f],
+                                color=color_e)
+
                         if self.V[v].f > v2.f:  # direct V2 --> V1
                             x1_vec = list(self.V[v].x)
                             x2_vec = list(v2.x)
@@ -3059,21 +3078,27 @@ class Complex:
                                                         color=color_e)
 
                             ax.add_artist(a)
+                    else:
+                        ax.plot([v[0], v2.x[0]],
+                                [v[1], v2.x[1]],
+                                [0.0, 0.0],
+                                color=color_e)
 
             # TODO: For some reason adding the scatterplots for minimiser spheres
             #      makes the directed edges disappear behind the field surface
-            if len(min_points) > 0:
-                iter_min = min_points.copy()
-                for ind, v in enumerate(iter_min):
-                    min_points[ind] = list(min_points[ind])
-                    min_points[ind].append(self.V[v].f)
+            if directed:
+                if len(min_points) > 0:
+                    iter_min = min_points.copy()
+                    for ind, v in enumerate(iter_min):
+                        min_points[ind] = list(min_points[ind])
+                        min_points[ind].append(self.V[v].f)
 
-                ax = self.plot_min_points(ax,
-                                          min_points,
-                                          proj_dim=3,
-                                          point_color=color_e,
-                                          pointsize=pointsize
-                                          )
+                    ax = self.plot_min_points(ax,
+                                              min_points,
+                                              proj_dim=3,
+                                              point_color=color_e,
+                                              pointsize=pointsize
+                                              )
 
             # Triangulation to plot faces
             # Compute a triangulation #NOTE: can eat memory
