@@ -48,10 +48,6 @@ import itertools
 import json
 import decimal
 
-from memory_profiler import profile
-
-
-
 from abc import ABC, abstractmethod
 # Required modules:
 import numpy
@@ -2850,7 +2846,8 @@ class Complex:
                 try:
                     self.ax_surface
                 except:
-                    self.ax_surface = self.fig_surface.gca(projection='3d')
+                    #self.ax_surface = self.fig_surface.gca(projection='3d')
+                    self.ax_surface = self.fig_surface.add_subplot(projection='3d')
 
                 # Add a plot of the field function.
                 if surface_field_plot:
