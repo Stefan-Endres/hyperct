@@ -2135,7 +2135,7 @@ class Complex:
                         v_v1.connect(v1_v2)
 
         return
-    
+
     def refine_all_star(self, exclude=set()):
         """
         Refine the star domain of all vertices
@@ -2173,8 +2173,47 @@ class Complex:
         # print(f'Vnew = {Vnew}')
         # print(f'len(Vnew) = {len(Vnew)}')
         return  # Vnew
-    
-    def boundary(self, V=None):
+
+    def boundary(self, V=None, pp=True):
+        """
+        Compute the boundary of a set of vertices
+
+        :param V: Iterable object containing vertices, if None entire complex is
+                  used.
+        :return: dV, boundary set of V
+        """
+        if V is None:
+            V = self.V
+        dV = set()  # Known boundary vertices
+        for v in V:
+            s_it = itertools.combinations(v.nn, self.dim)
+            valid_s = []
+            for s in s_it:
+                s_it_valid = True
+                for v2 in s:
+                    for v3 in s:
+                        if v3 is not v2:
+                            if v2 in v3.nn:
+                                pass
+                            else:
+                                s_it_valid = False
+                if s_it_valid:
+                    valid_s.append(s)
+
+            # Now parse through
+            for s in valid_s:
+                snn = set(s[0].nn)
+                for v2 in s[1:]:
+                    snn = snn.intersection(v2.nn)
+
+                snn = snn - set(s) - set([v])
+                # Check if simplex is a boundary simplex:
+                if len(snn) == 0:
+                    for v2 in s:
+                        dV.add(v2)
+        return dV
+
+    def boundary_old_probably(self, V=None):
         """
         Compute the boundary of a set of vertices
 
@@ -2308,12 +2347,12 @@ class Complex:
                 #print(f's = {s}')
                 s_it_valid = True
                 for v2 in s:
-                    #snn = snn.union(v2.nn - set([v])) 
+                    #snn = snn.union(v2.nn - set([v]))
                     #snn = snn.union(v2.nn - set([v]))
                     for v3 in s:
                         if v3 is not v2:
                             if v2 in v3.nn:
-                                pass 
+                                pass
                             else:
                                 s_it_valid = False
                 #snn = snn.intersection(v.nn)
@@ -2327,19 +2366,19 @@ class Complex:
                         valid_s.append(s)
         #    print(f'valid_s = {valid_s}')
         #    print(f'len(valid_s) = {len(valid_s)}')
-            
+
             # Now parse through
             for s in valid_s:
                 snn = set(s[0].nn)
                 for v2 in s[1:]:
                     snn = snn.intersection(v2.nn)
-                
+
                 snn = snn - set(s) - set([v])
                 #print(f'snn = {snn}')
                 if len(snn) == 0:
                     for v2 in s:
                         dV.add(v2)
-        
+
         #print(f'dV = {dV}')
         #print(f'len(dV) = {len(dV)}')
 
@@ -2347,12 +2386,12 @@ class Complex:
         cV = copy.copy(self.V)
         #for v in dV:
        #     print(f'v in dV = {v.x}')
-            
+
         for v in cV:
             #print(f'v = {v.x} in dV = {v in dV}')
             if not (v in dV):
                 self.V.remove(v)
-                    #for v 
+                    #for v
             #for v2 in v_nn:
             #    v2_nn = copy.copy(v.nn)
            #    for v3 in v2_nn:
@@ -3299,7 +3338,7 @@ class Complex:
                     self.incidence_structure[v.index, v2.index] = -1
 
         return self.incidence_structure
-        
+
     def v_array(self, cache=None, vset=None):
         """
         Build a numpy array from a cache of vertices or a set of vertex objects
