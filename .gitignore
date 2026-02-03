@@ -22,6 +22,8 @@ models
 !publish_to_pypi.sh
 /*.ini
 !setup.cfg
+/untitled_*
+/MNIST_i*
 .backup/
 archives/
 colve/
@@ -33,6 +35,8 @@ vector_fields/
 hyperct-paper/
 echo
 USR
+venv/
+publish to PyPI note
 
 # Ignore image files
 *.png
