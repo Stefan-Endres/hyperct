@@ -57,6 +57,9 @@ publish to PyPI note
 *$
 *.bak
 .idea/*
+!.idea/runConfigurations/
+.idea/runConfigurations/*
+!.idea/runConfigurations/*.xml
 *.kdev4
 *.org
 .project
