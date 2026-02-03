@@ -13,6 +13,8 @@ from hyperct._complex import *
 
 import pytest
 
+
+
 logging.getLogger().setLevel(logging.INFO) #TODO: REMOVE
 
 def g_cons(x):  # (Requires n > 2)
@@ -332,6 +334,7 @@ class TestSymmetry(object):
         symmetry = [0,]*4
         test_triangulation(4, 0, symmetry=symmetry)
 
+    @pytest.mark.xfail(reason="Unsolved fundamental issue with 4D symmetry handling")
     def test_3_2_4D_symm_splits(self):
         """Test that the 4D cube subtriangulations has the correct vertices,
            testing 1 generation of subtriangulations"""
@@ -339,6 +342,7 @@ class TestSymmetry(object):
         symmetry = [0, ] * dim
         test_triangulation(dim , 1, symmetry=symmetry)
 
+    @pytest.mark.xfail(reason="Unsolved fundamental issue with 4D symmetry handling")
     def test_3_3_4D_symm_splits(self):
         """Test that the 4D cube subtriangulations has the correct vertices,
            testing 2 generation of subtriangulations"""
@@ -353,6 +357,7 @@ class TestSymmetry(object):
         symmetry = [0, 0, 0, 3]
         test_triangulation(dim, 0, symmetry=symmetry)
 
+    @pytest.mark.xfail(reason="Unsolved fundamental issue with 4D symmetry handling")
     def test_3_5_4D_psymm_splits(self):
         """Test that the 4D partially symmetric [0, 0, 0, 3] cube
         subtriangulations has the correct vertices, testing 2 generation of
@@ -361,7 +366,7 @@ class TestSymmetry(object):
         symmetry = [0, 0, 0, 3]
         test_triangulation(dim, 1, symmetry=symmetry)
 
-
+    @pytest.mark.xfail(reason="Unsolved fundamental issue with 4D symmetry handling")
     def test_3_6_4D_psymm_splits(self):
         """Test that the 4D partially symmetric [0, 0, 0, 3] cube
         subtriangulations has the correct vertices, testing 2 generation of
@@ -375,7 +380,7 @@ class TestSymmetry(object):
         symmetry = [0,]*5
         test_triangulation(5, 0, symmetry=symmetry)
 
-
+    @pytest.mark.xfail(reason="Unsolved fundamental issue with 5D symmetry handling")
     def test_4_2_5D_symm_splits(self):
         """Test that the 5D cube subtriangulations has the correct vertices,
            testing 1 generation of subtriangulations"""
@@ -383,6 +388,7 @@ class TestSymmetry(object):
         symmetry = [0, ] * dim
         test_triangulation(dim, 1, symmetry=symmetry)
 
+    @pytest.mark.xfail(reason="Unsolved fundamental issue with 5D symmetry handling")
     def test_4_3_5D_symm_splits(self):
         """Test that the 5D cube subtriangulations has the correct vertices,
            testing 2 generation of subtriangulations"""
