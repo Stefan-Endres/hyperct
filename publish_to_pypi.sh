@@ -101,7 +101,7 @@ echo ""
 # 3. Run tests
 if [ "$SKIP_TESTS" = false ]; then
     echo -e "${YELLOW}[3/7] Running tests...${NC}"
-    if ! pytest hyperct/tests/; then
+    if ! python -m pytest hyperct/tests/ -q --import-mode=importlib; then
         echo -e "${RED}Error: Tests failed. Please fix before publishing.${NC}"
         exit 1
     fi
