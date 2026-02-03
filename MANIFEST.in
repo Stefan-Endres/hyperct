@@ -1,0 +1,21 @@
+# Include documentation files
+include README.md
+include CLAUDE.md
+include PYPI_PUBLISHING.md
+include LICENSE
+
+# Include test data
+recursive-include hyperct/tests/test_data *.json
+
+# Exclude development and temporary files
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store
+global-exclude *.so
+prune .git
+prune build
+prune dist
+prune *.egg-info
+prune venv
+prune .pytest_cache
+prune .ipynb_checkpoints

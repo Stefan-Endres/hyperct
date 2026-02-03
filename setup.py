@@ -1,46 +1,54 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 # Get the long description from the README file
 def readme():
-    with open('README.md') as f:
+    with open('README.md', encoding='utf-8') as f:
         return f.read()
 
-setup(name='hyperct',
-      version='0.3.1',
-      description='Hypercube triangulations and sub-triangulations',
-      url='https://github.com/stefan-endres/hyperct',
-      author='Stefan Endres, Carl Sandrock',
-      author_email='stefan.c.endres@gmail.com',
-      license='MIT',
-      packages=['hyperct'],
-      install_requires=[
-          'numpy',
-          'pytest',
-          'pytest-cov'
-      ],
-      long_description=readme(),
-      keywords='optimization',
-      classifiers=[
-          # How mature is this project? Common values are
-          #   3 - Alpha
-          #   4 - Beta
-          #   5 - Production/Stable
-          'Development Status :: 3 - Alpha',
-
-          # Indicate who your project is intended for
-          'Intended Audience :: Science/Research',
-          'Intended Audience :: Developers',
-          'Topic :: Scientific/Engineering',
-          'Topic :: Scientific/Engineering :: Mathematics',
-
-          # Pick your license as you wish (should match "license" above)
-           'License :: OSI Approved :: MIT License',
-
-          # Specify the Python versions you support here. In particular, ensure
-          # that you indicate whether you support Python 2, Python 3 or both.
-          'Programming Language :: Python :: 2.7',
-          'Programming Language :: Python :: 3.5',
-          'Programming Language :: Python :: 3.6',
-      ],
-      #test_suite='hyperct.tests',
-      zip_safe=False)
+setup(
+    name='hyperct',
+    version='0.3.1',
+    description='Low memory hypercube triangulations and sub-triangulations',
+    long_description=readme(),
+    long_description_content_type='text/markdown',
+    url='https://github.com/stefan-endres/hyperct',
+    project_urls={
+        'Bug Reports': 'https://github.com/stefan-endres/hyperct/issues',
+        'Source': 'https://github.com/stefan-endres/hyperct',
+    },
+    author='Stefan Endres, Carl Sandrock',
+    author_email='stefan.c.endres@gmail.com',
+    license='MIT',
+    packages=find_packages(exclude=['tests', '*.tests', '*.tests.*']),
+    python_requires='>=3.7',
+    install_requires=[
+        'numpy>=1.16.0',
+    ],
+    extras_require={
+        'dev': [
+            'pytest>=6.0',
+            'pytest-cov>=2.10',
+        ],
+        'plotting': [
+            'matplotlib>=3.0',
+        ],
+    },
+    keywords=['optimization', 'triangulation', 'simplicial-complex',
+              'hypercube', 'computational-geometry'],
+    classifiers=[
+        'Development Status :: 3 - Alpha',
+        'Intended Audience :: Science/Research',
+        'Intended Audience :: Developers',
+        'Topic :: Scientific/Engineering',
+        'Topic :: Scientific/Engineering :: Mathematics',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+    ],
+    zip_safe=False,
+)

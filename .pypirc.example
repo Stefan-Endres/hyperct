@@ -1,0 +1,24 @@
+# Example PyPI configuration file
+# Copy this to ~/.pypirc and replace tokens with your actual API tokens
+#
+# SECURITY WARNING: Never commit this file with real tokens!
+#
+# To get your tokens:
+# 1. Go to https://pypi.org/manage/account/token/
+# 2. Create a new API token
+# 3. Copy the token (starts with pypi-...)
+# 4. Paste below, replacing the example
+
+[distutils]
+index-servers =
+    pypi
+    testpypi
+
+[pypi]
+username = __token__
+password = pypi-YOUR_PYPI_TOKEN_HERE
+
+[testpypi]
+repository = https://test.pypi.org/legacy/
+username = __token__
+password = pypi-YOUR_TESTPYPI_TOKEN_HERE
