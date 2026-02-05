@@ -243,8 +243,8 @@ class VertexCacheBase(object):
         """
         ind = v.index
 
-        vn = copy.copy(v.nn)
-        for vn in vn:
+        vnn = copy.copy(v.nn)
+        for vn in vnn:
             v.disconnect(vn)
 
         self.cache.pop(v.x)
