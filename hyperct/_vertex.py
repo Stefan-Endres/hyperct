@@ -240,19 +240,8 @@ class VertexCacheBase(object):
         # we have defined a field function.
 
     def __iter__(self):
-        # We use the following iterator to allow for mutation of self.cache
-        iterator = range(len(self.cache))
-        items = list(self.cache.items())
-        for ind in iterator:
-            yield items[ind][1]
-            #try:
-            #    yield items[ind][1]
-            #except KeyError:
-            #    continue
-
-        # Alternative:
-        #for v in self.cache:
-        #    yield self.cache[v]
+        for v in self.cache:
+            yield self.cache[v]
         return
 
     def move(self, v, x):
@@ -450,11 +439,11 @@ class VertexCacheField(VertexCacheBase):
         self.Vertex = VertexScalarField
         self.field = field
         self.field_args = field_args
-        self.wfield = FieldWraper(field, field_args)  # if workers is not None
+        self.wfield = FieldWrapper(field, field_args)  # if workers is not None
 
         self.g_cons = g_cons
         self.g_cons_args = g_cons_args
-        self.wgcons = ConstraintWraper(g_cons, g_cons_args)
+        self.wgcons = ConstraintWrapper(g_cons, g_cons_args)
         self.gpool = set()  # A set of tuples to process for feasibility
 
         # Field processing objects
@@ -545,7 +534,7 @@ class VertexCacheField(VertexCacheBase):
     def feasibility_check(self, v):
         v.feasible = True
         for g, args in zip(self.g_cons, self.g_cons_args):
-            if g(v.x_a, *args) < 0.0:
+            if np.any(g(v.x_a, *args) < 0.0):
                 v.f = np.inf
                 v.feasible = False
                 break
@@ -637,7 +626,7 @@ class VertexCacheField(VertexCacheBase):
                 v2.check_max = False
 
 
-class ConstraintWraper(object):
+class ConstraintWrapper:
     def __init__(self, g_cons, g_cons_args):
         self.g_cons = g_cons
         self.g_cons_args = g_cons_args
@@ -645,12 +634,14 @@ class ConstraintWraper(object):
     def gcons(self, v_x_a):
         vfeasible = True
         for g, args in zip(self.g_cons, self.g_cons_args):
-            if g(v_x_a, *args) < 0.0:  #TODO: Add exception handling?
+            if np.any(g(v_x_a, *args) < 0.0):
                 vfeasible = False
                 break
         return vfeasible
 
-class FieldWraper(object):
+ConstraintWraper = ConstraintWrapper  # backwards compat alias
+
+class FieldWrapper:
     def __init__(self, field, field_args):
         self.field = field
         self.field_args = field_args
@@ -658,13 +649,14 @@ class FieldWraper(object):
     def func(self, v_x_a):
         try:
             v_f = self.field(v_x_a, *self.field_args)
-        except:  #TODO: except only various floating issues
-            # logging.warning(f"Field function not found at x = {self.x_a}")
+        except Exception:
             v_f = np.inf
         if np.isnan(v_f):
             v_f = np.inf
 
         return v_f
+
+FieldWraper = FieldWrapper  # backwards compat alias
 
 if __name__ == '__main__':  # TODO: Convert these to unittests
     v1 = VertexCube((1,2,-3.3))

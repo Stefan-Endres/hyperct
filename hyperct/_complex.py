@@ -57,18 +57,18 @@ from . import _plotting
 # Standalone DEC functions
 from . import dec as _dec
 
-try:
-    from functools import lru_cache  # For Python 3 only
-except ImportError:  # Python 2:
-    import time
-    import functools
-    import collections
-    from ._misc import lru_cache
+from functools import cache
+import multiprocessing as mp
 
 # Module specific imports
 from ._vertex import (VertexCacheIndex, VertexCacheField)
 from ._field import (FieldCache, ScalarFieldCache)
 from ._vertex_group import (Subgroup, Cell, Simplex)
+
+
+def fdum(x):
+    """Pickle-able dummy function for parallel boundary computation."""
+    return 0
 
 
 # Main complex class:
@@ -160,8 +160,7 @@ class Complex:
         # Domains
         self.domain = domain
         if domain is None:
-            self.bounds = [(float(0), float(1.0)), ] * dim
-            #self.bounds = [(0.0, 1.0), ] * dim
+            self.bounds = [(0.0, 1.0), ] * dim
         else:
             self.bounds = domain  # TODO: Assert that len(domain) is dim
         self.symmetry = symmetry  # TODO: Define the functions to be used
@@ -180,8 +179,7 @@ class Complex:
             self.min_cons = constraints
             self.g_cons = []
             self.g_args = []
-            if (type(constraints) is not tuple) and (type(constraints)
-                                                     is not list):
+            if not isinstance(constraints, tuple | list):
                 constraints = (constraints,)
 
             for cons in constraints:
@@ -1363,7 +1361,7 @@ class Complex:
                 d_v0v1.connect(d_v1v2)
         return
 
-    @lru_cache(maxsize=None)
+    @cache
     def split_edge(self, v1, v2):
         v1 = self.V[v1]
         v2 = self.V[v2]
@@ -2159,6 +2157,52 @@ class Complex:
             V = self.V
         dV = set()  # Known boundary vertices
         for v in V:
+            s_it = itertools.combinations(v.nn, self.dim)
+            valid_s = []
+            for s in s_it:
+                s_it_valid = True
+                for v2 in s:
+                    for v3 in s:
+                        if v3 is not v2:
+                            if v2 in v3.nn:
+                                pass
+                            else:
+                                s_it_valid = False
+                if s_it_valid:
+                    valid_s.append(s)
+
+            # Now parse through
+            for s in valid_s:
+                snn = set(s[0].nn)
+                for v2 in s[1:]:
+                    snn = snn.intersection(v2.nn)
+
+                snn = snn - set(s) - set([v])
+                # Check if simplex is a boundary simplex:
+                if len(snn) == 0:
+                    for v2 in s:
+                        dV.add(v2)
+        return dV
+
+    def pproc_boundary(self, V=None, pp=True):
+        """
+        Compute the boundary of a set of vertices using multiprocessing.
+
+        :param V: Iterable object containing vertices, if None entire complex is
+                  used.
+        :return: dV, boundary set of V
+        """
+        try:
+            self.pool = self.V.pool
+        except AttributeError:
+            self.pool = mp.Pool(processes=self.workers)
+        if V is None:
+            V = self.V
+        dV = set()  # Known boundary vertices
+
+        vlist = V.cache.keys()
+        G = self.pool.map(fdum, vlist)
+        for v, _ in zip(self.V, G):
             s_it = itertools.combinations(v.nn, self.dim)
             valid_s = []
             for s in s_it:
