@@ -10,10 +10,64 @@ import multiprocessing as mp
 
 """Vertex objects"""
 class VertexBase(ABC):
+    """Abstract base class for vertices in a simplicial complex.
 
-    def __init__(self, x, nn=None, index=None):
+    Vertices store coordinates as tuples and lazily convert to numpy arrays
+    (accessed via the ``x_a`` attribute) using the dtype specified at
+    construction time.
+
+    Parameters
+    ----------
+    x : tuple
+        Coordinate vector of the vertex.
+    nn : set or list, optional
+        Initial nearest-neighbour vertices.
+    index : int, optional
+        Index of the vertex in the parent cache.
+    dtype : numpy.dtype or type, optional
+        Data type used when converting ``x`` to a numpy array.  Accepts any
+        value understood by ``numpy.dtype`` (e.g. ``numpy.float64``,
+        ``numpy.float32``, ``numpy.longdouble``, ``'float128'``).
+        The default ``None`` lets NumPy infer the type, which is typically
+        ``numpy.float64`` (double precision).
+
+    Attributes
+    ----------
+    x : tuple
+        Original coordinate tuple.
+    x_a : numpy.ndarray
+        Lazily-created numpy array of the coordinates with the specified dtype.
+    nn : set
+        Set of nearest-neighbour :class:`VertexBase` instances.
+    index : int or None
+        Vertex index in the parent cache.
+
+    Examples
+    --------
+    Using default (float64) precision:
+
+    >>> v = VertexCube((1.0, 2.0, 3.0))
+    >>> v.x_a.dtype
+    dtype('float64')
+
+    Using single precision:
+
+    >>> import numpy as np
+    >>> v = VertexCube((1.0, 2.0, 3.0), dtype=np.float32)
+    >>> v.x_a.dtype
+    dtype('float32')
+
+    Using extended (long double) precision:
+
+    >>> v = VertexCube((1.0, 2.0, 3.0), dtype=np.longdouble)
+    >>> v.x_a.dtype  # platform-dependent, typically float96 or float128
+    dtype('float128')
+    """
+
+    def __init__(self, x, nn=None, index=None, dtype=None):
         self.x = x
         self.hash = hash(self.x)  # Save precomputed hash
+        self.dtype = dtype
         #self.orderv = sum(x)  #TODO: Delete if we can't prove the order triangulation conjecture
 
         if nn is not None:
@@ -36,7 +90,7 @@ class VertexBase(ABC):
             raise AttributeError(f"{type(self)} object has no attribute "
                                  f"'{item}'")
         if item == 'x_a':
-            self.x_a = np.array(self.x)
+            self.x_a = np.array(self.x, dtype=self.dtype)
             return self.x_a
 
 
@@ -73,8 +127,8 @@ class VertexBase(ABC):
 class VertexCube(VertexBase):
     """Vertex class to be used for a pure simplicial complex with no associated
     differential geometry (single level domain that exists in R^n)"""
-    def __init__(self, x, nn=None, index=None):
-        super().__init__(x, nn=nn, index=index)
+    def __init__(self, x, nn=None, index=None, dtype=None):
+        super().__init__(x, nn=nn, index=index, dtype=dtype)
 
     def connect(self, v):
         if v is not self and v not in self.nn:
@@ -92,7 +146,7 @@ class VertexScalarField(VertexBase):
     the geometry built from the VertexBase class"""
 
     def __init__(self, x, field=None, nn=None, index=None, field_args=(),
-                 g_cons=None, g_cons_args=()):
+                 g_cons=None, g_cons_args=(), dtype=None):
         """
         :param x: tuple, vector of vertex coordinates
         :param field: function, a scalar field f: R^n --> R associated with
@@ -102,9 +156,10 @@ class VertexScalarField(VertexBase):
         :param field_args: tuple, additional arguments to be passed to field
         :param g_cons: function, constraints on the vertex
         :param g_cons_args: tuple, additional arguments to be passed to g_cons
+        :param dtype: numpy.dtype or type, optional, data type for numpy arrays
 
         """
-        super().__init__(x, nn=nn, index=index)
+        super().__init__(x, nn=nn, index=index, dtype=dtype)
 
         # Note Vertex is only initiated once for all x so only
         # evaluated once
@@ -164,8 +219,8 @@ class VertexVectorField(VertexBase):
 
     def __init__(self, x, sfield=None, vfield=None, field_args=(),
                  vfield_args=(), g_cons=None,
-                 g_cons_args=(), nn=None, index=None):
-        super(VertexVectorField, self).__init__(x, nn=nn, index=index)
+                 g_cons_args=(), nn=None, index=None, dtype=None):
+        super(VertexVectorField, self).__init__(x, nn=nn, index=index, dtype=dtype)
 
         raise NotImplementedError("This class is still a work in progress")
 
@@ -224,7 +279,7 @@ class VertexCacheBase(object):
         v.x = x
         v.hash = hash(x)
         try:
-            v.x_a = np.array(x)
+            v.x_a = np.array(x, dtype=v.dtype)
         except AttributeError:
             pass
 
