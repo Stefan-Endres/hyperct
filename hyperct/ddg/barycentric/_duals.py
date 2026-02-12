@@ -1,3 +1,17 @@
+"""
+.. deprecated::
+    This module is deprecated. Use ``hyperct.ddg.compute_vd`` instead.
+"""
+import warnings as _warnings
+
+_warnings.warn(
+    "hyperct.ddg.barycentric._duals is deprecated. "
+    "Use hyperct.ddg.compute_vd(HC, method='barycentric') instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+import numpy as np
 from scipy.spatial import Delaunay
 
 from hyperct import Complex, VertexCacheField

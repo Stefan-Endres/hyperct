@@ -98,6 +98,27 @@ class BatchBackend(Protocol):
         """
         ...
 
+    def batch_dual_positions(
+        self,
+        simplices: np.ndarray,
+        strategy_fn: Callable[[np.ndarray], np.ndarray],
+    ) -> np.ndarray:
+        """Compute dual vertex positions for a batch of simplices.
+
+        Parameters
+        ----------
+        simplices : ndarray of shape (N, k+1, dim)
+            N simplices, each with k+1 vertices in dim-dimensional space.
+        strategy_fn : callable
+            Maps (k+1, dim) array -> (dim,) array for single simplex.
+
+        Returns
+        -------
+        ndarray of shape (N, dim)
+            Dual vertex positions.
+        """
+        ...
+
 
 # ---------------------------------------------------------------------------
 # Numpy backend (always available)
@@ -148,6 +169,13 @@ class NumpyBackend:
     def batch_determinants(self, matrices: np.ndarray) -> np.ndarray:
         return np.linalg.det(matrices)
 
+    def batch_dual_positions(
+        self,
+        simplices: np.ndarray,
+        strategy_fn: Callable[[np.ndarray], np.ndarray],
+    ) -> np.ndarray:
+        return np.array([strategy_fn(s) for s in simplices])
+
 
 # ---------------------------------------------------------------------------
 # Multiprocessing backend (wraps existing pool pattern)
@@ -196,6 +224,18 @@ class MultiprocessingBackend:
     def batch_determinants(self, matrices: np.ndarray) -> np.ndarray:
         return np.linalg.det(matrices)
 
+    def batch_dual_positions(
+        self,
+        simplices: np.ndarray,
+        strategy_fn: Callable[[np.ndarray], np.ndarray],
+    ) -> np.ndarray:
+        wrapper = _DualPositionWorker(strategy_fn)
+        chunksize = self._get_chunksize(simplices.shape[0])
+        results = self.pool.map(
+            wrapper, [simplices[i] for i in range(len(simplices))], chunksize=chunksize
+        )
+        return np.array(results)
+
     def terminate(self):
         self.pool.terminate()
 
@@ -238,6 +278,15 @@ class _FeasibilityWorker:
             if np.any(g(x, *args) < 0.0):
                 return False
         return True
+
+
+class _DualPositionWorker:
+    """Pickleable callable for multiprocessing dual position computation."""
+    def __init__(self, strategy_fn: Callable[[np.ndarray], np.ndarray]):
+        self.strategy_fn = strategy_fn
+
+    def __call__(self, simplex: np.ndarray) -> np.ndarray:
+        return self.strategy_fn(simplex)
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +390,24 @@ class TorchBackend:
                                 device=self.device)
         dets = torch.linalg.det(mat_t)
         return dets.cpu().numpy()
+
+    def batch_dual_positions(
+        self,
+        simplices: np.ndarray,
+        strategy_fn: Callable[[np.ndarray], np.ndarray],
+    ) -> np.ndarray:
+        torch = self.torch
+        try:
+            # Try vectorized: for barycenter, this is just mean
+            simplices_t = torch.as_tensor(
+                simplices, dtype=torch.float64, device=self.device
+            )
+            # Try applying strategy to all at once
+            result = strategy_fn(simplices_t)
+            return result.cpu().numpy()
+        except Exception:
+            # Fallback to per-simplex
+            return np.array([strategy_fn(s) for s in simplices])
 
 
 # ---------------------------------------------------------------------------

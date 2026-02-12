@@ -1,5 +1,7 @@
-#from ddgclib._curvatures import *
-#from ddgclib._capillary_rise import *
-#from ddgclib._cube_droplet import *
+"""
+Barycentric dual computations.
 
-__all__ = [s for s in dir() if not s.startswith('_')]
+.. deprecated::
+    Use ``hyperct.ddg.compute_vd(HC, method='barycentric')`` instead
+    of importing from this submodule directly.
+"""

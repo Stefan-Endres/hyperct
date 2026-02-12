@@ -1,13 +1,19 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import collections
+"""
+.. deprecated::
+    This module is deprecated. Use ``hyperct.ddg.compute_vd`` instead.
+"""
+import warnings as _warnings
 
-from scipy.spatial import Delaunay, QhullError
-import scipy
-import polyscope as ps
+_warnings.warn(
+    "hyperct.ddg.circumcentric.circumcentric_duals is deprecated. "
+    "Use hyperct.ddg.compute_vd(HC, method='circumcentric') instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+import numpy as np
 
 from hyperct import Complex, VertexCacheField
-from ddgclib._misc import coldict
 
 
 def normalized(a, axis=-1, order=2):

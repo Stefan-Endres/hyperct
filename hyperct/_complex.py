@@ -54,8 +54,6 @@ import numpy
 
 # Standalone plotting functions
 from . import _plotting
-# Standalone DEC functions
-from . import dec as _dec
 
 from functools import cache
 import multiprocessing as mp
@@ -2512,18 +2510,6 @@ class Complex:
         #    for v3 in v2_nn:
         #        if v3 == v:
         #            pass
-    # --- DEC thin wrappers (delegate to hyperct.dec) ---
-
-    def clifford(self, dim, q=''):
-        return _dec.clifford(self, dim, q)
-
-    def sharp(self, v_x):
-        return _dec.sharp(self, v_x)
-
-    @staticmethod
-    def flat(form, dim):
-        return _dec.flat(form, dim)
-
     # --- Plotting thin wrappers (delegate to hyperct._plotting) ---
 
     def plot_complex(self, **kwargs):
