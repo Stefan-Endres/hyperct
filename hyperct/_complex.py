@@ -2547,6 +2547,9 @@ class Complex:
         return _plotting.plot_min_points(
             axes, min_points, proj_dim, point_color, pointsize)
 
+    def animate_complex(self, update_state, **kwargs):
+        return _plotting.animate_complex(self, update_state, **kwargs)
+
     # %% Conversions
     def incidence_array(self):
         """

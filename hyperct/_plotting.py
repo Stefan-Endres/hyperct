@@ -110,7 +110,7 @@ def plot_complex(hc, show=True, directed=True, complex_plot=True,
         directed = False  #TODO: We used this to avoid v.minimiser_point
                           # errors when is no field, should check for field
                           # instead
-    # Check if fix or ax arguments are passed
+    # Check if fig or ax arguments are passed
     if fig_complex is not None:
         hc.fig_complex = fig_complex
     if ax_complex is not None:
@@ -125,6 +125,16 @@ def plot_complex(hc, show=True, directed=True, complex_plot=True,
         hc.fig_complex
     except AttributeError:
         hc.fig_complex = pyplot.figure()
+
+    # Clear existing axes so previous plot elements do not persist
+    try:
+        hc.ax_complex.cla()
+    except AttributeError:
+        pass
+    try:
+        hc.ax_surface.cla()
+    except AttributeError:
+        pass
 
     # Consistency
     if hc.sfield is None:
@@ -144,7 +154,7 @@ def plot_complex(hc, show=True, directed=True, complex_plot=True,
                }
 
     def define_cols(col):
-        if (col is 'lo') or (col is 'do'):
+        if (col == 'lo') or (col == 'do'):
             col = coldict[col]
         elif col is None:
             col = None
@@ -768,12 +778,11 @@ def plot_min_points(axes, min_points, proj_dim=2, point_color=None,
     :param point_size: optional
     :return:
     """
+    is_red = isinstance(point_color, str) and point_color == 'r'
+
     if proj_dim == 2:
         for v in min_points:
-            if point_color is 'r':
-                min_col = 'k'
-            else:
-                min_col = 'r'
+            min_col = 'k' if is_red else 'r'
 
             axes.plot(v[0], v[1], '.', color=point_color,
                       markersize=2.5 * pointsize)
@@ -786,10 +795,7 @@ def plot_min_points(axes, min_points, proj_dim=2, point_color=None,
 
     if proj_dim == 3:
         for v in min_points:
-            if point_color is 'r':
-                min_col = 'k'
-            else:
-                min_col = 'r'
+            min_col = 'k' if is_red else 'r'
 
             axes.scatter(v[0], v[1], v[2], color=point_color,
                          s=2.5 * pointsize)
@@ -801,3 +807,86 @@ def plot_min_points(axes, min_points, proj_dim=2, point_color=None,
                          s=1.4 * pointsize)
 
     return axes
+
+
+def animate_complex(hc, update_state, frames=200, interval=50,
+                    repeat=True, save_path=None, fps=20,
+                    figsize=None, **plot_kwargs):
+    """Animate a simplicial complex by re-rendering with ``plot_complex``.
+
+    Each frame calls *update_state* to mutate the Complex in-place (move,
+    add or remove vertices, connect or disconnect edges), then redraws the
+    mesh using :func:`plot_complex` so the visual style is identical.
+
+    Parameters
+    ----------
+    hc : Complex
+        A triangulated Complex instance (1-D, 2-D or 3-D).
+    update_state : callable
+        ``update_state(hc, frame) -> None``
+        Called once per frame **before** rendering.  Should mutate *hc*
+        in-place, for example via ``hc.V.move(v, new_x)``,
+        ``hc.V.remove(v)``, ``v.connect(v2)`` / ``v.disconnect(v2)``.
+    frames : int
+        Number of animation frames.
+    interval : int
+        Delay between frames in milliseconds.
+    repeat : bool
+        Whether the animation loops.
+    save_path : str, optional
+        If given, save the animation to this file (e.g. ``"mesh.gif"``).
+    fps : int
+        Frames per second when saving.
+    figsize : tuple, optional
+        Figure size passed to ``pyplot.figure``.
+    **plot_kwargs
+        Additional keyword arguments forwarded to :func:`plot_complex`
+        (e.g. ``point_color``, ``pointsize``, ``line_color``,
+        ``no_grids``).  ``show`` and ``save_fig`` are always overridden
+        to ``False``.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+    ax : matplotlib.axes.Axes
+    anim : matplotlib.animation.FuncAnimation
+    """
+    if not matplotlib_available:
+        logging.warning("matplotlib is required for animate_complex")
+        return None, None, None
+
+    from matplotlib.animation import FuncAnimation
+
+    # Force non-interactive rendering for animation frames
+    plot_kwargs['show'] = False
+    plot_kwargs['save_fig'] = False
+    plot_kwargs.setdefault('directed', False)
+    # Suppress surface/contour plots by default (often no scalar field)
+    plot_kwargs.setdefault('contour_plot', False)
+    plot_kwargs.setdefault('surface_plot', False)
+    plot_kwargs.setdefault('surface_field_plot', False)
+
+    # Create figure and axes, store on hc so plot_complex reuses them
+    fig = pyplot.figure(figsize=figsize)
+    if hc.dim == 3:
+        ax = fig.add_subplot(projection='3d')
+    else:
+        ax = fig.add_subplot(1, 1, 1)
+
+    hc.fig_complex = fig
+    hc.ax_complex = ax
+
+    # Render the initial frame
+    plot_complex(hc, **plot_kwargs)
+
+    def _update(frame):
+        update_state(hc, frame)
+        plot_complex(hc, **plot_kwargs)
+
+    anim = FuncAnimation(fig, _update, frames=frames, interval=interval,
+                         blit=False, repeat=repeat)
+
+    if save_path:
+        anim.save(save_path, fps=fps)
+
+    return fig, ax, anim
