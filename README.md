@@ -36,7 +36,7 @@ pip install hyperct
 ### Optional dependencies
 
 - **`hyperct[gpu]`** — PyTorch backend for GPU-accelerated field evaluation and batch vertex processing. Auto-detects CUDA; falls back to CPU when unavailable.
-- **`hyperct[plotting]`** — Matplotlib-based visualization of triangulations, scalar fields, and dual meshes (1D/2D/3D).
+- **`hyperct[plotting]`** — Matplotlib-based visualization of triangulations, scalar fields, and dual meshes (1D/2D/3D). Includes Polyscope for interactive 3D dual mesh visualization.
 - **`hyperct[dev]`** — pytest, coverage, and benchmark tooling.
 
 ```bash
@@ -75,7 +75,7 @@ C.split_generation()
 - Python >= 3.7
 - NumPy >= 1.16.0
 - Optional: PyTorch >= 2.0 (GPU backend)
-- Optional: matplotlib >= 3.0 (plotting)
+- Optional: matplotlib >= 3.0, polyscope (plotting)
 
 ## License
 
