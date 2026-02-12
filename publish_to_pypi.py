@@ -15,6 +15,7 @@ Prerequisites:
 """
 
 import argparse
+import glob
 import os
 import re
 import shutil
@@ -41,9 +42,9 @@ if sys.platform == 'win32' and not os.environ.get('ANSICON'):
     Colors.disable()
 
 
-def print_colored(message, color=Colors.NC):
+def print_colored(message, color=Colors.NC, **kwargs):
     """Print colored message"""
-    print(f"{color}{message}{Colors.NC}")
+    print(f"{color}{message}{Colors.NC}", **kwargs)
 
 
 def run_command(cmd, check=True, capture_output=False):
@@ -147,7 +148,8 @@ def main():
     if not args.skip_tests:
         print_colored("[3/7] Running tests...", Colors.YELLOW)
         try:
-            run_command('pytest hyperct/tests/')
+            run_command([sys.executable, '-m', 'pytest', 'hyperct/tests/',
+                        '-q', '--import-mode=importlib', '--benchmark-skip'])
             print_colored("✓ All tests passed", Colors.GREEN)
         except subprocess.CalledProcessError:
             print_colored("Error: Tests failed. Please fix before publishing.", Colors.RED)
@@ -183,7 +185,11 @@ def main():
 
     # 6. Check the distribution
     print_colored("[6/7] Checking distribution with twine...", Colors.YELLOW)
-    run_command([sys.executable, '-m', 'twine', 'check', 'dist/*'])
+    dist_files = glob.glob('dist/*')
+    if not dist_files:
+        print_colored("Error: No files found in dist/", Colors.RED)
+        sys.exit(1)
+    run_command([sys.executable, '-m', 'twine', 'check'] + dist_files)
     print_colored("✓ Distribution check passed", Colors.GREEN)
     print()
 
@@ -194,8 +200,8 @@ def main():
         print_colored("Uploading to TestPyPI...", Colors.BLUE)
         run_command([
             sys.executable, '-m', 'twine', 'upload',
-            '--repository', 'testpypi', 'dist/*'
-        ])
+            '--repository', 'testpypi'] + glob.glob('dist/*')
+        )
         print()
         print_colored("✓ Successfully uploaded to TestPyPI!", Colors.GREEN)
         print()
@@ -209,7 +215,7 @@ def main():
             print_colored("Upload cancelled.", Colors.RED)
             sys.exit(1)
 
-        run_command([sys.executable, '-m', 'twine', 'upload', 'dist/*'])
+        run_command([sys.executable, '-m', 'twine', 'upload'] + glob.glob('dist/*'))
         print()
         print_colored("✓ Successfully uploaded to PyPI!", Colors.GREEN)
 
