@@ -72,6 +72,36 @@ def fdum(x):
 
 # Main complex class:
 class Complex:
+    """Simplicial complex on a hypercube domain.
+
+    Constructs and refines a simplicial complex over an N-dimensional
+    hyperrectangle using cyclic products of C2 groups. Supports scalar/vector
+    field association, inequality constraints for non-convex and disconnected
+    domains, symmetry reduction, and pluggable computation backends.
+
+    Attributes
+    ----------
+    dim : int
+        Spatial dimensionality.
+    V : VertexCacheBase
+        Vertex cache (VertexCacheIndex or VertexCacheField).
+    H : list
+        Generation storage — ``H[gen]`` holds Cell/Simplex objects per generation.
+    gen : int
+        Current generation number.
+    bounds : list of tuple
+        Domain bounds ``[(x_l, x_u), ...]`` per dimension.
+
+    Examples
+    --------
+    >>> from hyperct import Complex
+    >>> HC = Complex(3)
+    >>> HC.triangulate()
+    >>> HC.split_generation()
+    >>> len(HC.V.cache)
+    ...
+    """
+
     def __init__(self, dim, domain=None, sfield=None, sfield_args=(),
                  vfield=None, vfield_args=None,
                  symmetry=None, constraints=None,
@@ -615,6 +645,18 @@ class Complex:
     # %% Refinement
     # % Refinement based on vector partitions
     def refine(self, n=1):
+        """Refine the complex to add approximately *n* new vertices.
+
+        Uses a lazy generator-based approach: if the complex has not been
+        triangulated, ``triangulate()`` is called first.  Vertices are then
+        added via ``refine_local_space()`` until the target count is reached.
+
+        Parameters
+        ----------
+        n : int, optional
+            Target number of new vertices to add (default 1).
+            If *None*, triangulates (if needed) or refines all.
+        """
         #TODO: Replace with while loop checking cache size instead?
         if n is None:
             try:
@@ -1621,8 +1663,16 @@ class Complex:
 
     # % Split symmetric generations
     def split_generation(self):
-        """
-        Run sub_generate_cell for every cell in the current complex self.gen
+        """Subdivide all cells in the current generation.
+
+        Each cell in ``H[gen]`` is split into subcells, creating generation
+        ``gen + 1``.  For symmetric complexes ``split_simplex_symmetry`` is
+        used; otherwise ``sub_generate_cell``.
+
+        Returns
+        -------
+        bool
+            True if no splits occurred (empty generation).
         """
         no_splits = False  # USED IN SHGO
         try:

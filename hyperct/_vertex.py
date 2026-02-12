@@ -228,6 +228,22 @@ class VertexVectorField(VertexBase):
 Cache objects
 """
 class VertexCacheBase(object):
+    """Base class for O(1) vertex caches keyed by coordinate tuples.
+
+    Stores vertices in an ``OrderedDict`` with coordinate tuples as keys.
+    Supports snapshot-based safe iteration during mutation, O(1) removal
+    with lazy reindexing, and spatial merging via grid-based hashing.
+
+    Attributes
+    ----------
+    cache : OrderedDict
+        Mapping from coordinate tuple to vertex object.
+    nfev : int
+        Number of feasible vertices evaluated.
+    index : int
+        Current maximum vertex index.
+    """
+
     def __init__(self):
 
         self.cache = collections.OrderedDict()  #TODO: Perhaps unneeded?
@@ -452,6 +468,20 @@ class VertexCacheIndex(VertexCacheBase):
             return self.cache[x]
 
 class VertexCacheField(VertexCacheBase):
+    """Field-aware vertex cache using :class:`VertexScalarField` vertices.
+
+    Extends :class:`VertexCacheBase` with deferred pool-based field
+    evaluation (``fpool``), constraint checking (``gpool``), and backend
+    dispatch for numpy/multiprocessing/GPU computation.
+
+    Attributes
+    ----------
+    fpool : set
+        Pending vertices awaiting field evaluation.
+    gpool : set
+        Pending vertices awaiting constraint evaluation.
+    """
+
     def __init__(self, field=None, field_args=(), g_cons=None, g_cons_args=(),
                  workers=None, backend=None):
         #TODO: Make a non-linear constraint cache with no scalar field

@@ -565,8 +565,8 @@ def plot_complex_surface(hc, fig, ax, directed=True, pointsize=5,
                             [hc.V[v].f, v2.f],
                             color=color_e)
                     if hc.V[v].f > v2.f:  # direct V2 --> V1
-                        x1_vec = [float(hc.V[v].x[0]), hc.V[v].f]
-                        x2_vec = [float(v2.x[0]), v2.f]
+                        x1_vec = [float(hc.V[v].x[0]), float(hc.V[v].f)]
+                        x2_vec = [float(v2.x[0]), float(v2.f)]
 
                         a = plot_directed_edge(hc.V[v].f, v2.f,
                                                     x1_vec, x2_vec,
