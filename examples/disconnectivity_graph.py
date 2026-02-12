@@ -19,12 +19,11 @@ from hyperct._vis_disc import DisconnectivityGraph, database_from_complex
 # Define a scalar field with multiple basins
 def landscape(x):
     """Multi-basin landscape: high-frequency sin wave plus shallow quadratic."""
-    xi = np.asarray(x).ravel()[0]
-    return 3 * np.sin(5 * xi) + 0.5 * xi**2
+    return 3 * np.sin(5 * x[0]) + 0.5 * (x[0]**2 + x[1]**2)
 
 
 # Build and refine the complex
-HC = Complex(1, domain=[(-3, 3)], sfield=landscape)
+HC = Complex(2, domain=[(-3, 3), (-3, 3)], sfield=landscape)
 HC.triangulate()
 HC.refine_all()
 HC.refine_all()
@@ -56,7 +55,7 @@ print(f"Graph has {graph.number_of_nodes()} nodes "
       f"({len([n for n in graph.nodes() if hasattr(n, 'coords')])} minima)\n")
 
 # Plot the disconnectivity graph
-dg.plot(title="Disconnectivity Graph: 3sin(5x) + 0.5x²")
+dg.plot(title="Disconnectivity Graph: 3sin(5x) + 0.5(x² + y²)")
 plt.tight_layout()
 plt.savefig("disconnectivity_graph.png", dpi=150, bbox_inches="tight")
 print("Saved disconnectivity_graph.png")
