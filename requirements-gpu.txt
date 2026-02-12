@@ -1,0 +1,5 @@
+# GPU support (requires CUDA-capable device for acceleration)
+# Install with: pip install hyperct[gpu]
+# Or:           pip install -r requirements-gpu.txt
+-r requirements.txt
+torch>=2.0

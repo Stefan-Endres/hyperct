@@ -1,0 +1,7 @@
+# Development and testing dependencies
+# Install with: pip install hyperct[dev]
+# Or:           pip install -r requirements-dev.txt
+-r requirements.txt
+pytest>=6.0
+pytest-cov>=2.10
+pytest-benchmark>=3.4

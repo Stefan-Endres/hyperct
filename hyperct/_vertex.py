@@ -453,7 +453,7 @@ class VertexCacheIndex(VertexCacheBase):
 
 class VertexCacheField(VertexCacheBase):
     def __init__(self, field=None, field_args=(), g_cons=None, g_cons_args=(),
-                 workers=None):
+                 workers=None, backend=None):
         #TODO: Make a non-linear constraint cache with no scalar field
         #TODO: add possible h_cons tolerance check
         super().__init__()
@@ -472,12 +472,22 @@ class VertexCacheField(VertexCacheBase):
         self.fpool = set()  # A set of tuples to process for scalar function
         self.sfc_lock = False  # True if self.fpool is non-Empty
 
+        # Backend for batch computation (GPU/CPU vectorized)
+        self.backend = backend  # None = use legacy code paths
+
         if g_cons == None:
             self.proc_fpool = self.proc_fpool_nog
         else:
             self.proc_fpool = self.proc_fpool_g
 
-        if workers == None:
+        if backend is not None:
+            # Use backend-dispatched processing for both pools
+            self.process_gpool = self._backend_proc_gpool
+            if g_cons == None:
+                self.process_fpool = self._backend_proc_fpool_nog
+            else:
+                self.process_fpool = self._backend_proc_fpool_g
+        elif workers == None:
             self.process_gpool = self.proc_gpool
             #self.process_fpool = self.proc_fpool
             if g_cons == None:
@@ -634,6 +644,60 @@ class VertexCacheField(VertexCacheBase):
         for v, f in zip(fpool_v, F):
             v.f = f
         # Clean the pool
+        self.fpool = set()
+
+    # ---- Backend-dispatched pool processing methods ----
+
+    def _backend_proc_gpool(self):
+        """Process feasibility pool using the configured backend."""
+        if self.g_cons is None or not self.gpool:
+            self.gpool = set()
+            return
+        vertices = list(self.gpool)
+        coords = np.stack([v.x_a for v in vertices])
+        feasible = self.backend.batch_feasibility(
+            coords, self.g_cons, self.g_cons_args
+        )
+        for v, f in zip(vertices, feasible):
+            v.feasible = bool(f)
+            if not v.feasible:
+                v.f = np.inf
+        self.gpool = set()
+
+    def _backend_proc_fpool_g(self):
+        """Process field pool (with constraints) using the configured backend."""
+        if not self.fpool:
+            self.fpool = set()
+            return
+        fpool_v = []
+        for v in self.fpool:
+            if v.feasible:
+                fpool_v.append(v)
+            else:
+                v.f = np.inf
+        if fpool_v:
+            coords = np.stack([v.x_a for v in fpool_v])
+            results = self.backend.batch_field_eval(
+                coords, self.field, self.field_args
+            )
+            for v, f_val in zip(fpool_v, results):
+                v.f = float(f_val)
+            self.nfev += len(fpool_v)
+        self.fpool = set()
+
+    def _backend_proc_fpool_nog(self):
+        """Process field pool (no constraints) using the configured backend."""
+        if not self.fpool:
+            self.fpool = set()
+            return
+        vertices = list(self.fpool)
+        coords = np.stack([v.x_a for v in vertices])
+        results = self.backend.batch_field_eval(
+            coords, self.field, self.field_args
+        )
+        for v, f_val in zip(vertices, results):
+            v.f = float(f_val)
+        self.nfev += len(vertices)
         self.fpool = set()
 
     def proc_minimisers(self):

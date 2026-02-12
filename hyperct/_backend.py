@@ -6,8 +6,8 @@ distance computation, and determinant calculation. Backends:
 
 - ``NumpyBackend``: Vectorized numpy (default, always available)
 - ``MultiprocessingBackend``: CPU parallelism via ``multiprocessing.Pool``
-- ``CuPyBackend``: GPU via CuPy (requires ``cupy``)
-- ``JaxBackend``: GPU/TPU via JAX with ``jit`` + ``vmap`` (requires ``jax``)
+- ``TorchBackend``: PyTorch tensors — auto-uses CUDA when available,
+  falls back to CPU (requires ``torch``)
 
 Usage::
 
@@ -15,8 +15,7 @@ Usage::
 
     backend = get_backend("numpy")      # explicit
     backend = get_backend("gpu")        # auto-detect GPU, fallback to numpy
-    backend = get_backend("cupy")       # CuPy specifically
-    backend = get_backend("jax")        # JAX specifically
+    backend = get_backend("torch")      # PyTorch (GPU if available, else CPU)
 """
 from __future__ import annotations
 
@@ -162,8 +161,6 @@ class MultiprocessingBackend:
         import multiprocessing as mp
         self.workers = workers
         self.pool = mp.Pool(processes=workers)
-        self._field_wrapper = None
-        self._cons_wrapper = None
 
     def _get_chunksize(self, n: int) -> int:
         return max(1, n // (4 * self.workers))
@@ -193,8 +190,6 @@ class MultiprocessingBackend:
         return np.array(results, dtype=bool)
 
     def batch_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
-        # Fall back to numpy for distance matrix — parallelizing this
-        # over multiprocessing has too much overhead for the gain.
         diff = coords[:, np.newaxis, :] - coords[np.newaxis, :, :]
         return np.sqrt(np.sum(diff ** 2, axis=-1))
 
@@ -246,16 +241,32 @@ class _FeasibilityWorker:
 
 
 # ---------------------------------------------------------------------------
-# CuPy backend (optional GPU)
+# PyTorch backend (optional GPU, with CPU fallback)
 # ---------------------------------------------------------------------------
-class CuPyBackend:
-    """GPU backend using CuPy. Requires ``cupy`` to be installed."""
+class TorchBackend:
+    """PyTorch backend. Uses CUDA when available, otherwise CPU tensors.
 
-    name = "cupy"
+    This is the recommended GPU backend for conda environments with PyTorch
+    installed.  Even without a working CUDA driver, PyTorch's vectorized
+    tensor operations on CPU are competitive with plain numpy for batched
+    workloads.
+
+    Requires ``torch`` to be installed.
+    """
+
+    name = "torch"
 
     def __init__(self):
-        import cupy  # noqa: F811
-        self.cp = cupy
+        import torch
+        self.torch = torch
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        else:
+            self.device = torch.device("cpu")
+
+    @property
+    def has_cuda(self) -> bool:
+        return self.device.type == "cuda"
 
     def batch_field_eval(
         self,
@@ -263,115 +274,32 @@ class CuPyBackend:
         field_fn: Callable,
         field_args: tuple,
     ) -> np.ndarray:
-        # Field functions are user-defined Python callables — they may not be
-        # CuPy-compatible.  We try to pass GPU arrays first; if that fails,
-        # fall back to per-row CPU evaluation.
-        cp = self.cp
+        torch = self.torch
+        # Try a fully-vectorized call first (works if field_fn is
+        # written with numpy/torch broadcasting).
         try:
-            coords_gpu = cp.asarray(coords)
-            # Try vectorized call with full (N, dim) array
-            result = field_fn(coords_gpu, *field_args)
-            result = cp.asnumpy(cp.asarray(result)).ravel()
+            coords_t = torch.as_tensor(coords, dtype=torch.float64,
+                                       device=self.device)
+            result = field_fn(coords_t, *field_args)
+            result = torch.as_tensor(result, device=self.device).cpu().numpy().ravel()
             result[np.isnan(result)] = np.inf
             return result
         except Exception:
-            # Fallback: evaluate row-by-row on CPU
-            n = coords.shape[0]
-            result = np.empty(n)
-            for i in range(n):
-                try:
-                    val = field_fn(coords[i], *field_args)
-                except Exception:
-                    val = np.inf
-                if np.isnan(val):
-                    val = np.inf
-                result[i] = val
-            return result
+            pass
 
-    def batch_feasibility(
-        self,
-        coords: np.ndarray,
-        g_cons: Sequence[Callable],
-        g_cons_args: Sequence[tuple],
-    ) -> np.ndarray:
-        cp = self.cp
+        # Fallback: row-by-row on CPU (for user field functions that
+        # don't support tensor input or batched (N, dim) arrays).
         n = coords.shape[0]
-        feasible = np.ones(n, dtype=bool)
-        for g, args in zip(g_cons, g_cons_args):
+        result = np.empty(n)
+        for i in range(n):
             try:
-                coords_gpu = cp.asarray(coords)
-                g_vals = g(coords_gpu, *args)
-                g_vals = cp.asnumpy(cp.asarray(g_vals))
-                # g(x) < 0 means infeasible
-                if g_vals.ndim == 1:
-                    feasible &= ~(g_vals < 0.0)
-                else:
-                    feasible &= ~np.any(g_vals < 0.0, axis=1)
+                val = field_fn(coords[i], *field_args)
             except Exception:
-                # Fallback: per-point CPU evaluation
-                for i in range(n):
-                    if not feasible[i]:
-                        continue
-                    if np.any(g(coords[i], *args) < 0.0):
-                        feasible[i] = False
-        return feasible
-
-    def batch_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
-        cp = self.cp
-        coords_gpu = cp.asarray(coords)
-        diff = coords_gpu[:, cp.newaxis, :] - coords_gpu[cp.newaxis, :, :]
-        dist = cp.sqrt(cp.sum(diff ** 2, axis=-1))
-        return cp.asnumpy(dist)
-
-    def batch_determinants(self, matrices: np.ndarray) -> np.ndarray:
-        cp = self.cp
-        matrices_gpu = cp.asarray(matrices)
-        dets = cp.linalg.det(matrices_gpu)
-        return cp.asnumpy(dets)
-
-
-# ---------------------------------------------------------------------------
-# JAX backend (optional GPU/TPU)
-# ---------------------------------------------------------------------------
-class JaxBackend:
-    """GPU/TPU backend using JAX. Requires ``jax`` to be installed."""
-
-    name = "jax"
-
-    def __init__(self):
-        import jax
-        import jax.numpy as jnp
-        self.jax = jax
-        self.jnp = jnp
-
-    def batch_field_eval(
-        self,
-        coords: np.ndarray,
-        field_fn: Callable,
-        field_args: tuple,
-    ) -> np.ndarray:
-        jax = self.jax
-        jnp = self.jnp
-        try:
-            # Try jax.vmap for automatic vectorization
-            vmapped = jax.vmap(lambda x: field_fn(x, *field_args))
-            coords_jax = jnp.asarray(coords)
-            result = np.asarray(vmapped(coords_jax))
-            result[np.isnan(result)] = np.inf
-            return result
-        except Exception:
-            # Fallback: per-row CPU evaluation
-            n = coords.shape[0]
-            result = np.empty(n)
-            for i in range(n):
-                try:
-                    val = field_fn(coords[i], *field_args)
-                except Exception:
-                    val = np.inf
-                if np.isnan(val):
-                    val = np.inf
-                result[i] = val
-            return result
+                val = np.inf
+            if np.isnan(val):
+                val = np.inf
+            result[i] = val
+        return result
 
     def batch_feasibility(
         self,
@@ -379,18 +307,19 @@ class JaxBackend:
         g_cons: Sequence[Callable],
         g_cons_args: Sequence[tuple],
     ) -> np.ndarray:
-        jnp = self.jnp
+        torch = self.torch
         n = coords.shape[0]
         feasible = np.ones(n, dtype=bool)
         for g, args in zip(g_cons, g_cons_args):
             try:
-                vmapped_g = self.jax.vmap(lambda x: g(x, *args))
-                coords_jax = jnp.asarray(coords)
-                g_vals = np.asarray(vmapped_g(coords_jax))
-                if g_vals.ndim == 1:
-                    feasible &= ~(g_vals < 0.0)
+                coords_t = torch.as_tensor(coords, dtype=torch.float64,
+                                           device=self.device)
+                g_vals = g(coords_t, *args)
+                g_vals_np = torch.as_tensor(g_vals, device=self.device).cpu().numpy()
+                if g_vals_np.ndim == 1:
+                    feasible &= ~(g_vals_np < 0.0)
                 else:
-                    feasible &= ~np.any(g_vals < 0.0, axis=1)
+                    feasible &= ~np.any(g_vals_np < 0.0, axis=1)
             except Exception:
                 for i in range(n):
                     if not feasible[i]:
@@ -400,17 +329,18 @@ class JaxBackend:
         return feasible
 
     def batch_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
-        jnp = self.jnp
-        coords_jax = jnp.asarray(coords)
-        diff = coords_jax[:, jnp.newaxis, :] - coords_jax[jnp.newaxis, :, :]
-        dist = jnp.sqrt(jnp.sum(diff ** 2, axis=-1))
-        return np.asarray(dist)
+        torch = self.torch
+        coords_t = torch.as_tensor(coords, dtype=torch.float64,
+                                   device=self.device)
+        dist = torch.cdist(coords_t.unsqueeze(0), coords_t.unsqueeze(0)).squeeze(0)
+        return dist.cpu().numpy()
 
     def batch_determinants(self, matrices: np.ndarray) -> np.ndarray:
-        jnp = self.jnp
-        matrices_jax = jnp.asarray(matrices)
-        dets = jnp.linalg.det(matrices_jax)
-        return np.asarray(dets)
+        torch = self.torch
+        mat_t = torch.as_tensor(matrices, dtype=torch.float64,
+                                device=self.device)
+        dets = torch.linalg.det(mat_t)
+        return dets.cpu().numpy()
 
 
 # ---------------------------------------------------------------------------
@@ -419,19 +349,24 @@ class JaxBackend:
 _BACKENDS: dict[str, type] = {
     "numpy": NumpyBackend,
     "multiprocessing": MultiprocessingBackend,
-    "cupy": CuPyBackend,
-    "jax": JaxBackend,
+    "torch": TorchBackend,
 }
 
 
 def _detect_gpu_backend() -> BatchBackend:
-    """Auto-detect the best available GPU backend, falling back to numpy."""
+    """Auto-detect the best available GPU backend, falling back to numpy.
+
+    Preference: PyTorch+CUDA > PyTorch+CPU > numpy.
+    """
     try:
-        return CuPyBackend()
+        backend = TorchBackend()
+        if backend.has_cuda:
+            return backend
     except (ImportError, Exception):
         pass
+    # PyTorch on CPU is still vectorized and better than serial numpy
     try:
-        return JaxBackend()
+        return TorchBackend()
     except (ImportError, Exception):
         pass
     return NumpyBackend()
@@ -443,8 +378,8 @@ def get_backend(name: str | None = None, **kwargs: Any) -> BatchBackend:
     Parameters
     ----------
     name : str or None
-        Backend name: ``"numpy"``, ``"multiprocessing"``, ``"cupy"``,
-        ``"jax"``, ``"gpu"`` (auto-detect), or ``None`` (numpy default).
+        Backend name: ``"numpy"``, ``"multiprocessing"``, ``"torch"``,
+        ``"gpu"`` (auto-detect), or ``None`` (numpy default).
     **kwargs
         Passed to the backend constructor (e.g. ``workers=4`` for
         multiprocessing).

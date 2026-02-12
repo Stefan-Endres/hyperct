@@ -7,7 +7,7 @@ def readme():
 
 setup(
     name='hyperct',
-    version='0.3.3',
+    version='0.3.4',
     description='Low memory hypercube triangulations and sub-triangulations',
     long_description=readme(),
     long_description_content_type='text/markdown',
@@ -32,6 +32,9 @@ setup(
         ],
         'plotting': [
             'matplotlib>=3.0',
+        ],
+        'gpu': [
+            'torch>=2.0',
         ],
     },
     keywords=['optimization', 'triangulation', 'simplicial-complex',

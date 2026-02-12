@@ -1,3 +1,5 @@
+CLAUDE.md
+DEVELOPMENT.md
 dev*.py
 _tgo.py
 htmlcov
@@ -6,6 +8,8 @@ min_map_dev.py
 node_modules
 shgo/patch
 models
+dev/
+archives/
 
 # Development and experimental files in root directory
 /*.ipynb
@@ -29,10 +33,12 @@ archives/
 colve/
 data/
 fig/
-figures/
+fig/figures/
 projects/
 vector_fields/
 hyperct-paper/
+hyperct_missing/
+hyperc_rl_quick_figs_delete/
 echo
 USR
 venv/

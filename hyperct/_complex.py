@@ -64,6 +64,7 @@ import multiprocessing as mp
 from ._vertex import (VertexCacheIndex, VertexCacheField)
 from ._field import (FieldCache, ScalarFieldCache)
 from ._vertex_group import (Subgroup, Cell, Simplex)
+from ._backend import get_backend
 
 
 def fdum(x):
@@ -76,7 +77,7 @@ class Complex:
     def __init__(self, dim, domain=None, sfield=None, sfield_args=(),
                  vfield=None, vfield_args=None,
                  symmetry=None, constraints=None,
-                 workers=None):
+                 workers=None, backend=None):
         """
         A base class for a simplicial complex described as a cache of vertices
         together with their connections.
@@ -207,6 +208,12 @@ class Complex:
 
         self.H = []  # Storage structure of vertex groups #TODO: Dated?
 
+        # Batch computation backend (GPU/CPU vectorized)
+        if backend is not None:
+            self._backend = get_backend(backend)
+        else:
+            self._backend = None
+
         # Cache of all vertices
         if (sfield is not None) or (self.g_cons is not None):
             # Initiate a vertex cache and an associated field cache, note that
@@ -216,12 +223,14 @@ class Complex:
                 self.V = VertexCacheField(field=sfield, field_args=sfield_args,
                                           g_cons=self.g_cons,
                                           g_cons_args=self.g_args,
-                                          workers=workers)
+                                          workers=workers,
+                                          backend=self._backend)
             elif self.g_cons is not None:
                 self.V = VertexCacheField(field=sfield, field_args=sfield_args,
                                           g_cons=self.g_cons,
                                           g_cons_args=self.g_args,
-                                          workers=workers)
+                                          workers=workers,
+                                          backend=self._backend)
         else:
             self.V = VertexCacheIndex()
 
@@ -1954,17 +1963,23 @@ class Complex:
 
         sign_det_A_11 = numpy.sign(numpy.linalg.det(A_11))
         if sign_det_A_11 == 0:
-            #NOTE: We keep the variable A_11, but we loop through A_jj
-            #ind=
-            #while sign_det_A_11 == 0:
-            #    A_11 = numpy.delete(S, ind, 0) - S[ind]
-            #    sign_det_A_11 = numpy.sign(numpy.linalg.det(A_11))
-
             sign_det_A_11 = -1  #TODO: Choose another det of j instead?
-            #TODO: Unlikely to work in many cases
 
         if A_j0 is None:
             A_j0 = S - v_x
+
+        # Batch determinant computation when a backend is available
+        if self._backend is not None:
+            face_matrices = numpy.stack(
+                [numpy.delete(A_j0, d, 0) for d in range(self.dim + 1)]
+            )
+            signs_A_j0 = numpy.sign(
+                self._backend.batch_determinants(face_matrices)
+            )
+            expected = numpy.array(
+                [(-1)**d * sign_det_A_11 for d in range(self.dim + 1)]
+            )
+            return bool(numpy.all(expected == signs_A_j0))
 
         for d in range(self.dim + 1):
             det_A_jj = (-1)**d * sign_det_A_11
