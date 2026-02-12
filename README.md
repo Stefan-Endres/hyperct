@@ -2,6 +2,22 @@
 
 Low memory simplicial complex structures via hypercube triangulations and sub-triangulations.
 
+## When to use hyperct
+
+- **Dynamic meshes with changing topologies** — generation-based refinement lets you locally refine and split simplices without rebuilding the entire complex.
+- **Computing homologies of very high-dimensional spaces** — the hypercube triangulation scales to 10D+ while symmetry reduction cuts complexity by O(n!).
+- **Working with connectivity of high-dimensional data** — the simplicial complex exposes vertex adjacency, cell membership, and dual mesh structure directly.
+
+## When _not_ to use hyperct
+
+If you need fast conventional computational geometry in low dimensions, dedicated libraries will outperform hyperct:
+
+- **Delaunay / Voronoi tessellations** — [SciPy spatial](https://docs.scipy.org/doc/scipy/reference/spatial.html), [CGAL](https://www.cgal.org/) (via [scikit-geometry](https://github.com/scikit-geometry/scikit-geometry)), [Qhull](http://www.qhull.org/)
+- **Unstructured mesh generation** — [Gmsh](https://gmsh.info/), [pygmsh](https://github.com/meshio/pygmsh), [TetGen](https://wias-berlin.de/software/tetgen/) (via [tetgen](https://github.com/pyvista/tetgen)), [MeshPy](https://github.com/inducer/meshpy)
+- **Surface meshing & remeshing** — [PyMesh](https://pymesh.readthedocs.io/), [trimesh](https://trimsh.org/), [libigl](https://libigl.github.io/) (via [igl](https://github.com/libigl/libigl-python-bindings))
+- **FEM / simulation meshes** — [FEniCS/DOLFINx](https://fenicsproject.org/), [Firedrake](https://www.firedrakeproject.org/)
+- **Topological data analysis** — [GUDHI](https://gudhi.inria.fr/), [Ripser](https://github.com/Ripser/ripser), [giotto-tda](https://giotto-ai.github.io/gtda-docs/)
+
 ## Features
 
 - Triangulates high-dimensional domains (10D+)
@@ -19,17 +35,13 @@ pip install hyperct
 
 ### Optional dependencies
 
+- **`hyperct[gpu]`** — PyTorch backend for GPU-accelerated field evaluation and batch vertex processing. Auto-detects CUDA; falls back to CPU when unavailable.
+- **`hyperct[plotting]`** — Matplotlib-based visualization of triangulations, scalar fields, and dual meshes (1D/2D/3D).
+- **`hyperct[dev]`** — pytest, coverage, and benchmark tooling.
+
 ```bash
-# GPU support (PyTorch backend, auto-detects CUDA)
 pip install hyperct[gpu]
-
-# Plotting support (matplotlib)
 pip install hyperct[plotting]
-
-# Development and testing
-pip install hyperct[dev]
-
-# Multiple extras
 pip install hyperct[gpu,plotting]
 ```
 

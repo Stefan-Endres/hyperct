@@ -7,7 +7,7 @@ def readme():
 
 setup(
     name='hyperct',
-    version='0.3.4',
+    version='0.3.5',
     description='Low memory hypercube triangulations and sub-triangulations',
     long_description=readme(),
     long_description_content_type='text/markdown',
