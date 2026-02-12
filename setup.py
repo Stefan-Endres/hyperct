@@ -7,7 +7,7 @@ def readme():
 
 setup(
     name='hyperct',
-    version='0.3.1',
+    version='0.3.3',
     description='Low memory hypercube triangulations and sub-triangulations',
     long_description=readme(),
     long_description_content_type='text/markdown',
@@ -28,6 +28,7 @@ setup(
         'dev': [
             'pytest>=6.0',
             'pytest-cov>=2.10',
+            'pytest-benchmark>=3.4',
         ],
         'plotting': [
             'matplotlib>=3.0',
