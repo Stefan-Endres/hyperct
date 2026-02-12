@@ -68,6 +68,18 @@ echo -e "${BLUE}  PyPI Publishing Script for hyperct   ${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
+# Check prerequisites
+echo -e "${YELLOW}[0/7] Checking prerequisites...${NC}"
+for mod in build twine; do
+    if ! python -c "import $mod" 2>/dev/null; then
+        echo -e "${RED}Error: Python module '$mod' is not installed.${NC}"
+        echo "Install it with: pip install --upgrade build twine"
+        exit 1
+    fi
+done
+echo -e "${GREEN}✓ build and twine are installed${NC}"
+echo ""
+
 # Extract version from setup.py
 VERSION=$(python -c "import re; content = open('setup.py').read(); print(re.search(r\"version=['\\\"]([^'\\\"]+)['\\\"]|version='([^']+)'\", content).group(1) or re.search(r\"version=['\\\"]([^'\\\"]+)['\\\"]|version='([^']+)'\", content).group(2))")
 echo -e "${BLUE}Current version:${NC} ${GREEN}${VERSION}${NC}"

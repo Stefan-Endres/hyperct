@@ -116,6 +116,25 @@ def main():
     print_colored("=" * 40, Colors.BLUE)
     print()
 
+    # Check prerequisites
+    print_colored("[0/7] Checking prerequisites...", Colors.YELLOW)
+    missing = []
+    for mod in ('build', 'twine'):
+        result = run_command(
+            [sys.executable, '-c', f'import {mod}'],
+            check=False, capture_output=True
+        )
+        if result.returncode != 0:
+            missing.append(mod)
+    if missing:
+        print_colored(
+            f"Error: Missing required packages: {', '.join(missing)}", Colors.RED
+        )
+        print(f"Install them with: pip install --upgrade {' '.join(missing)}")
+        sys.exit(1)
+    print_colored("✓ build and twine are installed", Colors.GREEN)
+    print()
+
     # Extract version
     version = get_version()
     print_colored(f"Current version: ", Colors.BLUE, end='')
