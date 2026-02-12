@@ -1,8 +1,8 @@
 CLAUDE.md
-DEVELOPMENT.md
-ARCHITECTURE.md
-FEATURES.md
 PHASE6_IMPLEMENTATION_SUMMARY.md
+
+# Sphinx documentation build
+docs/_build/
 dev*.py
 _tgo.py
 htmlcov
