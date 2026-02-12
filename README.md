@@ -4,7 +4,7 @@ Low memory simplicial complex structures via hypercube triangulations and sub-tr
 
 ## When to use hyperct
 
-- **Dynamic meshes with changing topologies**: The library is based on efficiently tracking vertex-vertex connections only which avoids the computational expense of storing simplexes while still allowing many important operations to are applied on simplicial complex structures. Generation-based refinement lets you locally refine and split simplices without rebuilding the entire complex.
+- **Dynamic meshes with changing topologies**: The library is based on efficiently tracking vertex-vertex connections only which avoids the computational expense of storing simplexes while still allowing many important operations that are applied on simplicial complex structures. Generation-based refinement lets you locally refine and split simplices without rebuilding the entire complex.
 - **Computing homologies of very high-dimensional spaces**: the hypercube triangulation scales to hundreds of dimensions while symmetric space reduction cuts complexity by up to O(n!).
 - **Working with connectivity of high-dimensional data**: the simplicial complex exposes vertex adjacency, cell membership, and dual mesh structure directly.
 
