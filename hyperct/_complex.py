@@ -575,6 +575,7 @@ class Complex:
         TODO: Find directed (if sfield is not none) array over whole complex
         :return:
         """
+        self.V._rebuild_indices()
         if self.centroid_added:
             self.structure = numpy.zeros([2 ** self.dim + 1, 2 ** self.dim + 1],
                                          dtype=int)
@@ -593,7 +594,7 @@ class Complex:
         """ Make a list of size 2**n + 1 where an entry is a vertex
         incidence, each list element contains a list of indexes
         corresponding to that entries neighbours"""
-
+        self.V._rebuild_indices()
         self.graph = [[v2.index for v2 in v.nn] for v in self.C0()]
 
     # Graph structure method:
@@ -2556,8 +2557,8 @@ class Complex:
         Construct v-v incidence array
         :return: self.incidence_structure
         """
-
-        self.incidence_structure = numpy.zeros([self.V.size(), self.V.size()], dtype=int)
+        self.V._rebuild_indices()
+        self.incidence_structure = numpy.zeros([len(self.V), len(self.V)], dtype=int)
 
         for v in self.V:
             for v2 in v.nn:
@@ -2571,8 +2572,8 @@ class Complex:
         Complex must be supplied with sfield and directed
         :return: self.incidence_structure
         """
-
-        self.incidence_structure = numpy.zeros([self.V.size(), self.V.size()], dtype=int)
+        self.V._rebuild_indices()
+        self.incidence_structure = numpy.zeros([len(self.V), len(self.V)], dtype=int)
 
         for v in self.V:
             for v2 in v.nn:
@@ -2655,6 +2656,7 @@ class Complex:
                  self.sfield_fm, Scalar field values corresponding to the
                                  vertices in self.vertices_fm
         """
+        self.V._rebuild_indices()
         #TODO: UNTESindexTED FOR DIMENSIONS HIGHER THAN 2
         self.vertices_fm = []  # Vertices (A list of ob
         self.simplices_fm = []  # Faces

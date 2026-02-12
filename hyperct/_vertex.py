@@ -233,6 +233,7 @@ class VertexCacheBase(object):
         self.cache = collections.OrderedDict()  #TODO: Perhaps unneeded?
         self.nfev = 0  # Feasible points
         self.index = -1  #TODO: Is this needed?
+        self._indices_dirty = False
 
         #TODO: Define a getitem method based on if indexing is on or not so
         # that we do not have to do an if check every call (does the python
@@ -240,9 +241,11 @@ class VertexCacheBase(object):
         # we have defined a field function.
 
     def __iter__(self):
-        for v in self.cache:
-            yield self.cache[v]
-        return
+        for v in list(self.cache.values()):
+            yield v
+
+    def __len__(self):
+        return len(self.cache)
 
     def move(self, v, x):
         """
@@ -281,24 +284,31 @@ class VertexCacheBase(object):
 
     def remove(self, v):
         """
+        Remove a vertex from the cache. O(degree(v)) time.
+
+        Indices are lazily rebuilt when needed (via _rebuild_indices)
+        rather than O(n) reindexing on every removal.
 
         :param v:  Vertex object to remove
         :return:
         """
-        ind = v.index
-
         vnn = copy.copy(v.nn)
         for vn in vnn:
             v.disconnect(vn)
 
         self.cache.pop(v.x)
-
-        for v in self:
-            if v.index > ind:
-                v.index -= 1
-        self.index -= 1
+        self._indices_dirty = True
 
         return
+
+    def _rebuild_indices(self):
+        """Rebuild contiguous vertex indices. Called lazily before
+        index-dependent operations (incidence_array, graph_map, etc.)."""
+        if self._indices_dirty:
+            for i, v in enumerate(self.cache.values()):
+                v.index = i
+            self.index = len(self.cache) - 1
+            self._indices_dirty = False
 
     def size(self):
         """
@@ -350,40 +360,52 @@ class VertexCacheBase(object):
 
     def merge_all(self, cdist):
         """
-        Merge all within the Euclidean norm cdist
+        Merge all vertices within the Euclidean norm cdist.
 
-        TODO: Use other distants metrics (requires dependencies)
+        Uses grid-based spatial hashing for O(n) expected time on uniform
+        distributions (vs O(n^2) brute force).
 
-        #NOTE: Appears to work, but re
-        :param v:
         :param cdist: float, vertices less than this distance will be merged
         :return:
         """
-        # Detect candidate pairs for merging
-        merge_pairs = set()
+        from itertools import product as iterproduct
+
+        vertices = list(self)
+        if not vertices:
+            return
+
+        dim = len(vertices[0].x)
+        coords = {id(v): v.x_a for v in vertices}
+
+        # Assign vertices to grid cells of size cdist
+        grid = {}
+        for v in vertices:
+            cell = tuple(int(c // cdist) for c in coords[id(v)])
+            grid.setdefault(cell, []).append(v)
+
+        # Precompute neighbor cell offsets (3^dim neighbors)
+        offsets = list(iterproduct([-1, 0, 1], repeat=dim))
+
         merge_pairs_l = []
-
-        for v in self:
-            # for v2 in v.nn:  # NOTE: Can't use nn, because v2 not always in v.nn
-            for v2 in self:
-                if v is v2:
+        merged = set()
+        for cell, cell_verts in grid.items():
+            for v in cell_verts:
+                if id(v) in merged:
                     continue
-                dist = np.linalg.norm(v.x_a - v2.x_a)
-                if dist < cdist:
-                    #TODO: Something here is not right
-                    if (frozenset({v, v2}) in merge_pairs) or (frozenset({v2, v}) in merge_pairs):
-                        continue
-                    else:
-                        merge_pairs_l.append((v, v2))
-                        merge_pairs.add(frozenset({v, v2}))
+                for offset in offsets:
+                    neighbor_cell = tuple(c + o for c, o in zip(cell, offset))
+                    for v2 in grid.get(neighbor_cell, []):
+                        if v is v2 or id(v2) in merged:
+                            continue
+                        if np.linalg.norm(coords[id(v)] - coords[id(v2)]) < cdist:
+                            merge_pairs_l.append((v, v2))
+                            merged.add(id(v2))
 
-        #print(f'merge_pairs = {merge_pairs}')
         for vp in merge_pairs_l:
-            #self.merge_pair(vp)
             try:
                 self.merge_pair(vp)
             except KeyError:
-                pass  # pairs have possibly aleady been removed
+                pass  # pairs have possibly already been removed
 
     def merge_pair(self, vp):
         """
@@ -558,12 +580,17 @@ class VertexCacheField(VertexCacheBase):
 
     def pproc_gpool(self):
         gpool_l = []
+        gpool_v = []
         for v in self.gpool:
             gpool_l.append(v.x_a)
+            gpool_v.append(v)
 
-        G = self.pool.map(self.wgcons.gcons, gpool_l)
-        for v, g in zip(self.gpool, G):
-            v.feasible = g  # set vertex object attribute v.feasible = g (bool)
+        chunksize = max(1, len(gpool_l) // (4 * self.workers))
+        G = self.pool.map(self.wgcons.gcons, gpool_l, chunksize=chunksize)
+        for v, g in zip(gpool_v, G):
+            v.feasible = g
+        # Clean the pool
+        self.gpool = set()
 
     def proc_fpool_g(self):
         # TODO: do try check if v.f exists
@@ -580,49 +607,61 @@ class VertexCacheField(VertexCacheBase):
         # Clean the pool
         self.fpool = set()
 
-    #TODO: Make static method to possibly improve pickling speed
     def pproc_fpool_g(self):
-        #TODO: Ensure that .f is not already computed? (it shouldn't be addable
-        #      to the self.fpool if it is).
-        self.wfield.func
         fpool_l = []
+        fpool_v = []
         for v in self.fpool:
             if v.feasible:
                 fpool_l.append(v.x_a)
+                fpool_v.append(v)
             else:
                 v.f = np.inf
-        F = self.pool.map(self.wfield.func, fpool_l)
-        for va, f in zip(fpool_l, F):
-            vt = tuple(va)
-            self[vt].f = f  # set vertex object attribute v.f = f
+        chunksize = max(1, len(fpool_l) // (4 * self.workers))
+        F = self.pool.map(self.wfield.func, fpool_l, chunksize=chunksize)
+        for v, f in zip(fpool_v, F):
+            v.f = f
+        # Clean the pool
+        self.fpool = set()
 
     def pproc_fpool_nog(self):
-        #TODO: Ensure that .f is not already computed? (it shouldn't be addable
-        #      to the self.fpool if it is).
-        self.wfield.func
         fpool_l = []
+        fpool_v = []
         for v in self.fpool:
             fpool_l.append(v.x_a)
-        F = self.pool.map(self.wfield.func, fpool_l)
-        for va, f in zip(fpool_l, F):
-            vt = tuple(va)
-            self[vt].f = f  # set vertex object attribute v.f = f
+            fpool_v.append(v)
+        chunksize = max(1, len(fpool_l) // (4 * self.workers))
+        F = self.pool.map(self.wfield.func, fpool_l, chunksize=chunksize)
+        for v, f in zip(fpool_v, F):
+            v.f = f
+        # Clean the pool
+        self.fpool = set()
 
     def proc_minimisers(self):
         """
-        Check for minimisers
+        Check for minimisers and maximisers using vectorized numpy
+        comparisons for the neighbor field values.
         :return:
         """
         for v in self:
-            v.minimiser()
-            v.maximiser()
-
-        if 0:
-            if v.minimiser():
-                v2._min = False
-                v2.check_min = False
-            if v.maximiser():
-                v2._max = False
+            if hasattr(v, 'f') and v.nn:
+                nn_f = np.array([vn.f for vn in v.nn
+                                 if hasattr(vn, 'f')])
+                if len(nn_f) > 0:
+                    v._min = bool(np.all(v.f <= nn_f))
+                    v._max = bool(np.all(v.f >= nn_f))
+                    v.check_min = False
+                    v.check_max = False
+                else:
+                    v._min = False
+                    v._max = False
+                    v.check_min = False
+                    v.check_max = False
+            elif hasattr(v, 'f'):
+                # No neighbors, can't determine min/max
+                v._min = False
+                v._max = False
+                v.check_min = False
+                v.check_max = False
                 v2.check_max = False
 
 
