@@ -13,6 +13,7 @@ setup(
     long_description_content_type='text/markdown',
     url='https://github.com/stefan-endres/hyperct',
     project_urls={
+        'Documentation': 'https://hyperct.readthedocs.io/',
         'Bug Reports': 'https://github.com/stefan-endres/hyperct/issues',
         'Source': 'https://github.com/stefan-endres/hyperct',
     },
@@ -32,9 +33,16 @@ setup(
         ],
         'plotting': [
             'matplotlib>=3.0',
+            'polyscope',
         ],
         'gpu': [
             'torch>=2.0',
+        ],
+        'docs': [
+            'sphinx>=7.0',
+            'sphinx-rtd-theme>=2.0',
+            'myst-parser>=2.0',
+            'sphinx-autodoc-typehints>=1.25',
         ],
     },
     keywords=['optimization', 'triangulation', 'simplicial-complex',
