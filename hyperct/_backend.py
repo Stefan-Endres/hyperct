@@ -119,6 +119,30 @@ class BatchBackend(Protocol):
         """
         ...
 
+    def batch_cross_areas(
+        self,
+        arm1: np.ndarray,
+        arm2: np.ndarray,
+    ) -> np.ndarray:
+        """Compute cross-product area vectors for a batch of triangles.
+
+        Each triangle is defined by two edge vectors from a common origin.
+        Returns ``cross(arm1, arm2) / 2`` for each triangle.
+
+        Parameters
+        ----------
+        arm1 : ndarray of shape (N, 3)
+            First edge vectors.
+        arm2 : ndarray of shape (N, 3)
+            Second edge vectors.
+
+        Returns
+        -------
+        ndarray of shape (N, 3)
+            Half cross products (triangle area vectors).
+        """
+        ...
+
 
 # ---------------------------------------------------------------------------
 # Numpy backend (always available)
@@ -175,6 +199,9 @@ class NumpyBackend:
         strategy_fn: Callable[[np.ndarray], np.ndarray],
     ) -> np.ndarray:
         return np.array([strategy_fn(s) for s in simplices])
+
+    def batch_cross_areas(self, arm1: np.ndarray, arm2: np.ndarray) -> np.ndarray:
+        return np.cross(arm1, arm2) / 2.0
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +262,11 @@ class MultiprocessingBackend:
             wrapper, [simplices[i] for i in range(len(simplices))], chunksize=chunksize
         )
         return np.array(results)
+
+    def batch_cross_areas(self, arm1: np.ndarray, arm2: np.ndarray) -> np.ndarray:
+        # Vectorized numpy is already fast for cross products — no benefit
+        # from distributing to workers (overhead > computation).
+        return np.cross(arm1, arm2) / 2.0
 
     def terminate(self):
         self.pool.terminate()
@@ -408,6 +440,13 @@ class TorchBackend:
         except Exception:
             # Fallback to per-simplex
             return np.array([strategy_fn(s) for s in simplices])
+
+    def batch_cross_areas(self, arm1: np.ndarray, arm2: np.ndarray) -> np.ndarray:
+        torch = self.torch
+        arm1_t = torch.as_tensor(arm1, dtype=torch.float64, device=self.device)
+        arm2_t = torch.as_tensor(arm2, dtype=torch.float64, device=self.device)
+        result = torch.cross(arm1_t, arm2_t, dim=1) / 2.0
+        return result.cpu().numpy()
 
 
 # ---------------------------------------------------------------------------

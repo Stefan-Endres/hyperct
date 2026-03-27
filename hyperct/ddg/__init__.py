@@ -32,10 +32,11 @@ from ._curvature import (
     mean_curvature,
     normal_area,
 )
-from ._operators import d_area, e_star, v_star
+from ._operators import batch_e_star, d_area, e_star, v_star
 from ._strategies import barycenter, circumcenter
 
 __all__ = [
+    "batch_e_star",
     "compute_vd",
     "e_star",
     "v_star",

@@ -304,3 +304,187 @@ def _has_boundary(v) -> bool:
         return v.boundary
     except AttributeError:
         return False
+
+
+# ---------------------------------------------------------------------------
+# Batch e_star — vectorized dual area computation for 3D
+# ---------------------------------------------------------------------------
+
+def _walk_fan_3d(v_i, v_j, HC):
+    """Walk the dual fan around edge (v_i, v_j) and return triangle data.
+
+    Returns a list of (mid_pos, vdi_pos, vdj_pos) coordinate triples,
+    one per dual triangle in the fan.  Raises KeyError/IndexError if the
+    dual connectivity is broken (degenerate tetrahedra).
+    """
+    vc_12_pos = 0.5 * (v_j.x_a - v_i.x_a) + v_i.x_a
+    vc_12 = HC.Vd[tuple(vc_12_pos)]
+
+    dset = v_j.vd.intersection(v_i.vd)
+    if not dset:
+        return []
+
+    vd_i = next(iter(dset))
+
+    if _has_boundary(v_i) and _has_boundary(v_j):
+        if len(vd_i.nn.intersection(dset)) != 1:
+            for vd in dset:
+                if len(vd.nn.intersection(dset)) == 1:
+                    vd_i = vd
+                    break
+        iter_len = 3
+    else:
+        iter_len = len(dset)
+
+    dsetnn = vd_i.nn.intersection(dset)
+    if not dsetnn:
+        return []
+    vd_j = next(iter(dsetnn))
+
+    triangles = []
+    for _ in range(iter_len):
+        triangles.append((vc_12.x_a.copy(), vd_i.x_a.copy(), vd_j.x_a.copy()))
+        dsetnn_k = vd_j.nn.intersection(dset)
+        dsetnn_k.remove(vd_i)
+        vd_i = vd_j
+        try:
+            vd_j = next(iter(dsetnn_k))
+        except StopIteration:
+            pass  # boundary
+
+    return triangles
+
+
+def batch_e_star(vertices, HC, dim=3, backend=None, compute_volumes=False):
+    """Compute e_star area vectors for all edges of given vertices.
+
+    Splits the computation into a graph phase (CPU, sequential) that
+    walks the dual fan to collect triangle coordinates, and a geometry
+    phase (backend-dispatched) that batch-computes cross products.
+
+    Parameters
+    ----------
+    vertices : iterable of vertex objects
+        Primal vertices whose edges will be evaluated.  Boundary vertices
+        are silently skipped.
+    HC : Complex
+        Simplicial complex with duals computed (``compute_vd`` already
+        called).
+    dim : int
+        Spatial dimension (must be 3 for now).
+    backend : BatchBackend or None
+        Computation backend.  If None, uses vectorized numpy.
+    compute_volumes : bool
+        If True, also compute dual cell volumes per vertex (v_star).
+        Returned as a third element ``vertex_volumes``.
+
+    Returns
+    -------
+    edge_areas : dict
+        ``{id(v): {id(nb): np.ndarray}}`` — per-edge area vector arrays,
+        same shape as ``e_star()`` returns.
+    failed_vertices : set
+        Set of vertex objects where the dual fan walk failed (broken
+        duals from degenerate tetrahedra).  These should be promoted
+        to boundary.
+    vertex_volumes : dict (only if compute_volumes=True)
+        ``{id(v): float}`` — dual cell volume per vertex (sum of absolute
+        tetrahedron volumes from v_star over all neighbor edges).
+    """
+    if dim != 3:
+        raise NotImplementedError("batch_e_star only supports dim=3")
+
+    # --- Phase 1: Graph traversal (CPU) ---
+    # Walk dual fans for all edges, collect triangle coordinates.
+    all_mids = []    # (N_total, 3) — edge midpoint positions
+    all_vdi = []     # (N_total, 3) — first fan vertex
+    all_vdj = []     # (N_total, 3) — second fan vertex
+    edge_index = []  # (vid, nbid, start, count) per edge
+
+    # For volume computation: primal vertex position per triangle
+    all_primal = []  # (N_total, 3) — primal vertex v_i.x_a per triangle
+
+    failed_vertices = set()
+    offset = 0
+
+    for v in vertices:
+        if _has_boundary(v):
+            continue
+        v_failed = False
+        for nb in v.nn:
+            try:
+                tris = _walk_fan_3d(v, nb, HC)
+            except (KeyError, IndexError):
+                v_failed = True
+                break
+
+            n_tri = len(tris)
+            if n_tri == 0:
+                edge_index.append((id(v), id(nb), offset, 0))
+                continue
+
+            for mid_pos, vdi_pos, vdj_pos in tris:
+                all_mids.append(mid_pos)
+                all_vdi.append(vdi_pos)
+                all_vdj.append(vdj_pos)
+                if compute_volumes:
+                    all_primal.append(v.x_a[:3].copy())
+
+            edge_index.append((id(v), id(nb), offset, n_tri))
+            offset += n_tri
+
+        if v_failed:
+            failed_vertices.add(v)
+
+    if not all_mids:
+        result = ({}, failed_vertices)
+        return (*result, {}) if compute_volumes else result
+
+    # --- Phase 2: Vectorized geometry (backend) ---
+    mids = np.array(all_mids)   # (N, 3)
+    vdi = np.array(all_vdi)     # (N, 3)
+    vdj = np.array(all_vdj)    # (N, 3)
+
+    arm1 = mids - vdi           # (N, 3)
+    arm2 = vdj - vdi            # (N, 3)
+
+    if backend is not None:
+        areas = backend.batch_cross_areas(arm1, arm2)   # (N, 3)
+    else:
+        areas = np.cross(arm1, arm2) / 2.0              # (N, 3)
+
+    # Volume computation: |det([mid - apex, vdi - apex, vdj - apex])| / 6
+    volumes_per_tri = None
+    if compute_volumes:
+        apex = np.array(all_primal)  # (N, 3)
+        e1 = mids - apex
+        e2 = vdi - apex
+        e3 = vdj - apex
+        # Scalar triple product = det of 3x3 matrix per triangle
+        det = (e1[:, 0] * (e2[:, 1] * e3[:, 2] - e2[:, 2] * e3[:, 1])
+             - e1[:, 1] * (e2[:, 0] * e3[:, 2] - e2[:, 2] * e3[:, 0])
+             + e1[:, 2] * (e2[:, 0] * e3[:, 1] - e2[:, 1] * e3[:, 0]))
+        volumes_per_tri = np.abs(det) / 6.0  # (N,)
+
+    # --- Phase 3: Scatter results back to per-edge dicts ---
+    edge_areas = {}
+    vertex_volumes = {}
+    for vid, nbid, start, count in edge_index:
+        if vid not in edge_areas:
+            edge_areas[vid] = {}
+        if count == 0:
+            edge_areas[vid][nbid] = np.empty((0, 3))
+        else:
+            edge_areas[vid][nbid] = areas[start:start + count]
+
+        # Accumulate volumes per vertex
+        if compute_volumes and count > 0:
+            vol_sum = float(np.sum(volumes_per_tri[start:start + count]))
+            if vid in vertex_volumes:
+                vertex_volumes[vid] += vol_sum
+            else:
+                vertex_volumes[vid] = vol_sum
+
+    if compute_volumes:
+        return edge_areas, failed_vertices, vertex_volumes
+    return edge_areas, failed_vertices
