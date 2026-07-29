@@ -100,15 +100,34 @@ def connect_and_cache_simplices(
         if coords is None:
             raise ValueError("Must provide either simplices or coords")
         coords = np.asarray(coords)
+        # NOTE(laneA-canonical-order, 2026-07-29): canonicalize the
+        # qhull input order in 3D.  qhull tie-breaking on degenerate
+        # (cospherical) point sets depends on input ORDER, so the same
+        # point SET triangulated from different vertex orderings (mesh
+        # builder vs list(HC.V) after re-keying) yields different
+        # triangulations — the diagnosed cause of the ddgclib 3D
+        # droplet retopology settle-step artifact (lane3 log).  Sorting
+        # lexicographically by coordinates makes the triangulation a
+        # function of the point set only; retopology of a static cloud
+        # becomes idempotent (ddgclib 3D static-droplet floor plateau
+        # 7.616854e-5 -> 7.274172e-5, settle step eliminated).  Gated
+        # to dim == 3: the pinned 2D baselines must stay bit-identical.
+        # Regression: tests/test_retriangulation_order.py.
+        order = None
+        if dim == 3:
+            order = np.lexsort(coords.T[::-1])
+            d_coords = coords[order]
+        else:
+            d_coords = coords
         try:
             if qhull_options is None:
-                tri = Delaunay(coords)
+                tri = Delaunay(d_coords)
             else:
-                tri = Delaunay(coords, qhull_options=qhull_options)
+                tri = Delaunay(d_coords, qhull_options=qhull_options)
         except Exception:
             # Cospherical / cocircular fallback
-            tri = Delaunay(coords, qhull_options="Qbb Qt Qz")
-        simplices = tri.simplices
+            tri = Delaunay(d_coords, qhull_options="Qbb Qt Qz")
+        simplices = tri.simplices if order is None else order[tri.simplices]
 
     # Connect edges from the simplex list
     for simplex in simplices:
