@@ -25,6 +25,7 @@ Usage::
     for v1 in HC.V:
         area = d_area(v1)
 """
+from ._boundary import boundary_from_simplices
 from ._compute_dual import compute_vd
 from ._curvature import (
     HNdC_ijk,
@@ -32,19 +33,45 @@ from ._curvature import (
     mean_curvature,
     normal_area,
 )
+from ._dual_cell import (
+    dual_cell_area_2d,
+    dual_cell_faces_3d,
+    dual_cell_polygon_2d,
+    dual_cell_vertices_1d,
+)
+from ._dual_volume import simplex_dual_volumes, vertex_dual_volume
 from ._operators import batch_e_star, d_area, e_star, v_star
+from ._retriangulation import (
+    apex_vertices,
+    connect_and_cache_simplices,
+    get_edge_apex_map,
+    invalidate_simplex_cache,
+    rebuild_simplex_cache_2d,
+)
 from ._strategies import barycenter, circumcenter
 
 __all__ = [
+    "apex_vertices",
     "batch_e_star",
+    "boundary_from_simplices",
     "compute_vd",
+    "connect_and_cache_simplices",
+    "dual_cell_area_2d",
+    "dual_cell_faces_3d",
+    "dual_cell_polygon_2d",
+    "dual_cell_vertices_1d",
     "e_star",
     "v_star",
     "d_area",
     "barycenter",
     "circumcenter",
+    "get_edge_apex_map",
     "HNdC_ijk",
-    "normal_area",
-    "mean_curvature",
     "integrated_curvature",
+    "invalidate_simplex_cache",
+    "mean_curvature",
+    "normal_area",
+    "rebuild_simplex_cache_2d",
+    "simplex_dual_volumes",
+    "vertex_dual_volume",
 ]

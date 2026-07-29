@@ -87,6 +87,11 @@ def compute_vd(
     else:
         strategy = method
 
+    # Record the construction method so downstream geometry code can
+    # branch on it (e.g. the exact simplex-based dual volumes in
+    # hyperct.ddg._dual_volume apply only to barycentric duals).
+    HC._vd_method = method if isinstance(method, str) else "custom"
+
     # Construct dual cache (VertexCacheIndex: pure geometry, no field overhead)
     HC.Vd = VertexCacheIndex()
 
@@ -107,7 +112,10 @@ def compute_vd(
         else:
             _compute_vd_3d(HC, strategy, cdist)
     else:
-        _compute_vd_nd(HC, strategy, cdist)
+        if getattr(HC, '_simplices', None):
+            _compute_vd_nd_simplex_aware(HC, strategy, cdist)
+        else:
+            _compute_vd_nd(HC, strategy, cdist)
 
     # Optional global merge pass using spatial hashing
     # This catches any remaining floating-point duplicates that the
@@ -142,7 +150,16 @@ def _compute_vd_2d(HC, strategy: DualStrategy, cdist: float) -> None:
     For each primal edge (v1, v2), finds the two triangles sharing it
     and places a dual vertex at ``strategy(triangle_vertices)`` for each.
     The two dual vertices are then connected.
+
+    When ``HC._simplices`` is populated (list of 3-vertex tuples from a
+    Delaunay triangulation), uses the simplex-aware path which correctly
+    handles boundary edges and avoids the flag-complex K_3 ambiguity.
+    Otherwise falls back to the legacy nn-intersection path.
     """
+    if getattr(HC, '_simplices', None):
+        _compute_vd_2d_simplex_aware(HC, strategy, cdist)
+        return
+
     dim = HC.dim
     # Pre-allocate vertex array — reused across iterations to avoid
     # repeated np.zeros allocation (measurable for large meshes)
@@ -213,13 +230,97 @@ def _compute_vd_2d(HC, strategy: DualStrategy, cdist: float) -> None:
                 v.vd.add(vd2)
 
 
+def _compute_vd_2d_simplex_aware(HC, strategy: DualStrategy, cdist: float) -> None:
+    """Simplex-aware 2D dual computation.
+
+    Uses the explicit list of triangles ``HC._simplices`` (each element is
+    a 3-tuple of primal vertex objects) to enumerate primal edges and find
+    triangle adjacencies directly.  Avoids the ``v1.nn ∩ v2.nn`` heuristic
+    which is incorrect when slivers near boundaries produce high mutual
+    edge connectivity (flag-complex K_3 cliques that aren't real triangles).
+
+    Algorithm:
+      1. For each triangle, compute its dual vertex and associate it with
+         all 3 primal vertices.
+      2. Build edge -> [triangles containing it] map.
+      3. For each edge, connect the dual vertices of adjacent triangles
+         (2 for interior, 1 for boundary — boundary handled specially).
+      4. For boundary edges, add a midpoint dual and connect.
+    """
+    from collections import defaultdict
+
+    simplices = HC._simplices
+    if not simplices:
+        return
+
+    dim = HC.dim
+    verts_buf = np.empty((3, dim))
+
+    # --- Step 1: compute triangle dual for each simplex ---
+    simplex_to_vd = {}  # index -> dual vertex object
+    for si, simplex in enumerate(simplices):
+        v1, v2, v3 = simplex
+        verts_buf[0] = v1.x_a
+        verts_buf[1] = v2.x_a
+        verts_buf[2] = v3.x_a
+        cd = strategy(verts_buf)
+        v1_d_nn = list(v1.vd)
+        cd = _merge_local_duals_vector([cd], v1_d_nn, cdist=cdist)[0]
+        vd = HC.Vd[tuple(cd)]
+        simplex_to_vd[si] = vd
+        for v in (v1, v2, v3):
+            v.vd.add(vd)
+
+    # --- Step 2: build edge -> [simplex_index, ...] map ---
+    edge_to_simps = defaultdict(list)
+    for si, simplex in enumerate(simplices):
+        for i in range(3):
+            for j in range(i + 1, 3):
+                edge = tuple(sorted((id(simplex[i]), id(simplex[j]))))
+                edge_to_simps[edge].append(si)
+
+    # Fast id -> vertex lookup (for boundary-edge midpoint duals)
+    id_to_v = {id(simplex[i]): simplex[i]
+               for simplex in simplices for i in range(3)}
+
+    # --- Step 3: connect duals across edges ---
+    for edge, simp_ids in edge_to_simps.items():
+        if len(simp_ids) == 2:
+            # Interior edge: connect the two triangle duals
+            vd_a = simplex_to_vd[simp_ids[0]]
+            vd_b = simplex_to_vd[simp_ids[1]]
+            vd_a.connect(vd_b)
+        elif len(simp_ids) == 1:
+            # Boundary edge: midpoint dual and connect to the single triangle
+            va_id, vb_id = edge
+            va = id_to_v[va_id]
+            vb = id_to_v[vb_id]
+            cd_mid = 0.5 * (va.x_a + vb.x_a)
+            cd_mid = _merge_local_duals_vector(
+                [cd_mid], list(va.vd), cdist=cdist
+            )[0]
+            vd_mid = HC.Vd[tuple(cd_mid)]
+            va.vd.add(vd_mid)
+            vb.vd.add(vd_mid)
+            vd_mid.connect(simplex_to_vd[simp_ids[0]])
+
+
 def _compute_vd_3d(HC, strategy: DualStrategy, cdist: float) -> None:
     """3D dual computation parameterized by strategy.
 
     For each primal face (v1, v2, v3), finds the two tetrahedra sharing
     it and places a dual vertex at ``strategy(tetrahedron_vertices)`` for
     each. The two dual vertices are then connected.
+
+    When ``HC._simplices`` is populated (list of 4-vertex tuples from the
+    Delaunay triangulation), uses the simplex-aware path which correctly
+    handles boundary sliver tets.  Otherwise falls back to the legacy
+    nn-intersection path.
     """
+    if getattr(HC, '_simplices', None):
+        _compute_vd_3d_simplex_aware(HC, strategy, cdist)
+        return
+
     dim = HC.dim
     # Pre-allocate — reused across iterations
     verts = np.empty((dim + 1, dim))
@@ -299,6 +400,106 @@ def _compute_vd_3d(HC, strategy: DualStrategy, cdist: float) -> None:
                         v.vd.add(vd2)
 
 
+def _compute_vd_3d_simplex_aware(HC, strategy: DualStrategy, cdist: float) -> None:
+    """Simplex-aware 3D dual computation.
+
+    Uses the explicit list of simplices ``HC._simplices`` (each element is
+    a 4-tuple of primal vertex objects) to enumerate primal faces and find
+    tet adjacencies directly.  Avoids the ``v1.nn ∩ v2.nn ∩ v3.nn``
+    heuristic which is incorrect when slivers near domain boundaries
+    produce high mutual edge connectivity (ghost tets).
+
+    Algorithm:
+      1. For each simplex, compute its dual vertex and associate it
+         with all 4 primal vertices.
+      2. Build face -> [simplices containing it] map.
+      3. For each face, connect the dual vertices of adjacent simplices
+         (2 for interior, 1 for boundary — boundary handled specially).
+      4. For boundary faces, compute face barycenter dual and edge
+         midpoint duals (same as legacy path).
+    """
+    from collections import defaultdict
+
+    simplices = HC._simplices
+    if not simplices:
+        return
+
+    dim = HC.dim
+    verts_buf = np.empty((dim + 1, dim))
+
+    # --- Step 1: compute tet dual vertex for each simplex ---
+    simplex_to_vd = {}  # index -> dual vertex object
+    for si, simplex in enumerate(simplices):
+        v1, v2, v3, v4 = simplex
+        verts_buf[0] = v1.x_a
+        verts_buf[1] = v2.x_a
+        verts_buf[2] = v3.x_a
+        verts_buf[3] = v4.x_a
+        cd = strategy(verts_buf)
+        # Merge against v1's existing duals if any (rarely triggers on first pass)
+        v1_d_nn = list(v1.vd)
+        cd = _merge_local_duals_vector([cd], v1_d_nn, cdist=cdist)[0]
+        vd = HC.Vd[tuple(cd)]
+        simplex_to_vd[si] = vd
+        # Associate with all 4 primal vertices
+        for v in (v1, v2, v3, v4):
+            v.vd.add(vd)
+
+    # --- Step 2: build face -> [simplex_index, ...] map ---
+    face_to_simps = defaultdict(list)
+    for si, simplex in enumerate(simplices):
+        for i in range(4):
+            face = tuple(sorted(
+                id(simplex[j]) for j in range(4) if j != i
+            ))
+            face_to_simps[face].append(si)
+
+    # --- Step 3: connect duals across faces ---
+    # For fast id -> vertex lookup
+    id_to_v = {id(simplex[i]): simplex[i]
+               for simplex in simplices for i in range(4)}
+
+    for face, simp_ids in face_to_simps.items():
+        face_verts = [id_to_v[vid] for vid in face]
+        v1, v2, v3 = face_verts
+
+        if len(simp_ids) == 2:
+            # Interior face: connect the two tet duals
+            vd_a = simplex_to_vd[simp_ids[0]]
+            vd_b = simplex_to_vd[simp_ids[1]]
+            vd_a.connect(vd_b)
+        elif len(simp_ids) == 1:
+            # Boundary face: create face barycenter dual and connect
+            # the single tet dual to it.  Also create edge midpoint duals.
+            vd_tet = simplex_to_vd[simp_ids[0]]
+
+            # Face barycenter dual
+            verts_buf[0] = v1.x_a
+            verts_buf[1] = v2.x_a
+            verts_buf[2] = v3.x_a
+            cd_face = strategy(verts_buf[:3])
+            v1_d_nn = list(v1.vd)
+            cd_face = _merge_local_duals_vector(
+                [cd_face], v1_d_nn, cdist=cdist
+            )[0]
+            vd_face = HC.Vd[tuple(cd_face)]
+            for v in (v1, v2, v3):
+                v.vd.add(vd_face)
+            vd_tet.connect(vd_face)
+
+            # Edge midpoint duals for each of the 3 boundary face edges
+            for va, vb in ((v1, v2), (v1, v3), (v2, v3)):
+                cd_mid = 0.5 * (va.x_a + vb.x_a)
+                cd_mid = _merge_local_duals_vector(
+                    [cd_mid], list(va.vd), cdist=cdist
+                )[0]
+                vd_mid = HC.Vd[tuple(cd_mid)]
+                va.vd.add(vd_mid)
+                vb.vd.add(vd_mid)
+                # Connect edge midpoint to the face dual (ring-walk support)
+                vd_mid.connect(vd_face)
+
+
 def _compute_vd_2d_batch(HC, strategy, cdist, backend) -> None:
     """Batch 2D dual computation using a backend for parallelism.
 
@@ -307,17 +508,31 @@ def _compute_vd_2d_batch(HC, strategy, cdist, backend) -> None:
     then wires dual connectivity per shared edge.  Local merge is
     skipped; global merge (called by ``compute_vd``) handles
     deduplication.
+
+    When ``HC._simplices`` is populated, triangles are read directly from
+    the cached list (skipping the flag-complex nn-intersection
+    enumeration).  Edge classification (interior vs boundary) is also
+    derived from the cache.  Otherwise falls back to the legacy
+    nn-intersection path.
     """
     dim = HC.dim
 
     # Phase 1: Enumerate all unique triangles
     tri_dict: dict[frozenset, tuple] = {}
-    for v1 in HC.V:
-        for v2 in v1.nn:
-            for v3 in v1.nn.intersection(v2.nn):
-                key = frozenset((id(v1), id(v2), id(v3)))
-                if key not in tri_dict:
-                    tri_dict[key] = (v1, v2, v3)
+    cached = getattr(HC, '_simplices', None)
+    if cached:
+        for simplex in cached:
+            v1, v2, v3 = simplex
+            key = frozenset((id(v1), id(v2), id(v3)))
+            if key not in tri_dict:
+                tri_dict[key] = (v1, v2, v3)
+    else:
+        for v1 in HC.V:
+            for v2 in v1.nn:
+                for v3 in v1.nn.intersection(v2.nn):
+                    key = frozenset((id(v1), id(v2), id(v3)))
+                    if key not in tri_dict:
+                        tri_dict[key] = (v1, v2, v3)
 
     if not tri_dict:
         return
@@ -342,35 +557,56 @@ def _compute_vd_2d_batch(HC, strategy, cdist, backend) -> None:
             v.vd.add(vd)
 
     # Phase 4: Wire dual connectivity per shared edge
-    seen_edges: set[frozenset] = set()
-    for v1 in HC.V:
-        for v2 in v1.nn:
-            ek = frozenset((id(v1), id(v2)))
-            if ek in seen_edges:
-                continue
-            seen_edges.add(ek)
+    if cached:
+        # Simplex-aware: derive edges directly from tri_dict, classify
+        # boundary as "appears in exactly one triangle".
+        from collections import defaultdict
+        edge_to_tris: dict = defaultdict(list)
+        for key, (v1, v2, v3) in tri_dict.items():
+            for va, vb in ((v1, v2), (v1, v3), (v2, v3)):
+                ek = frozenset((id(va), id(vb)))
+                edge_to_tris[ek].append((tri_to_vd[key], va, vb))
 
-            # Find triangles sharing this edge
-            adj = []
-            for v3 in v1.nn.intersection(v2.nn):
-                tk = frozenset((id(v1), id(v2), id(v3)))
-                if tk in tri_to_vd:
-                    adj.append(tri_to_vd[tk])
+        for adj_list in edge_to_tris.values():
+            if len(adj_list) >= 2:
+                adj_list[0][0].connect(adj_list[1][0])
+            elif len(adj_list) == 1:
+                vd_tri, va, vb = adj_list[0]
+                cd_mid = 0.5 * (va.x_a + vb.x_a)
+                vd_mid = HC.Vd[tuple(cd_mid)]
+                va.vd.add(vd_mid)
+                vb.vd.add(vd_mid)
+                vd_mid.connect(vd_tri)
+    else:
+        seen_edges: set[frozenset] = set()
+        for v1 in HC.V:
+            for v2 in v1.nn:
+                ek = frozenset((id(v1), id(v2)))
+                if ek in seen_edges:
+                    continue
+                seen_edges.add(ek)
 
-            if len(adj) >= 2:
-                # Interior edge: connect two triangle duals
-                adj[0].connect(adj[1])
-            elif len(adj) == 1:
-                # Potential boundary edge
-                try:
-                    if v1.boundary and v2.boundary:
-                        cd_mid = v1.x_a + 0.5 * (v2.x_a - v1.x_a)
-                        vd_mid = HC.Vd[tuple(cd_mid)]
-                        v1.vd.add(vd_mid)
-                        v2.vd.add(vd_mid)
-                        vd_mid.connect(adj[0])
-                except AttributeError:
-                    pass
+                # Find triangles sharing this edge
+                adj = []
+                for v3 in v1.nn.intersection(v2.nn):
+                    tk = frozenset((id(v1), id(v2), id(v3)))
+                    if tk in tri_to_vd:
+                        adj.append(tri_to_vd[tk])
+
+                if len(adj) >= 2:
+                    # Interior edge: connect two triangle duals
+                    adj[0].connect(adj[1])
+                elif len(adj) == 1:
+                    # Potential boundary edge
+                    try:
+                        if v1.boundary and v2.boundary:
+                            cd_mid = v1.x_a + 0.5 * (v2.x_a - v1.x_a)
+                            vd_mid = HC.Vd[tuple(cd_mid)]
+                            v1.vd.add(vd_mid)
+                            v2.vd.add(vd_mid)
+                            vd_mid.connect(adj[0])
+                    except AttributeError:
+                        pass
 
 
 def _compute_vd_3d_batch(HC, strategy, cdist, backend) -> None:
@@ -380,22 +616,37 @@ def _compute_vd_3d_batch(HC, strategy, cdist, backend) -> None:
     computes their dual positions, then wires dual connectivity per
     shared face.  Boundary faces get an additional face-dual vertex
     (also batch-computed).
+
+    When ``HC._simplices`` is populated, tets are read directly from the
+    cached list (skipping the flag-complex nn-intersection enumeration
+    that produces ghost K_4 cliques near domain boundaries).  Face
+    classification (interior vs boundary) is also derived from the
+    cached list.  Otherwise falls back to the legacy nn-intersection
+    path.
     """
     dim = HC.dim
 
     # Phase 1: Enumerate all unique tetrahedra
     tet_dict: dict[frozenset, tuple] = {}
-    for v1 in HC.V:
-        for v2 in v1.nn:
-            common_12 = v1.nn.intersection(v2.nn)
-            for v3 in common_12:
-                common_123 = common_12.intersection(v3.nn)
-                for v4 in common_123:
-                    if v4 is v1 or v4 is v2 or v4 is v3:
-                        continue
-                    key = frozenset((id(v1), id(v2), id(v3), id(v4)))
-                    if key not in tet_dict:
-                        tet_dict[key] = (v1, v2, v3, v4)
+    cached = getattr(HC, '_simplices', None)
+    if cached:
+        for simplex in cached:
+            v1, v2, v3, v4 = simplex
+            key = frozenset((id(v1), id(v2), id(v3), id(v4)))
+            if key not in tet_dict:
+                tet_dict[key] = (v1, v2, v3, v4)
+    else:
+        for v1 in HC.V:
+            for v2 in v1.nn:
+                common_12 = v1.nn.intersection(v2.nn)
+                for v3 in common_12:
+                    common_123 = common_12.intersection(v3.nn)
+                    for v4 in common_123:
+                        if v4 is v1 or v4 is v2 or v4 is v3:
+                            continue
+                        key = frozenset((id(v1), id(v2), id(v3), id(v4)))
+                        if key not in tet_dict:
+                            tet_dict[key] = (v1, v2, v3, v4)
 
     if not tet_dict:
         return
@@ -423,38 +674,59 @@ def _compute_vd_3d_batch(HC, strategy, cdist, backend) -> None:
     # Phase 2b: Enumerate faces, classify as interior/boundary
     boundary_faces: list[tuple] = []   # (v1, v2, v3, tet_key)
     interior_pairs: list[tuple] = []   # (tet_key1, tet_key2)
-    seen_faces: set[frozenset] = set()
 
-    for v1 in HC.V:
-        for v2 in v1.nn:
-            common_12 = v1.nn.intersection(v2.nn)
-            for v3 in common_12:
-                fk = frozenset((id(v1), id(v2), id(v3)))
-                if fk in seen_faces:
-                    continue
-                seen_faces.add(fk)
-
-                # Find tetrahedra containing this face
-                common_123 = common_12.intersection(v3.nn)
-                adj_tets = []
-                for v4 in common_123:
-                    if v4 is v1 or v4 is v2 or v4 is v3:
+    if cached:
+        # Build face -> [tet_key, (v1,v2,v3)] map directly from tet_dict.
+        # A face appears in exactly 1 tet -> boundary; exactly 2 -> interior.
+        from collections import defaultdict
+        face_to_tets: dict = defaultdict(list)
+        for tk, (v1, v2, v3, v4) in tet_dict.items():
+            for face in (
+                (v1, v2, v3),
+                (v1, v2, v4),
+                (v1, v3, v4),
+                (v2, v3, v4),
+            ):
+                fk = frozenset(id(v) for v in face)
+                face_to_tets[fk].append((tk, face))
+        for entries in face_to_tets.values():
+            if len(entries) == 2:
+                interior_pairs.append((entries[0][0], entries[1][0]))
+            elif len(entries) == 1:
+                tk, (fa, fb, fc) = entries[0]
+                boundary_faces.append((fa, fb, fc, tk))
+    else:
+        seen_faces: set[frozenset] = set()
+        for v1 in HC.V:
+            for v2 in v1.nn:
+                common_12 = v1.nn.intersection(v2.nn)
+                for v3 in common_12:
+                    fk = frozenset((id(v1), id(v2), id(v3)))
+                    if fk in seen_faces:
                         continue
-                    tk = frozenset((id(v1), id(v2), id(v3), id(v4)))
-                    if tk in tet_to_vd:
-                        adj_tets.append(tk)
+                    seen_faces.add(fk)
 
-                if len(adj_tets) >= 2:
-                    interior_pairs.append((adj_tets[0], adj_tets[1]))
-                elif len(adj_tets) == 1:
-                    if (
-                        _has_boundary(v1)
-                        and _has_boundary(v2)
-                        and _has_boundary(v3)
-                    ):
-                        boundary_faces.append(
-                            (v1, v2, v3, adj_tets[0])
-                        )
+                    # Find tetrahedra containing this face
+                    common_123 = common_12.intersection(v3.nn)
+                    adj_tets = []
+                    for v4 in common_123:
+                        if v4 is v1 or v4 is v2 or v4 is v3:
+                            continue
+                        tk = frozenset((id(v1), id(v2), id(v3), id(v4)))
+                        if tk in tet_to_vd:
+                            adj_tets.append(tk)
+
+                    if len(adj_tets) >= 2:
+                        interior_pairs.append((adj_tets[0], adj_tets[1]))
+                    elif len(adj_tets) == 1:
+                        if (
+                            _has_boundary(v1)
+                            and _has_boundary(v2)
+                            and _has_boundary(v3)
+                        ):
+                            boundary_faces.append(
+                                (v1, v2, v3, adj_tets[0])
+                            )
 
     # Batch compute boundary face duals
     face_dual_pos = None
@@ -651,3 +923,75 @@ def _extend_face(HC, face_verts, candidates, dim, strategy, cdist, processed):
                 cdist,
                 processed,
             )
+
+
+def _compute_vd_nd_simplex_aware(HC, strategy: DualStrategy, cdist: float) -> None:
+    """Simplex-aware N-D dual computation (``dim > 3``).
+
+    Uses the explicit top-dim simplex list ``HC._simplices`` (each element a
+    ``dim+1``-tuple of primal vertex objects) instead of the
+    ``vi.nn ∩ vj.nn`` face-extension heuristic of :func:`_compute_vd_nd`,
+    which can return ghost apices on Delaunay-derived complexes with skinny
+    simplices.
+
+    Algorithm (generalises :func:`_compute_vd_3d_simplex_aware`):
+
+    1. For each top simplex, place a dual vertex at
+       ``strategy(simplex_vertices)`` and associate it with all ``dim+1``
+       primal vertices.
+    2. Build a ``(dim-1)``-face -> ``[simplex index, ...]`` map.
+    3. For each interior face (shared by two simplices) connect the two
+       simplex duals; for each boundary face (one simplex) create a face
+       dual at ``strategy(face_vertices)`` and connect the simplex dual to
+       it, associating it with the face vertices.
+    """
+    from collections import defaultdict
+
+    simplices = HC._simplices
+    if not simplices:
+        return
+
+    dim = HC.dim
+    verts_buf = np.empty((dim + 1, dim))
+
+    # --- Step 1: simplex dual vertex for each top simplex ---
+    simplex_to_vd = {}
+    for si, simplex in enumerate(simplices):
+        for i, v in enumerate(simplex):
+            verts_buf[i] = v.x_a
+        cd = strategy(verts_buf)
+        cd = _merge_local_duals_vector([cd], list(simplex[0].vd), cdist=cdist)[0]
+        vd = HC.Vd[tuple(cd)]
+        simplex_to_vd[si] = vd
+        for v in simplex:
+            v.vd.add(vd)
+
+    # --- Step 2: (dim-1)-face -> [simplex index] map ---
+    face_to_simps = defaultdict(list)
+    id_to_v = {}
+    for si, simplex in enumerate(simplices):
+        for i in range(dim + 1):
+            face = tuple(sorted(
+                id(simplex[j]) for j in range(dim + 1) if j != i
+            ))
+            face_to_simps[face].append(si)
+        for v in simplex:
+            id_to_v[id(v)] = v
+
+    # --- Step 3: connect duals across faces ---
+    face_coords = np.empty((dim, dim))
+    for face, simp_ids in face_to_simps.items():
+        if len(simp_ids) == 2:
+            simplex_to_vd[simp_ids[0]].connect(simplex_to_vd[simp_ids[1]])
+        elif len(simp_ids) == 1:
+            face_verts = [id_to_v[vid] for vid in face]
+            for i, v in enumerate(face_verts):
+                face_coords[i] = v.x_a
+            cd_face = strategy(face_coords)
+            cd_face = _merge_local_duals_vector(
+                [cd_face], list(face_verts[0].vd), cdist=cdist
+            )[0]
+            vd_face = HC.Vd[tuple(cd_face)]
+            for v in face_verts:
+                v.vd.add(vd_face)
+            simplex_to_vd[simp_ids[0]].connect(vd_face)
