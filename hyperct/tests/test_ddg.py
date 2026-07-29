@@ -29,6 +29,10 @@ from hyperct.ddg import (
     normal_area,
     v_star,
 )
+from hyperct.ddg._geometry import (
+    area_of_polygon,
+    volume_of_geometric_object,
+)
 
 
 class TestDualComputation:
@@ -394,6 +398,51 @@ class TestErrorHandling:
             assert "barycentric" in error_msg or "circumcentric" in error_msg, (
                 "Error message should mention valid methods"
             )
+
+
+class TestDegenerateGeometry:
+    """Regression tests for degenerate inputs to geometry primitives.
+
+    The 3D ``v_star`` boundary fan walk produces degenerate triangle
+    bases (``points[0] == points[2]``) at outer-box corners.  Before
+    the short-circuit, this poisoned ``v.dual_vol`` with NaN on every
+    boundary vertex (95 / 472 on the oscillating-droplet 3D box) and
+    broke conservation diagnostics.  See
+    ``project_3d_boundary_dual_bug.md`` and the Tier-2B Probe 3 entry
+    in ``please-do-some-deep-vectorized-tarjan.md``.
+    """
+
+    def test_volume_collinear_base_returns_zero(self):
+        points = np.array([
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [2.0, 0.0, 0.0],
+        ])
+        apex = np.array([0.5, 1.0, 0.0])
+        result = volume_of_geometric_object(points, apex)
+        assert np.isfinite(result)
+        assert result == 0.0
+
+    def test_volume_duplicated_base_point_returns_zero(self):
+        """Real failure mode: points[0] == points[2] at boundary fan corners."""
+        p = np.array([-0.05, -0.0375, -0.05])
+        q = np.array([-0.05, -0.03333333, -0.04166667])
+        points = np.array([p, q, p])  # duplicate triggers cross = 0
+        apex = np.array([-0.05, -0.05, -0.05])
+        result = volume_of_geometric_object(points, apex)
+        assert np.isfinite(result)
+        assert result == 0.0
+
+    def test_volume_non_degenerate_unchanged(self):
+        """Non-degenerate tetrahedron: volume = 1/6 (unit corner tet)."""
+        points = np.array([
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ])
+        apex = np.array([0.0, 0.0, 1.0])
+        result = volume_of_geometric_object(points, apex)
+        assert np.isclose(result, 1.0 / 6.0)
 
 
 class TestCurvature:

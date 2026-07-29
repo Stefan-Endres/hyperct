@@ -87,6 +87,14 @@ def volume_of_geometric_object(
     """
     normal_vector = np.cross(points[1] - points[0], points[2] - points[0])
     norm_sq = np.linalg.norm(normal_vector) ** 2
+    # Degenerate base (collinear / duplicated points[0..2]): zero base
+    # area means the pyramid has zero volume regardless of apex.  Short
+    # circuit before the divide-by-zero in the projection step.  This
+    # arises in v_star's boundary fan walk when vc_12 / vd_i / vd_j
+    # coincide at outer-box boundary edges, and previously poisoned
+    # dual_vol with NaN on 95 boundary vertices of the 3D droplet box.
+    if norm_sq == 0.0:
+        return 0.0
     projected = extra_point - (
         np.dot(extra_point - points[0], normal_vector) / norm_sq
         * normal_vector

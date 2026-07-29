@@ -342,6 +342,12 @@ def volume_of_geometric_object(points, extra_point):
     # Calculate the normal vector to the plane that contains the base polygon.
     normal_vector = np.cross(points[1] - points[0], points[2] - points[0])
 
+    # Degenerate base (collinear / duplicated points[0..2]): zero area =>
+    # zero pyramid volume regardless of apex.  Short-circuit before the
+    # divide-by-zero in the projection step.
+    if np.linalg.norm(normal_vector) ** 2 == 0.0:
+        return 0.0
+
     # Calculate the projection of the extra point onto the plane.
     projected_extra_point = extra_point - np.dot(extra_point - points[0], normal_vector) / np.linalg.norm(normal_vector)**2 * normal_vector
 
