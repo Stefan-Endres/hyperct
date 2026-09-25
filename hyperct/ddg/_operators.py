@@ -355,7 +355,8 @@ def _walk_fan_3d(v_i, v_j, HC):
     return triangles
 
 
-def batch_e_star(vertices, HC, dim=3, backend=None, compute_volumes=False):
+def batch_e_star(vertices, HC, dim=3, backend=None, compute_volumes=False,
+                 orient=False):
     """Compute e_star area vectors for all edges of given vertices.
 
     Splits the computation into a graph phase (CPU, sequential) that
@@ -377,12 +378,20 @@ def batch_e_star(vertices, HC, dim=3, backend=None, compute_volumes=False):
     compute_volumes : bool
         If True, also compute dual cell volumes per vertex (v_star).
         Returned as a third element ``vertex_volumes``.
+    orient : bool
+        If True, orient each edge's triangle areas outward from the
+        primal vertex and sum them into a single ``(3,)`` area vector
+        per directed edge.  The result matches
+        ``ddgclib.operators.stress.dual_area_vector``.  When False
+        (default), raw per-triangle area arrays are returned.
 
     Returns
     -------
     edge_areas : dict
-        ``{id(v): {id(nb): np.ndarray}}`` — per-edge area vector arrays,
-        same shape as ``e_star()`` returns.
+        When ``orient=False``: ``{id(v): {id(nb): np.ndarray(N,3)}}``
+        — per-edge area vector arrays, same shape as ``e_star()``.
+        When ``orient=True``: ``{id(v): {id(nb): np.ndarray(3,)}}``
+        — oriented summed area vector per directed edge.
     failed_vertices : set
         Set of vertex objects where the dual fan walk failed (broken
         duals from degenerate tetrahedra).  These should be promoted
@@ -401,7 +410,7 @@ def batch_e_star(vertices, HC, dim=3, backend=None, compute_volumes=False):
     all_vdj = []     # (N_total, 3) — second fan vertex
     edge_index = []  # (vid, nbid, start, count) per edge
 
-    # For volume computation: primal vertex position per triangle
+    # Primal vertex position per triangle (for volume and/or orientation)
     all_primal = []  # (N_total, 3) — primal vertex v_i.x_a per triangle
 
     failed_vertices = set()
@@ -427,7 +436,7 @@ def batch_e_star(vertices, HC, dim=3, backend=None, compute_volumes=False):
                 all_mids.append(mid_pos)
                 all_vdi.append(vdi_pos)
                 all_vdj.append(vdj_pos)
-                if compute_volumes:
+                if compute_volumes or orient:
                     all_primal.append(v.x_a[:3].copy())
 
             edge_index.append((id(v), id(nb), offset, n_tri))
@@ -469,11 +478,24 @@ def batch_e_star(vertices, HC, dim=3, backend=None, compute_volumes=False):
     # --- Phase 3: Scatter results back to per-edge dicts ---
     edge_areas = {}
     vertex_volumes = {}
+
+    # Pre-convert to numpy for orientation lookups
+    mids_np = mids if orient else None
+    primal_np = np.array(all_primal) if orient else None
+
     for vid, nbid, start, count in edge_index:
         if vid not in edge_areas:
             edge_areas[vid] = {}
         if count == 0:
-            edge_areas[vid][nbid] = np.empty((0, 3))
+            edge_areas[vid][nbid] = np.zeros(3) if orient else np.empty((0, 3))
+        elif orient:
+            # Orient triangle areas outward from v_i and sum
+            tris = areas[start:start + count]  # (count, 3)
+            mid = mids_np[start]  # vc_12.x_a
+            vec_to_i = primal_np[start] - mid  # v_i.x_a - vc_12.x_a
+            dots = np.einsum('ij,j->i', tris, vec_to_i)  # (count,)
+            signs = np.where(dots > 0, -1.0, 1.0)  # flip inward
+            edge_areas[vid][nbid] = np.sum(tris * signs[:, None], axis=0)
         else:
             edge_areas[vid][nbid] = areas[start:start + count]
 

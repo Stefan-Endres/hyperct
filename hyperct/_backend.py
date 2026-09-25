@@ -143,6 +143,34 @@ class BatchBackend(Protocol):
         """
         ...
 
+    def batch_heron_curvature(
+        self,
+        e_ij: np.ndarray,
+        l_ij: np.ndarray,
+        l_jk: np.ndarray,
+        l_ik: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Vectorized Heron-formula curvature kernel.
+
+        Computes cotangent-weighted curvature vectors and dual areas for a
+        batch of triangles using the numerically stable Heron area formula.
+
+        Parameters
+        ----------
+        e_ij : ndarray of shape (N, 3)
+            Edge vectors.
+        l_ij, l_jk, l_ik : ndarray of shape (N,)
+            Edge lengths of the three sides.
+
+        Returns
+        -------
+        hnda_ijk : ndarray of shape (N, 3)
+            Curvature contribution vectors  ``w_ij * e_ij``.
+        c_ijk : ndarray of shape (N,)
+            Dual area contributions.
+        """
+        ...
+
 
 # ---------------------------------------------------------------------------
 # Numpy backend (always available)
@@ -202,6 +230,28 @@ class NumpyBackend:
 
     def batch_cross_areas(self, arm1: np.ndarray, arm2: np.ndarray) -> np.ndarray:
         return np.cross(arm1, arm2) / 2.0
+
+    def batch_heron_curvature(
+        self,
+        e_ij: np.ndarray,
+        l_ij: np.ndarray,
+        l_jk: np.ndarray,
+        l_ik: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        lengths = np.stack((l_ij, l_jk, l_ik), axis=-1)
+        lengths_sorted = np.sort(lengths, axis=-1)
+        c, b, a = lengths_sorted[..., 0], lengths_sorted[..., 1], lengths_sorted[..., 2]
+
+        heron_term = (a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c))
+        A = 0.25 * np.sqrt(heron_term)
+
+        w_ij = 0.125 * (l_jk ** 2 + l_ik ** 2 - l_ij ** 2) / A
+        hnda_ijk = w_ij[:, np.newaxis] * e_ij
+
+        h_ij = 0.5 * l_ij
+        b_ij = np.abs(w_ij) * l_ij
+        c_ijk = 0.5 * b_ij * h_ij
+        return hnda_ijk, c_ijk
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +317,30 @@ class MultiprocessingBackend:
         # Vectorized numpy is already fast for cross products — no benefit
         # from distributing to workers (overhead > computation).
         return np.cross(arm1, arm2) / 2.0
+
+    def batch_heron_curvature(
+        self,
+        e_ij: np.ndarray,
+        l_ij: np.ndarray,
+        l_jk: np.ndarray,
+        l_ik: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        # Vectorized numpy — same as NumpyBackend (overhead > computation
+        # for distributing element-wise math to workers).
+        lengths = np.stack((l_ij, l_jk, l_ik), axis=-1)
+        lengths_sorted = np.sort(lengths, axis=-1)
+        c, b, a = lengths_sorted[..., 0], lengths_sorted[..., 1], lengths_sorted[..., 2]
+
+        heron_term = (a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c))
+        A = 0.25 * np.sqrt(heron_term)
+
+        w_ij = 0.125 * (l_jk ** 2 + l_ik ** 2 - l_ij ** 2) / A
+        hnda_ijk = w_ij[:, np.newaxis] * e_ij
+
+        h_ij = 0.5 * l_ij
+        b_ij = np.abs(w_ij) * l_ij
+        c_ijk = 0.5 * b_ij * h_ij
+        return hnda_ijk, c_ijk
 
     def terminate(self):
         self.pool.terminate()
@@ -447,6 +521,38 @@ class TorchBackend:
         arm2_t = torch.as_tensor(arm2, dtype=torch.float64, device=self.device)
         result = torch.cross(arm1_t, arm2_t, dim=1) / 2.0
         return result.cpu().numpy()
+
+    def batch_heron_curvature(
+        self,
+        e_ij: np.ndarray,
+        l_ij: np.ndarray,
+        l_jk: np.ndarray,
+        l_ik: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        torch = self.torch
+        dtype = torch.float64
+
+        e_ij_t = torch.as_tensor(e_ij, dtype=dtype, device=self.device)
+        l_ij_t = torch.as_tensor(l_ij, dtype=dtype, device=self.device)
+        l_jk_t = torch.as_tensor(l_jk, dtype=dtype, device=self.device)
+        l_ik_t = torch.as_tensor(l_ik, dtype=dtype, device=self.device)
+
+        lengths = torch.stack((l_ij_t, l_jk_t, l_ik_t), dim=-1)
+        lengths_sorted, _ = torch.sort(lengths, dim=-1)
+        c = lengths_sorted[..., 0]
+        b = lengths_sorted[..., 1]
+        a = lengths_sorted[..., 2]
+
+        heron_term = (a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c))
+        A = 0.25 * torch.sqrt(heron_term)
+
+        w_ij = 0.125 * (l_jk_t ** 2 + l_ik_t ** 2 - l_ij_t ** 2) / A
+        hnda_ijk = w_ij.unsqueeze(-1) * e_ij_t
+
+        h_ij = 0.5 * l_ij_t
+        b_ij = torch.abs(w_ij) * l_ij_t
+        c_ijk = 0.5 * b_ij * h_ij
+        return hnda_ijk.cpu().numpy(), c_ijk.cpu().numpy()
 
 
 # ---------------------------------------------------------------------------

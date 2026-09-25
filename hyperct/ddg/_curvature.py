@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 
 from ._geometry import normalized
+from ._retriangulation import apex_vertices
 
 
 def HNdC_ijk(
@@ -53,7 +54,7 @@ def HNdC_ijk(
     return hnda_ijk, c_ijk
 
 
-def normal_area(v, n_i: np.ndarray | None = None) -> np.ndarray:
+def normal_area(v, n_i: np.ndarray | None = None, HC=None) -> np.ndarray:
     """
     Compute the discrete normal area vector of vertex v_i.
 
@@ -78,8 +79,9 @@ def normal_area(v, n_i: np.ndarray | None = None) -> np.ndarray:
     NdA_i = np.zeros(3)
     vi = v
     for vj in v.nn:
-        # Compute the intersection set of vertices i and j:
-        e_i_int_e_j = vi.nn.intersection(vj.nn)  # Set of size 1 or 2
+        # Apex vertices opposite edge (i, j): exact when a simplex cache is
+        # present (HC given), else legacy vi.nn ∩ vj.nn.
+        e_i_int_e_j = apex_vertices(HC, vi, vj)  # size 1 or 2
         e_ij = vj.x_a - vi.x_a  # Compute edge ij (1x3 vector)
         # Sign convention: flip edge to point FROM j TO i
         e_ij = -e_ij
@@ -121,7 +123,7 @@ def normal_area(v, n_i: np.ndarray | None = None) -> np.ndarray:
 
 
 def mean_curvature(
-    v, n_i: np.ndarray | None = None
+    v, n_i: np.ndarray | None = None, HC=None
 ) -> tuple[np.ndarray, float]:
     """
     Compute the mean normal curvature of vertex v.
@@ -150,8 +152,9 @@ def mean_curvature(
     C_i = 0.0
     vi = v
     for vj in v.nn:
-        # Compute the intersection set of vertices i and j:
-        e_i_int_e_j = vi.nn.intersection(vj.nn)  # Set of size 1 or 2
+        # Apex vertices opposite edge (i, j): exact when a simplex cache is
+        # present (HC given), else legacy vi.nn ∩ vj.nn.
+        e_i_int_e_j = apex_vertices(HC, vi, vj)  # size 1 or 2
         e_ij = vj.x_a - vi.x_a  # Compute edge ij (1x3 vector)
         # Sign convention: flip edge to point FROM j TO i
         e_ij = -e_ij
@@ -200,7 +203,7 @@ def mean_curvature(
 
 
 def integrated_curvature(
-    v, n_i: np.ndarray | None = None
+    v, n_i: np.ndarray | None = None, HC=None
 ) -> tuple[np.ndarray, float]:
     """
     Compute the integrated mean curvature at vertex v.
@@ -230,8 +233,9 @@ def integrated_curvature(
     C_i = 0.0
     vi = v
     for vj in v.nn:
-        # Compute the intersection set of vertices i and j:
-        e_i_int_e_j = vi.nn.intersection(vj.nn)  # Set of size 1 or 2
+        # Apex vertices opposite edge (i, j): exact when a simplex cache is
+        # present (HC given), else legacy vi.nn ∩ vj.nn.
+        e_i_int_e_j = apex_vertices(HC, vi, vj)  # size 1 or 2
         e_ij = vj.x_a - vi.x_a  # Compute edge ij (1x3 vector)
         # Sign convention: flip edge to point FROM j TO i
         e_ij = -e_ij

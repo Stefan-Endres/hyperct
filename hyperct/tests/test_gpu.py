@@ -494,3 +494,75 @@ class TestGPUAutoDetectIntegration:
             v_gpu = HC_gpu.V[v_ref.x]
             assert v_ref.feasible == v_gpu.feasible
             npt.assert_allclose(v_ref.f, v_gpu.f, rtol=1e-10)
+
+
+# ---------------------------------------------------------------------------
+# batch_heron_curvature tests
+# ---------------------------------------------------------------------------
+class _HeronCurvatureFixtures:
+    """Shared test data for batch_heron_curvature tests."""
+
+    SQRT3 = np.sqrt(3.0)
+
+    # Equilateral triangle, side 1
+    EQUILATERAL = dict(
+        e_ij=np.array([[1.0, 0.0, 0.0]]),
+        l_ij=np.array([1.0]),
+        l_jk=np.array([1.0]),
+        l_ik=np.array([1.0]),
+    )
+    EQUILATERAL_HNDA = np.array([[1.0 / (2.0 * np.sqrt(3.0)), 0.0, 0.0]])
+    EQUILATERAL_C = np.array([1.0 / (8.0 * np.sqrt(3.0))])
+
+    @staticmethod
+    def random_batch(n=200, seed=42):
+        rng = np.random.default_rng(seed)
+        p_i = rng.standard_normal((n, 3))
+        p_j = rng.standard_normal((n, 3))
+        p_k = rng.standard_normal((n, 3))
+        e_ij = p_j - p_i
+        e_jk = p_k - p_j
+        e_ik = p_k - p_i
+        return dict(
+            e_ij=e_ij,
+            l_ij=np.linalg.norm(e_ij, axis=1),
+            l_jk=np.linalg.norm(e_jk, axis=1),
+            l_ik=np.linalg.norm(e_ik, axis=1),
+        )
+
+
+class TestHeronCurvatureNumpy(_HeronCurvatureFixtures):
+
+    def test_equilateral_vs_theory(self):
+        backend = NumpyBackend()
+        hnda, c = backend.batch_heron_curvature(**self.EQUILATERAL)
+        npt.assert_allclose(hnda, self.EQUILATERAL_HNDA, atol=1e-15)
+        npt.assert_allclose(c, self.EQUILATERAL_C, atol=1e-15)
+
+    def test_random_batch_shapes(self):
+        backend = NumpyBackend()
+        data = self.random_batch(100)
+        hnda, c = backend.batch_heron_curvature(**data)
+        assert hnda.shape == (100, 3)
+        assert c.shape == (100,)
+
+
+@requires_torch
+class TestHeronCurvatureTorch(_HeronCurvatureFixtures):
+
+    def test_equilateral_matches_numpy(self):
+        np_backend = NumpyBackend()
+        torch_backend = TorchBackend()
+        hnda_np, c_np = np_backend.batch_heron_curvature(**self.EQUILATERAL)
+        hnda_t, c_t = torch_backend.batch_heron_curvature(**self.EQUILATERAL)
+        npt.assert_allclose(hnda_t, hnda_np, atol=1e-14)
+        npt.assert_allclose(c_t, c_np, atol=1e-14)
+
+    def test_random_batch_matches_numpy(self):
+        np_backend = NumpyBackend()
+        torch_backend = TorchBackend()
+        data = self.random_batch(200)
+        hnda_np, c_np = np_backend.batch_heron_curvature(**data)
+        hnda_t, c_t = torch_backend.batch_heron_curvature(**data)
+        npt.assert_allclose(hnda_t, hnda_np, atol=1e-13)
+        npt.assert_allclose(c_t, c_np, atol=1e-13)

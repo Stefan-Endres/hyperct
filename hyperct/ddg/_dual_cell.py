@@ -89,6 +89,101 @@ def dual_cell_polygon_2d(
     -------
     np.ndarray
         Polygon vertices, shape ``(N, 2)``, ordered counterclockwise.
+
+    Notes
+    -----
+    The polygon is ordered by walking the primal-edge adjacency around
+    ``v``: each primal edge (v, v_j) owns the two dual vertices shared
+    with ``v_j``, and consecutive dual vertices around the cell share a
+    primal edge.  This is exact for any cell shape.  The previous
+    angular sort about ``v`` assumed the cell is star-convex about the
+    primal vertex, which fails for circumcentric duals once a
+    circumcenter falls outside its (obtuse) triangle and produced
+    mis-ordered polygons with the wrong area.  The angular sort is kept
+    only as a fallback when the walk cannot close (boundary or
+    degenerate connectivity).
+    """
+    polygon = _dual_cell_polygon_2d_walk(v, include_edge_midpoints)
+    if polygon is None:
+        polygon = _dual_cell_polygon_2d_angular(v, include_edge_midpoints)
+
+    if len(polygon) < 3:
+        raise ValueError(
+            f"Vertex {v.x} has {len(polygon)} dual cell polygon "
+            "vertices; expected >= 3 for an interior 2D vertex."
+        )
+    return polygon
+
+
+def _dual_cell_polygon_2d_walk(v, include_edge_midpoints):
+    """Order the dual cell polygon by walking primal-edge adjacency.
+
+    Returns ``None`` when the walk cannot form a single closed cycle
+    (boundary vertices, degenerate connectivity), signalling the caller
+    to fall back to the angular sort.
+    """
+    # Each primal edge (v, v_j) owns exactly two dual vertices for an
+    # interior vertex; each dual vertex (triangle around v) touches
+    # exactly two primal edges of v.
+    edge_duals = {}          # id(v_j) -> (mp_j, [vd, vd])
+    vd_edges = {}            # id(vd)  -> list of id(v_j)
+    vd_pos = {}
+    for v_j in v.nn:
+        shared = list(v.vd.intersection(v_j.vd))
+        if len(shared) != 2:
+            return None
+        mp = 0.5 * (v.x_a[:2] + v_j.x_a[:2])
+        edge_duals[id(v_j)] = (mp, shared)
+        for vd in shared:
+            vd_edges.setdefault(id(vd), []).append(id(v_j))
+            vd_pos[id(vd)] = vd.x_a[:2].copy()
+    if any(len(e) != 2 for e in vd_edges.values()):
+        return None
+
+    # Walk the cycle: vd -> other primal edge -> other vd -> ...
+    j_ids = list(edge_duals)
+    start_j = j_ids[0]
+    mp0, (vd_a, vd_b) = edge_duals[start_j]
+    cycle = []               # list of (vd_id, j_id_leaving_it)
+    curr_vd, curr_j = id(vd_b), start_j
+    for _ in range(len(j_ids)):
+        next_j = next(j for j in vd_edges[curr_vd] if j != curr_j)
+        cycle.append((curr_vd, next_j))
+        curr_j = next_j
+        _, pair = edge_duals[next_j]
+        curr_vd = next(id(x) for x in pair if id(x) != curr_vd)
+    if curr_vd != id(vd_b) or len({c[0] for c in cycle}) != len(vd_edges):
+        return None          # did not close over all dual vertices
+
+    pts = []
+    for vd_id, j_id in cycle:
+        pts.append(vd_pos[vd_id])
+        if include_edge_midpoints:
+            pts.append(edge_duals[j_id][0])
+    positions = np.array(pts)
+
+    # Drop consecutive coincident points (a circumcenter of a right
+    # triangle lies exactly at an edge midpoint)
+    keep = [0]
+    for k in range(1, len(positions)):
+        if not np.allclose(positions[k], positions[keep[-1]], atol=1e-12):
+            keep.append(k)
+    if len(keep) > 1 and np.allclose(positions[keep[-1]], positions[keep[0]],
+                                     atol=1e-12):
+        keep.pop()
+    positions = positions[keep]
+
+    # Orient counterclockwise (shoelace sign)
+    if _shoelace_area(positions) < 0:
+        positions = positions[::-1]
+    return positions
+
+
+def _dual_cell_polygon_2d_angular(v, include_edge_midpoints):
+    """Legacy ordering: angular sort about the primal vertex.
+
+    Only valid for cells that are star-convex about ``v``; kept as a
+    fallback for boundary/degenerate connectivity.
     """
     cx, cy = v.x_a[0], v.x_a[1]
 
@@ -114,12 +209,8 @@ def dual_cell_polygon_2d(
         positions = positions[np.sort(unique_idx)]
 
     if len(positions) < 3:
-        raise ValueError(
-            f"Vertex {v.x} has {len(positions)} dual cell polygon "
-            "vertices; expected >= 3 for an interior 2D vertex."
-        )
+        return positions
 
-    # Angular sort around the primal vertex (star-convex guarantee)
     angles = np.arctan2(positions[:, 1] - cy, positions[:, 0] - cx)
     order = np.argsort(angles)
     return positions[order]
