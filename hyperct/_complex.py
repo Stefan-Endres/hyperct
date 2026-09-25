@@ -264,6 +264,14 @@ class Complex:
 
         self.V_non_symm = []  # List of non-symmetric vertices
 
+        # Explicit top-dimensional simplex cache: ``None`` until populated
+        # by :func:`hyperct.ddg.connect_and_cache_simplices` (a list of
+        # ``dim+1``-tuples of vertex objects afterwards).  Consumers such as
+        # the simplex-aware ``compute_vd`` and ``boundary_from_simplices``
+        # read it with ``getattr(HC, '_simplices', None)``; initialising it
+        # here makes direct reads on a fresh complex well defined.
+        self._simplices = None
+
         if vfield is not None:
             logging.warning("Vector field applications have not been "
                             "implemented yet.")
