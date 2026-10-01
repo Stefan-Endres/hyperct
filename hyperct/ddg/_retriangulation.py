@@ -194,20 +194,26 @@ def rebuild_simplex_cache_2d(HC) -> int:
     Derived caches (``HC._edge_to_apex``, an active ``HC.SC``) are
     reset exactly as in :func:`invalidate_simplex_cache`.
 
+    The triangles are enumerated in ``HC.V`` order (each triangle is
+    listed once, from its first vertex in that order, with its vertices
+    in that order), so the cache is a function of the complex alone.
+    Until 2026-10-01 the enumeration was ordered by ``id()``, i.e. by
+    memory address, and the triangle order differed between processes:
+    everything summed over the cache (barycentres, dual volumes) was
+    reproducible only to round-off.
+
     Returns
     -------
     int
         The number of cached triangles.
     """
+    rank = {v: i for i, v in enumerate(HC.V)}
     tris = []
     for v in HC.V:
-        vid = id(v)
-        for v2 in v.nn:
-            if id(v2) <= vid:
-                continue
-            for v3 in v.nn:
-                if id(v3) <= id(v2):
-                    continue
+        later = sorted((w for w in v.nn if rank.get(w, -1) > rank[v]),
+                       key=rank.__getitem__)
+        for i2, v2 in enumerate(later):
+            for v3 in later[i2 + 1:]:
                 if v3 not in v2.nn:
                     continue
                 # Ghost-K_3 filter: skip cliques subdivided by a common
@@ -240,6 +246,82 @@ def rebuild_simplex_cache_2d(HC) -> int:
     if sc is not None:
         sc.mark_dirty()
     return len(tris)
+
+
+def rebuild_simplex_cache_3d(HC) -> int:
+    """Rebuild ``HC._simplices`` from the current 1-skeleton (3D).
+
+    The 3D counterpart of :func:`rebuild_simplex_cache_2d`: the
+    tetrahedra of the EXISTING connectivity are enumerated as K_4
+    cliques of the connectivity graph, in ``HC.V`` order.  Nothing is
+    re-triangulated and no edge is added or removed.
+
+    This is exact for a tetrahedralisation whose cliques are its
+    tetrahedra, which holds for the structured hyperct meshes
+    (``Complex.triangulate`` + ``refine_all``, also after a
+    cube-to-disk / cube-to-sphere projection or an extrusion).  It does
+    not hold for a general Delaunay mesh, where four mutually connected
+    vertices need not span a tetrahedron; those meshes get their cache
+    from :func:`connect_and_cache_simplices`.  Two safeguards:
+
+    - as in 2D, a clique that is subdivided by a common neighbour lying
+      strictly inside it is not a cell and is skipped;
+    - the remaining cliques must form a pseudo-manifold (no triangle
+      shared by more than two of them); otherwise the cache is left
+      empty (``None``) and ``0`` is returned, so the callers keep their
+      1-skeleton fallbacks.
+
+    Derived caches (``HC._edge_to_apex``, an active ``HC.SC``) are
+    reset exactly as in :func:`invalidate_simplex_cache`.
+
+    Returns
+    -------
+    int
+        The number of cached tetrahedra.
+    """
+    from itertools import combinations
+
+    rank = {v: i for i, v in enumerate(HC.V)}
+    tets = []
+    for v in HC.V:
+        later = sorted((w for w in v.nn if rank.get(w, -1) > rank[v]),
+                       key=rank.__getitem__)
+        for v2, v3, v4 in combinations(later, 3):
+            if not (v3 in v2.nn and v4 in v2.nn and v4 in v3.nn):
+                continue
+            # Ghost-K_4 filter: barycentric coordinates of each common
+            # neighbour w.r.t. (v, v2, v3, v4).
+            is_ghost = False
+            common = v.nn & v2.nn & v3.nn & v4.nn
+            if common:
+                p0 = np.asarray(v.x_a[:3], dtype=float)
+                edges = np.array([w.x_a[:3] for w in (v2, v3, v4)],
+                                 dtype=float) - p0
+                if abs(np.linalg.det(edges)) > 0.0:
+                    for w in common:
+                        lam = np.linalg.solve(
+                            edges.T, np.asarray(w.x_a[:3], dtype=float) - p0)
+                        if np.all(lam > 0.0) and lam.sum() < 1.0:
+                            is_ghost = True
+                            break
+            if not is_ghost:
+                tets.append((v, v2, v3, v4))
+
+    n_tets_of_face: dict = {}
+    for tet in tets:
+        for face in combinations(tet, 3):
+            key = frozenset(id(w) for w in face)
+            n_tets_of_face[key] = n_tets_of_face.get(key, 0) + 1
+    if any(n > 2 for n in n_tets_of_face.values()):
+        tets = []
+
+    HC._simplices = tets if tets else None
+    if hasattr(HC, '_edge_to_apex'):
+        HC._edge_to_apex = None
+    sc = getattr(HC, '_SC', None)
+    if sc is not None:
+        sc.mark_dirty()
+    return len(tets)
 
 
 def get_edge_apex_map(HC) -> dict | None:

@@ -47,6 +47,7 @@ from ._retriangulation import (
     get_edge_apex_map,
     invalidate_simplex_cache,
     rebuild_simplex_cache_2d,
+    rebuild_simplex_cache_3d,
 )
 from ._strategies import barycenter, circumcenter
 
@@ -72,6 +73,7 @@ __all__ = [
     "mean_curvature",
     "normal_area",
     "rebuild_simplex_cache_2d",
+    "rebuild_simplex_cache_3d",
     "simplex_dual_volumes",
     "vertex_dual_volume",
 ]

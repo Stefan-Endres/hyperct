@@ -695,3 +695,31 @@ class TestRemeshHelpers:
         # And all should be unique (by sorted id triple)
         keys = {tuple(sorted((id(a), id(b), id(c)))) for a, b, c in tris}
         assert len(keys) == 18
+
+
+# ---------------------------------------------------------------------------
+# iter_triangles_2d: only vertices of the complex (ddgclib laneS, 2026-10-01)
+# ---------------------------------------------------------------------------
+
+def test_iter_triangles_2d_skips_a_vertex_dropped_from_the_cache():
+    """``HC.V.move`` onto an occupied coordinate drops the displaced
+    vertex from ``HC.V`` but leaves its edges.  Its triangles must not be
+    yielded.  They used to be yielded unless the dropped vertex had the
+    smallest ``id`` of the three, so the result depended on memory
+    addresses (the dropped vertex here has the LARGEST id, the case the
+    old code got wrong)."""
+    HC = Complex(2, domain=[(0.0, 1.0), (0.0, 1.0)])
+    HC.triangulate()
+    HC.refine_all()
+    n_before = sum(1 for _ in iter_triangles_2d(HC))
+    dropped = max(HC.V, key=id)
+    n_with_dropped = sum(1 for t in iter_triangles_2d(HC)
+                         if any(v is dropped for v in t))
+    assert n_with_dropped > 0
+    mover = next(v for v in HC.V if v is not dropped and v not in dropped.nn)
+    HC.V.move(mover, dropped.x)
+    members = {id(v) for v in HC.V}
+    assert id(dropped) not in members and dropped.nn
+    tris = list(iter_triangles_2d(HC))
+    assert all(id(v) in members for t in tris for v in t)
+    assert len(tris) == n_before - n_with_dropped

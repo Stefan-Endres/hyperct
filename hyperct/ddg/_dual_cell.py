@@ -21,8 +21,11 @@ Both formulations also work with circumcentric duals — the polygon
 vertices are circumcenters instead of barycenters, but the structure is
 identical.
 
-Currently only interior vertices are supported.  Boundary vertex dual
-cells (half-cells truncated by the domain boundary) are deferred.
+In 2D the polygon of a boundary vertex is the half cell truncated by
+the domain boundary: the open chain of dual vertices between the two
+boundary-edge midpoints, closed through the primal vertex itself, so
+the cells of all vertices tile the mesh (corners and kinked boundaries
+included).  The 3D face routine still covers interior vertices only.
 """
 from __future__ import annotations
 
@@ -99,9 +102,12 @@ def dual_cell_polygon_2d(
     angular sort about ``v`` assumed the cell is star-convex about the
     primal vertex, which fails for circumcentric duals once a
     circumcenter falls outside its (obtuse) triangle and produced
-    mis-ordered polygons with the wrong area.  The angular sort is kept
-    only as a fallback when the walk cannot close (boundary or
-    degenerate connectivity).
+    mis-ordered polygons with the wrong area.  For a boundary vertex
+    the walk runs along the open chain of dual vertices and the polygon
+    is closed through ``v`` itself (the last polygon vertex before
+    orientation).  The angular sort is kept only as a fallback for
+    degenerate connectivity; it does not contain ``v`` and therefore
+    under-measures a boundary cell that is not on a straight boundary.
     """
     polygon = _dual_cell_polygon_2d_walk(v, include_edge_midpoints)
     if polygon is None:
@@ -118,13 +124,18 @@ def dual_cell_polygon_2d(
 def _dual_cell_polygon_2d_walk(v, include_edge_midpoints):
     """Order the dual cell polygon by walking primal-edge adjacency.
 
-    Returns ``None`` when the walk cannot form a single closed cycle
-    (boundary vertices, degenerate connectivity), signalling the caller
-    to fall back to the angular sort.
+    Interior vertex: the dual vertices form one closed cycle.  Boundary
+    vertex: they form one open chain between the midpoint duals of the
+    two boundary edges, and the cell is closed through ``v`` itself.
+
+    Returns ``None`` when the walk forms neither (degenerate
+    connectivity), signalling the caller to fall back to the angular
+    sort.
     """
-    # Each primal edge (v, v_j) owns exactly two dual vertices for an
-    # interior vertex; each dual vertex (triangle around v) touches
-    # exactly two primal edges of v.
+    # Each primal edge (v, v_j) owns exactly two dual vertices; each
+    # dual vertex (triangle around v) touches exactly two primal edges
+    # of v, except the midpoint dual of a boundary edge, which touches
+    # only that edge.
     edge_duals = {}          # id(v_j) -> (mp_j, [vd, vd])
     vd_edges = {}            # id(vd)  -> list of id(v_j)
     vd_pos = {}
@@ -137,29 +148,55 @@ def _dual_cell_polygon_2d_walk(v, include_edge_midpoints):
         for vd in shared:
             vd_edges.setdefault(id(vd), []).append(id(v_j))
             vd_pos[id(vd)] = vd.x_a[:2].copy()
-    if any(len(e) != 2 for e in vd_edges.values()):
+    ends = [vd_id for vd_id, e in vd_edges.items() if len(e) == 1]
+    if len(ends) not in (0, 2) or any(len(e) > 2 for e in vd_edges.values()):
         return None
 
-    # Walk the cycle: vd -> other primal edge -> other vd -> ...
-    j_ids = list(edge_duals)
-    start_j = j_ids[0]
-    mp0, (vd_a, vd_b) = edge_duals[start_j]
-    cycle = []               # list of (vd_id, j_id_leaving_it)
-    curr_vd, curr_j = id(vd_b), start_j
-    for _ in range(len(j_ids)):
-        next_j = next(j for j in vd_edges[curr_vd] if j != curr_j)
-        cycle.append((curr_vd, next_j))
-        curr_j = next_j
-        _, pair = edge_duals[next_j]
-        curr_vd = next(id(x) for x in pair if id(x) != curr_vd)
-    if curr_vd != id(vd_b) or len({c[0] for c in cycle}) != len(vd_edges):
-        return None          # did not close over all dual vertices
+    if ends:
+        # Boundary vertex: walk the open chain end to end, then close
+        # the half cell through the primal vertex.  Leaving v out (as
+        # the angular fallback does) drops the triangle (end, v, end):
+        # nothing on a straight boundary, 3/4 of a right-angle corner
+        # cell, and most of the response to a free-surface vertex
+        # moving along its normal.
+        curr_vd, curr_j = ends[0], vd_edges[ends[0]][0]
+        pts = [vd_pos[curr_vd]]
+        for _ in range(len(edge_duals)):
+            mp, pair = edge_duals[curr_j]
+            if include_edge_midpoints:
+                pts.append(mp)
+            curr_vd = next(id(x) for x in pair if id(x) != curr_vd)
+            pts.append(vd_pos[curr_vd])
+            if curr_vd == ends[1]:
+                break
+            curr_j = next(j for j in vd_edges[curr_vd] if j != curr_j)
+        n_pts = len(vd_edges) + (len(edge_duals) if include_edge_midpoints
+                                 else 0)
+        if curr_vd != ends[1] or len(pts) != n_pts:
+            return None      # did not run through all dual vertices
+        pts.append(v.x_a[:2].copy())
+    else:
+        # Walk the cycle: vd -> other primal edge -> other vd -> ...
+        j_ids = list(edge_duals)
+        start_j = j_ids[0]
+        mp0, (vd_a, vd_b) = edge_duals[start_j]
+        cycle = []               # list of (vd_id, j_id_leaving_it)
+        curr_vd, curr_j = id(vd_b), start_j
+        for _ in range(len(j_ids)):
+            next_j = next(j for j in vd_edges[curr_vd] if j != curr_j)
+            cycle.append((curr_vd, next_j))
+            curr_j = next_j
+            _, pair = edge_duals[next_j]
+            curr_vd = next(id(x) for x in pair if id(x) != curr_vd)
+        if (curr_vd != id(vd_b)
+                or len({c[0] for c in cycle}) != len(vd_edges)):
+            return None          # did not close over all dual vertices
 
-    pts = []
-    for vd_id, j_id in cycle:
-        pts.append(vd_pos[vd_id])
-        if include_edge_midpoints:
-            pts.append(edge_duals[j_id][0])
+        pts = []
+        for vd_id, j_id in cycle:
+            pts.append(vd_pos[vd_id])
+            if include_edge_midpoints:
+                pts.append(edge_duals[j_id][0])
     positions = np.array(pts)
 
     # Drop consecutive coincident points (a circumcenter of a right

@@ -126,15 +126,23 @@ def iter_triangles_2d(HC):
     A triangle is a triple of mutually connected vertices.  To avoid
     counting a triangle 3 times, we enforce a canonical ordering by
     ``id(v)``.
+
+    Only vertices of the complex count.  A neighbour that is no longer
+    in ``HC.V`` (``HC.V.move`` onto an occupied coordinate drops the
+    displaced vertex from the cache but leaves its edges) is skipped.
+    Such a triangle used to be yielded or not depending on whether the
+    stale vertex had the smallest ``id`` of the three, i.e. on memory
+    addresses, which differ between processes.
     """
+    members = {id(w) for w in HC.V}
     seen: set = set()
     for v in HC.V:
         vid = id(v)
         for v2 in v.nn:
-            if id(v2) <= vid:
+            if id(v2) <= vid or id(v2) not in members:
                 continue
             for v3 in v.nn:
-                if id(v3) <= id(v2):
+                if id(v3) <= id(v2) or id(v3) not in members:
                     continue
                 if v3 in v2.nn:
                     key = (vid, id(v2), id(v3))
