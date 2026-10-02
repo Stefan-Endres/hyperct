@@ -227,6 +227,10 @@ class VertexVectorField(VertexBase):
 """
 Cache objects
 """
+class VertexCollisionError(ValueError):
+    """A vertex was moved onto the coordinate key of another vertex."""
+
+
 class VertexCacheBase(object):
     """Base class for O(1) vertex caches keyed by coordinate tuples.
 
@@ -263,7 +267,7 @@ class VertexCacheBase(object):
     def __len__(self):
         return len(self.cache)
 
-    def move(self, v, x):
+    def move(self, v, x, on_collision='raise'):
         """
         Move a vertex object v to a new set of coordinates x
 
@@ -271,13 +275,78 @@ class VertexCacheBase(object):
 
         :param v: Vertex object to move
         :param x: tuple, new coordinates
+        :param on_collision: what to do when ``x`` is the key of ANOTHER
+            vertex.  ``'raise'`` (default) refuses the move with a
+            :class:`VertexCollisionError` and changes nothing.  ``'evict'``
+            is the behaviour before 2026-10-01, kept for callers whose
+            results are pinned on it: ``v`` takes the key, and the occupant
+            is dropped from the cache with its edges left in place.  It is
+            then no longer part of the complex, and when it is moved later
+            it takes ``v`` out of the cache in turn (one vertex lost per
+            collision in a loop that shifts a structured mesh).  To shift or
+            rescale many vertices use :meth:`move_all`.
         :return:
         """
+        if on_collision == 'raise':
+            other = self.cache.get(x)
+            if other is not None and other is not v:
+                raise VertexCollisionError(
+                    f"move: the coordinate key {x} is held by another vertex "
+                    f"(moving the vertex at {v.x}). Two vertices cannot share "
+                    "a key; use move_all for a shift or rescale of many "
+                    "vertices, merge the pair, or pass on_collision='evict' "
+                    "for the old behaviour (the occupant is dropped from the "
+                    "cache)")
+        elif on_collision != 'evict':
+            raise ValueError("on_collision must be 'raise' or 'evict', got "
+                             f"{on_collision!r}")
         #TODO: Instead of using pop try to retain order in list
         # (This turns out to be impractically expensive, requiring iteration
         # of the entire cache)
         self.cache.pop(v.x)
+        return self._rekey(v, x)
 
+    def move_all(self, moves):
+        """
+        Move several vertices in one operation.
+
+        A loop of :meth:`move` calls cannot shift or rescale a structured
+        mesh: the target of one vertex is often the key that another vertex
+        holds until its own turn.  Here every key is released first, so only
+        the FINAL coordinates have to be distinct.  The cache order is the
+        one a loop of :meth:`move` calls gives.
+
+        :param moves: iterable of ``(v, x)`` pairs, ``x`` the new coordinate
+            tuple of vertex ``v``
+        :raises VertexCollisionError: two vertices would end on one key (two
+            of the moved ones, or a moved one and one that stays).  Nothing
+            is changed in that case.
+        :raises ValueError: a vertex is listed twice, or a vertex is not
+            (or no longer) in this cache.  Nothing is changed in that case.
+        """
+        moves = list(moves)
+        movers = {id(v) for v, _ in moves}
+        if len(movers) != len(moves):
+            raise ValueError("move_all: a vertex is listed more than once")
+        for v, _ in moves:
+            if self.cache.get(v.x) is not v:
+                raise ValueError(
+                    f"move_all: the vertex at {v.x} is not in this cache")
+        targets = set()
+        for v, x in moves:
+            other = self.cache.get(x)
+            if x in targets or (other is not None and id(other) not in movers):
+                raise VertexCollisionError(
+                    f"move_all: two vertices would share the coordinate key "
+                    f"{x} (moving the vertex at {v.x})")
+            targets.add(x)
+        for v, _ in moves:
+            self.cache.pop(v.x)
+        for v, x in moves:
+            self._rekey(v, x)
+
+    def _rekey(self, v, x):
+        """Give vertex ``v``, already popped from the cache, the key ``x``."""
         # Note that we need to remove the object from the nn sets since the hash
         # value is changed although the object stays the same.
         vn = copy.copy(v.nn)

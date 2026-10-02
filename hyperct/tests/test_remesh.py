@@ -717,7 +717,7 @@ def test_iter_triangles_2d_skips_a_vertex_dropped_from_the_cache():
                          if any(v is dropped for v in t))
     assert n_with_dropped > 0
     mover = next(v for v in HC.V if v is not dropped and v not in dropped.nn)
-    HC.V.move(mover, dropped.x)
+    HC.V.move(mover, dropped.x, on_collision='evict')
     members = {id(v) for v in HC.V}
     assert id(dropped) not in members and dropped.nn
     tris = list(iter_triangles_2d(HC))
