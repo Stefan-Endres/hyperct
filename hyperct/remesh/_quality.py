@@ -124,31 +124,26 @@ def iter_triangles_2d(HC):
     """Yield each triangle in a 2D simplicial complex exactly once.
 
     A triangle is a triple of mutually connected vertices.  To avoid
-    counting a triangle 3 times, we enforce a canonical ordering by
-    ``id(v)``.
+    counting a triangle 3 times, it is yielded from its first vertex in
+    ``HC.V`` order, with its three vertices in that order.  (Until
+    2026-10-02 the canonical order was ``id(v)``, i.e. memory addresses:
+    which vertex a triangle was listed from, the order of its vertices
+    and so the order of the triangles differed between processes.)
 
     Only vertices of the complex count.  A neighbour that is no longer
     in ``HC.V`` (``HC.V.move`` onto an occupied coordinate drops the
     displaced vertex from the cache but leaves its edges) is skipped.
-    Such a triangle used to be yielded or not depending on whether the
-    stale vertex had the smallest ``id`` of the three, i.e. on memory
-    addresses, which differ between processes.
     """
-    members = {id(w) for w in HC.V}
-    seen: set = set()
-    for v in HC.V:
-        vid = id(v)
-        for v2 in v.nn:
-            if id(v2) <= vid or id(v2) not in members:
-                continue
-            for v3 in v.nn:
-                if id(v3) <= id(v2) or id(v3) not in members:
-                    continue
-                if v3 in v2.nn:
-                    key = (vid, id(v2), id(v3))
-                    if key in seen:
-                        continue
-                    seen.add(key)
+    verts = list(HC.V)
+    rank = {id(w): i for i, w in enumerate(verts)}
+    for r, v in enumerate(verts):
+        # the neighbours that come later in HC.V, with their rank
+        later = [(rank.get(id(w), -1), w) for w in v.nn]
+        later = [rw for rw in later if rw[0] > r]
+        for r2, v2 in later:
+            nn2 = v2.nn
+            for r3, v3 in later:
+                if r3 > r2 and v3 in nn2:
                     yield v, v2, v3
 
 

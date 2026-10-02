@@ -40,8 +40,15 @@ from hyperct.remesh._quality import (
 
 
 def _edge_list(HC) -> list[tuple]:
-    """Return a list of unique edges as ``(v_i, v_j)`` pairs, ordered by
-    ``id(v)`` so that each edge appears exactly once."""
+    """Return a list of unique edges as ``(v_i, v_j)`` pairs, each edge
+    exactly once, in ``HC.V`` order and oriented from the endpoint that
+    comes first in that order.
+
+    Until 2026-10-02 the pair was oriented by ``id(v)``, i.e. by memory
+    address.  The sweeps below are not symmetric in the pair (a collapse
+    keeps ``v_i`` and removes ``v_j``), so the remeshed complex differed
+    from process to process.
+    """
     edges = []
     seen: set = set()
     for v in HC.V:
@@ -50,7 +57,7 @@ def _edge_list(HC) -> list[tuple]:
             if key in seen:
                 continue
             seen.add(key)
-            edges.append((v, nb) if id(v) < id(nb) else (nb, v))
+            edges.append((v, nb))
     return edges
 
 

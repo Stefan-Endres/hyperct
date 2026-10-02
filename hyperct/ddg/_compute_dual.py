@@ -272,16 +272,13 @@ def _compute_vd_2d_simplex_aware(HC, strategy: DualStrategy, cdist: float) -> No
             v.vd.add(vd)
 
     # --- Step 2: build edge -> [simplex_index, ...] map ---
+    # (the sorted ids are only the KEY of an edge)
     edge_to_simps = defaultdict(list)
     for si, simplex in enumerate(simplices):
         for i in range(3):
             for j in range(i + 1, 3):
                 edge = tuple(sorted((id(simplex[i]), id(simplex[j]))))
                 edge_to_simps[edge].append(si)
-
-    # Fast id -> vertex lookup (for boundary-edge midpoint duals)
-    id_to_v = {id(simplex[i]): simplex[i]
-               for simplex in simplices for i in range(3)}
 
     # --- Step 3: connect duals across edges ---
     for edge, simp_ids in edge_to_simps.items():
@@ -292,9 +289,9 @@ def _compute_vd_2d_simplex_aware(HC, strategy: DualStrategy, cdist: float) -> No
             vd_a.connect(vd_b)
         elif len(simp_ids) == 1:
             # Boundary edge: midpoint dual and connect to the single triangle
-            va_id, vb_id = edge
-            va = id_to_v[va_id]
-            vb = id_to_v[vb_id]
+            # (its two vertices in the order of the triangle that owns
+            # it, not in ``id()`` order: memory addresses)
+            va, vb = (v for v in simplices[simp_ids[0]] if id(v) in edge)
             cd_mid = 0.5 * (va.x_a + vb.x_a)
             cd_mid = _merge_local_duals_vector(
                 [cd_mid], list(va.vd), cdist=cdist
@@ -455,14 +452,8 @@ def _compute_vd_3d_simplex_aware(HC, strategy: DualStrategy, cdist: float) -> No
             face_to_simps[face].append(si)
 
     # --- Step 3: connect duals across faces ---
-    # For fast id -> vertex lookup
-    id_to_v = {id(simplex[i]): simplex[i]
-               for simplex in simplices for i in range(4)}
-
+    # (the sorted ids are only the KEY of a face)
     for face, simp_ids in face_to_simps.items():
-        face_verts = [id_to_v[vid] for vid in face]
-        v1, v2, v3 = face_verts
-
         if len(simp_ids) == 2:
             # Interior face: connect the two tet duals
             vd_a = simplex_to_vd[simp_ids[0]]
@@ -472,6 +463,13 @@ def _compute_vd_3d_simplex_aware(HC, strategy: DualStrategy, cdist: float) -> No
             # Boundary face: create face barycenter dual and connect
             # the single tet dual to it.  Also create edge midpoint duals.
             vd_tet = simplex_to_vd[simp_ids[0]]
+
+            # The face's vertices in the order of the simplex that owns
+            # it.  The barycentre below is a sum over them; in ``id()``
+            # order (memory addresses, until 2026-10-02) its last bit, and
+            # with it the hash of the dual vertex and the iteration order
+            # of every set that holds it, differed between processes.
+            v1, v2, v3 = (v for v in simplices[simp_ids[0]] if id(v) in face)
 
             # Face barycenter dual
             verts_buf[0] = v1.x_a
@@ -968,15 +966,12 @@ def _compute_vd_nd_simplex_aware(HC, strategy: DualStrategy, cdist: float) -> No
 
     # --- Step 2: (dim-1)-face -> [simplex index] map ---
     face_to_simps = defaultdict(list)
-    id_to_v = {}
     for si, simplex in enumerate(simplices):
         for i in range(dim + 1):
             face = tuple(sorted(
                 id(simplex[j]) for j in range(dim + 1) if j != i
             ))
             face_to_simps[face].append(si)
-        for v in simplex:
-            id_to_v[id(v)] = v
 
     # --- Step 3: connect duals across faces ---
     face_coords = np.empty((dim, dim))
@@ -984,7 +979,8 @@ def _compute_vd_nd_simplex_aware(HC, strategy: DualStrategy, cdist: float) -> No
         if len(simp_ids) == 2:
             simplex_to_vd[simp_ids[0]].connect(simplex_to_vd[simp_ids[1]])
         elif len(simp_ids) == 1:
-            face_verts = [id_to_v[vid] for vid in face]
+            # in the order of the owning simplex, not in ``id()`` order
+            face_verts = [v for v in simplices[simp_ids[0]] if id(v) in face]
             for i, v in enumerate(face_verts):
                 face_coords[i] = v.x_a
             cd_face = strategy(face_coords)
