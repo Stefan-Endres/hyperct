@@ -39,7 +39,11 @@ from ._dual_cell import (
     dual_cell_polygon_2d,
     dual_cell_vertices_1d,
 )
-from ._dual_volume import simplex_dual_volumes, vertex_dual_volume
+from ._dual_volume import (
+    simplex_dual_face_areas,
+    simplex_dual_volumes,
+    vertex_dual_volume,
+)
 from ._operators import batch_e_star, d_area, e_star, v_star
 from ._retriangulation import (
     apex_vertices,
@@ -74,6 +78,7 @@ __all__ = [
     "normal_area",
     "rebuild_simplex_cache_2d",
     "rebuild_simplex_cache_3d",
+    "simplex_dual_face_areas",
     "simplex_dual_volumes",
     "vertex_dual_volume",
 ]
