@@ -530,7 +530,8 @@ def plot_contour(hc, bounds, func, func_args=()):
     :return:
     """
     xg, yg, Z = plot_field_grids(hc, bounds, func, func_args)
-    cs = pyplot.contour(xg, yg, Z, cmap='binary_r', color='k')
+    # matplotlib 3.11 removed ContourSet's 'color' kwarg: pass 'colors'
+    cs = pyplot.contour(xg, yg, Z, colors='k')
     pyplot.clabel(cs)
 
 

@@ -43,7 +43,7 @@ def _require_simplices(HC, fname: str):
     return simplices
 
 
-def simplex_dual_volumes(HC, dim: int) -> dict:
+def simplex_dual_volumes(HC, dim: int, periods=None) -> dict:
     """Exact barycentric dual volumes for all vertices of ``HC``.
 
     Computes ``Vol_i = (1/(dim+1)) * sum_{T ∋ i} |T|`` over the cached
@@ -56,6 +56,13 @@ def simplex_dual_volumes(HC, dim: int) -> dict:
         ``(dim+1)``-tuples of vertex objects).
     dim : int
         Spatial dimension (embedding dimension of the top simplices).
+    periods : sequence of float or None
+        Period of the domain on every axis (``0`` for a non-periodic
+        axis).  When given, the vertices of every simplex are brought
+        to the minimum image of its first vertex before the measure is
+        taken, so a simplex that wraps a periodic seam has the measure
+        of its wrapped (true) shape and not of the unwrapped stretch
+        across the domain.  ``None`` (default): coordinates as stored.
 
     Returns
     -------
@@ -83,6 +90,10 @@ def simplex_dual_volumes(HC, dim: int) -> dict:
             coords[i, j, :] = vv.x_a[:dim]
     # |T| = |det([x_1 - x_0, ..., x_d - x_0])| / d!
     edges = coords[:, 1:, :] - coords[:, :1, :]        # (N, dim, dim)
+    if periods is not None:
+        for ax, p in enumerate(periods):
+            if p:
+                edges[:, :, ax] -= np.round(edges[:, :, ax] / p) * p
     simplex_vols = np.abs(np.linalg.det(edges)) / math.factorial(dim)
     shares = simplex_vols / (dim + 1)
 
